@@ -3,15 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
 from shared.enums import Action
-from trust_engine.stats.rates import (
-    accuracy,
-    error_breakdown,
-    human_agreement,
-    partition,
-    utilization,
-)
 
 from tests.conftest import (
     correct_approval,
@@ -20,6 +12,13 @@ from tests.conftest import (
     escalation,
     noncritical_error,
     run,
+)
+from trust_engine.stats.rates import (
+    accuracy,
+    error_breakdown,
+    human_agreement,
+    partition,
+    utilization,
 )
 
 

@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    name: Python — lint, test, openapi freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install trust/ + shared dev tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e trust
+          pip install pytest hypothesis ruff
+
+      # backend/ and governance/ have no packaging yet (see docs/DEADLINES.md).
+      # Install them once they do, without failing the build before then.
+      - name: Install backend/ if it exists
+        run: |
+          if [ -f backend/pyproject.toml ] || [ -f backend/requirements.txt ]; then
+            pip install -e backend
+          else
+            echo "backend/ has no pyproject.toml or requirements.txt yet — skipping install"
+          fi
+
+      - name: Install governance/ if it exists
+        run: |
+          if [ -f governance/pyproject.toml ] || [ -f governance/requirements.txt ]; then
+            pip install -e governance
+          else
+            echo "governance/ has no pyproject.toml or requirements.txt yet — skipping install"
+          fi
+
+      - name: ruff check
+        run: ruff check trust/ backend/ governance/
+
+      - name: pytest — trust/
+        run: pytest trust/ -q
+
+      - name: pytest — backend/ if it has tests
+        run: |
+          if compgen -G "backend/tests/test_*.py" > /dev/null; then
+            pytest backend/tests -q
+          else
+            echo "backend/tests has no test_*.py yet — skipping"
+          fi
+
+      - name: pytest — governance/ if it has tests
+        run: |
+          if compgen -G "governance/tests/test_*.py" > /dev/null; then
+            pytest governance/tests -q
+          else
+            echo "governance/tests has no test_*.py yet — skipping"
+          fi
+
+      # Regenerates backend/openapi.json in place (same mechanism as `make
+      # openapi`) and fails if that changes anything — i.e. the committed file
+      # is stale relative to the FastAPI app. No-ops until the backend exists.
+      - name: backend/openapi.json freshness
+        run: |
+          if [ ! -f backend/app/main.py ]; then
+            echo "backend/app/main.py doesn't exist yet — nothing to check"
+            exit 0
+          fi
+          python -m backend.app.export_openapi
+          if ! git diff --exit-code backend/openapi.json; then
+            echo "::error::backend/openapi.json is stale — run 'make openapi' and commit the result"
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend — typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check frontend/ exists
+        id: frontend_check
+        run: |
+          if [ -f frontend/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "frontend/package.json doesn't exist yet — skipping the rest of this job"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.frontend_check.outputs.exists == 'true'
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        if: steps.frontend_check.outputs.exists == 'true'
+        working-directory: frontend
+        run: npm ci
+
+      # Convention: frontend/package.json defines a "typecheck" script
+      # (typically `tsc --noEmit`). See docs/lanes/ad.md.
+      - name: typecheck
+        if: steps.frontend_check.outputs.exists == 'true'
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: build
+        if: steps.frontend_check.outputs.exists == 'true'
+        working-directory: frontend
+        run: npm run build

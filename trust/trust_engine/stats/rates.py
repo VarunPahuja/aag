@@ -20,10 +20,11 @@ the coverage term that rules that out.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from shared.contracts import DecisionRecord, ProportionResult
+
 from trust_engine.constants import Z_95
 from trust_engine.stats.wilson import wilson_interval
 

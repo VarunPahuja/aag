@@ -11,7 +11,6 @@ from __future__ import annotations
 from shared.contracts import DecisionRecord
 from shared.enums import Action
 
-
 # --- normal decisions: not escalated, straightforward -------------------------------
 
 

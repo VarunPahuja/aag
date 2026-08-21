@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import pytest
-
 from shared.enums import Action
 from shared.reason_codes import (
     AGREEMENT_EVIDENCE_INSUFFICIENT,
     NO_ACTED_DECISIONS,
     WEIGHTS_RENORMALISED,
 )
+
+from tests.conftest import correct_approval, critical_error, escalation, noncritical_error, run
 from trust_engine.constants import (
     CRITICAL_ERROR_WEIGHT,
     MIN_RULED_ESCALATIONS_FOR_AGREEMENT,
@@ -27,8 +28,6 @@ from trust_engine.score import (
     critical_error_penalty,
 )
 from trust_engine.stats.rates import accuracy, error_breakdown, human_agreement, utilization
-
-from tests.conftest import correct_approval, critical_error, escalation, noncritical_error, run
 
 
 def score_of(decisions):

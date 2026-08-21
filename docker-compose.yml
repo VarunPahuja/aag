@@ -1,0 +1,40 @@
+name: aagp
+
+# Deliberately minimal: Postgres plus a DB browser. No Redis, no Celery, no
+# observability stack (Prometheus/Grafana) — cut from scope for the capstone
+# timeline. Do not add them back without an ADR (docs/adr/).
+
+services:
+  db:
+    image: postgres:16
+    container_name: aagp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aagp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aagp_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aagp}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aagp} -d ${POSTGRES_DB:-aagp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # DB GUI for teammates who don't want to reach for psql. http://localhost:8080
+  # after `make up`; server = db, credentials = POSTGRES_USER/PASSWORD above.
+  adminer:
+    image: adminer:latest
+    container_name: aagp-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

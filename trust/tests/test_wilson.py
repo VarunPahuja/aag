@@ -40,7 +40,7 @@ def test_wilson_never_escapes_the_unit_interval():
     wald_upper = p_hat + Z_95 * math.sqrt(p_hat * (1 - p_hat) / n)
     assert wald_upper > 1.0  # nonsense
 
-    for k in range(0, 21):
+    for k in range(21):
         lower, upper = wilson_interval(k, 20)
         assert 0.0 <= lower <= upper <= 1.0
 
@@ -76,7 +76,7 @@ def test_lower_bound_is_monotone_in_sample_size_at_fixed_rate():
 
 def test_lower_bound_is_monotone_in_successes_at_fixed_n():
     previous = -1.0
-    for k in range(0, 101):
+    for k in range(101):
         current = wilson_lower_bound(k, 100)
         assert current >= previous
         previous = current
