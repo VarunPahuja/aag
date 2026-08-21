@@ -33,6 +33,11 @@ CLAWBACK_CRITICAL_ERROR: Final = "CLAWBACK_CRITICAL_ERROR"
 NO_ACTED_DECISIONS: Final = "NO_ACTED_DECISIONS"
 AGREEMENT_EVIDENCE_INSUFFICIENT: Final = "AGREEMENT_EVIDENCE_INSUFFICIENT"
 WEIGHTS_RENORMALISED: Final = "WEIGHTS_RENORMALISED"
+SAMPLE_EVIDENCE_INSUFFICIENT: Final = "SAMPLE_EVIDENCE_INSUFFICIENT"
+RECOMMENDATION_CLAMPED: Final = "RECOMMENDATION_CLAMPED"
+
+# --- audit sample findings --------------------------------------------------------------
+SAMPLE_REVIEW_DISAGREEMENT: Final = "SAMPLE_REVIEW_DISAGREEMENT"
 
 HUMAN_READABLE: Final[dict[str, str]] = {
     INSUFFICIENT_SAMPLE: "Not enough acted decisions yet to support an increase.",
@@ -50,6 +55,9 @@ HUMAN_READABLE: Final[dict[str, str]] = {
     NO_ACTED_DECISIONS: "The agent has escalated everything and decided nothing.",
     AGREEMENT_EVIDENCE_INSUFFICIENT: "Too few human-ruled escalations to score agreement.",
     WEIGHTS_RENORMALISED: "Score computed over available components only.",
+    SAMPLE_EVIDENCE_INSUFFICIENT: "Too few reviewed audit samples to support an accuracy estimate.",
+    RECOMMENDATION_CLAMPED: "The proposed limit exceeded the hard ceiling and was reduced before reaching the agent.",
+    SAMPLE_REVIEW_DISAGREEMENT: "A sampled review found the agent's action did not match the reviewer's verdict.",
 }
 
 

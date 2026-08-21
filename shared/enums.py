@@ -21,6 +21,13 @@ class Action(str, Enum):
     ESCALATE = "ESCALATE"
 
 
+# NOTE: AgentState uses lowercase values below, unlike every other enum in this file
+# (which use uppercase values matching the member name). This is a pre-existing
+# inconsistency, not a new one — left as-is rather than silently changed, because the
+# trust lane already compares/serialises against these exact lowercase strings and
+# changing them would be a breaking change dressed up as a cosmetic one. New enums
+# (RecommendationStatus, OpinionVerdict, ReviewVerdict, added in v1.1) follow the
+# uppercase convention the other three enums already use.
 class AgentState(str, Enum):
     PROBATION = "probation"
     ACTIVE = "active"
@@ -39,3 +46,30 @@ class Direction(str, Enum):
     INCREASE = "INCREASE"
     HOLD = "HOLD"
     CLAWBACK = "CLAWBACK"
+
+
+class RecommendationStatus(str, Enum):
+    """Lifecycle of a governance recommendation, from proposed to resolved."""
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class OpinionVerdict(str, Enum):
+    """A single governance agent's stance on a recommendation, before opinions are
+    combined into one Recommendation."""
+
+    CONCUR = "CONCUR"
+    OBJECT = "OBJECT"
+    ABSTAIN = "ABSTAIN"
+
+
+class ReviewVerdict(str, Enum):
+    """A human reviewer's verdict on a sampled decision, from comparing the agent's
+    action against what the reviewer determines was correct."""
+
+    AGREED = "AGREED"
+    DISAGREED = "DISAGREED"
+    INCONCLUSIVE = "INCONCLUSIVE"

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[str] = "1.0"
+SCHEMA_VERSION: Final[str] = "1.1"
 
 # --- money -----------------------------------------------------------------------
 CURRENCY: Final[str] = "INR"
@@ -45,3 +45,25 @@ def rung_of(limit: int) -> int:
 def limit_of(rung: int) -> int:
     """The rupee amount for a given rung, clamped to a valid rung."""
     return AUTONOMY_LADDER[max(0, min(rung, MAX_RUNG))]
+
+
+# --- audit sampling --------------------------------------------------------------
+# An agent on the floor rung has every autonomous approval reviewed by a human; a
+# highly trusted agent at the top rung has only 5% reviewed. The shrinking review
+# burden as trust increases IS the system's ROI — earning autonomy means earning
+# less oversight, not just a higher rupee ceiling. These sampled reviews are also
+# the ground-truth source for accuracy once the system is running past the
+# simulator, where (unlike DecisionRecord.ground_truth today) no deterministic
+# correct answer exists to fall back on.
+SAMPLING_RATE_BY_RUNG: Final[tuple[float, ...]] = (1.0, 0.50, 0.25, 0.10, 0.05)
+
+# A rate is not a count. 5% of a low-volume agent's decisions can still be too few
+# reviewed samples to say anything — this is the floor on *reviewed* samples before
+# a sample-derived accuracy estimate is trusted, independent of the rate that
+# produced them.
+MIN_SAMPLES_FOR_ACCURACY_ESTIMATE: Final[int] = 20
+
+
+def sampling_rate_of(rung: int) -> float:
+    """The review-sampling rate for a given rung, clamped to a valid rung."""
+    return SAMPLING_RATE_BY_RUNG[max(0, min(rung, MAX_RUNG))]
