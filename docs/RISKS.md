@@ -1,0 +1,25 @@
+# Risk Register
+
+Live document. Update `Status` and `Likelihood`/`Impact` whenever a risk
+changes state — see `docs/README.md` for the update policy. Seeded
+2026-08-21 from `AUDIT.md` and the current repo state.
+
+| # | Risk | Likelihood | Impact | Owner | Mitigation | Status |
+|---|---|---|---|---|---|---|
+| R1 | Three of four lanes (`vp/backend`, `vc/governance`, `ad/simulator-frontend`) have zero code as of 2026-08-21 — five weeks before the 2026-09-12 deadline. Only `uk/trust` and the shared contracts have any content. | High (already true) | Critical — nothing end-to-end to demo without them | Varun (backend), governance-lane owner, Adhya (simulator/frontend) | Prioritize a thin vertical slice (simulator → trust → policy → dashboard) over lane-complete builds; don't let any lane gold-plate while others are at zero | OPEN |
+| R2 | `origin/uk/trust` as committed cannot be imported — `shared/contracts.py` is still the empty placeholder on that branch, so `pytest` collects zero tests. | Certain (already observed, `AUDIT.md` §5) | High — blocks anyone building against it | Utkarsh | Merge `uk/shared-trust-contracts` into `uk/trust` (or vice versa). Done as a stopgap on `chore/rename-and-docs`; still needs doing on `uk/trust` itself and eventually `main` | MITIGATED on this branch; OPEN on `uk/trust`/`main` |
+| R3 | No function anywhere produces the `TrustEvaluation` contract type; the autonomy ladder, cooldown, and clawback logic are unimplemented — only their constants exist (`MIN_SAMPLE_FOR_INCREASE`, `COOLDOWN_BETWEEN_INCREASES`, etc. in `trust/trust_engine/constants.py`). This is the actual "earned autonomy" mechanic, not a side feature. | Certain | High — the product's core concept doesn't exist in code yet | Utkarsh | Implement per `AUDIT.md` §7 fix checklist items 2–3 (orchestrator function + ladder/cooldown/clawback logic) | OPEN |
+| R4 | `shared/` is a four-reviewer "treaty" by convention only — nothing in CI enforces that a lane's actual return types match the contract. This has already misfired once: `trust/trust_engine/score.py`'s local `ScoreResult` duplicates most of `TrustEvaluation` under different field names instead of returning it. | Medium-High (already happened once) | Medium — breaks integration late, not at review time | Whoever owns CI (currently no one in practice — `vp/backend` is empty) | Add a CI check that imports `shared/` and asserts each lane's public functions return contract-shaped values; enforce the ADR-before-code and four-reviewer rules in `CONTRIBUTING.md` | OPEN |
+| R5 | `DecisionRecord.ground_truth` is documented as simulator-only ("every synthetic invoice carries a deterministic correct answer," `shared/enums.py`). Unclear how, or whether, the pipeline is meant to generalize to real invoices before demo day. | Medium | Medium — fine if the demo stays 100% synthetic, but currently undecided, not confirmed | Varun + Utkarsh (contract owners) | Make an explicit decision and record it in `docs/CONTEXT.md` non-goals (leaning: demo stays simulator-only per current non-goals) | OPEN — needs a decision, not urgent if scope stays synthetic |
+| R6 | The human-review pipeline that fills `recommended_action`/`human_ruling` on escalated decisions (feeding `human_agreement`) has no producer anywhere in the repo — `vc/governance` is empty. Without it, `human_agreement` will always be "insufficient evidence" and get renormalized out of every trust score. | Certain | Medium — one of four score components is permanently dark without this | `vc/governance` owner | Build a minimum-viable human-ruling input (even a bare form/CLI) before the demo needs a non-trivial trust score | OPEN |
+| R7 | `numpy`/`scipy` were declared as `trust/pyproject.toml` runtime dependencies but nothing in `trust/trust_engine/` imports them (verified by grep) — pure install/CI-time cost. Confirmed firsthand during the audit: a `scipy` wheel download stalled for 10+ minutes on a slow connection. | Medium (network-dependent) | Low-Medium — CI flakiness/slowness, not a correctness bug | Utkarsh | Removed from `trust/pyproject.toml` on `chore/rename-and-docs` (statsmodels kept under dev deps, per its `importorskip`-guarded cross-validation test) | MITIGATED on this branch; needs merging forward |
+| R8 | Local lane branches can silently be stale relative to their own `origin` remote — the local `uk/trust` audited on 2026-08-21 was 3 commits behind `origin/uk/trust` because nobody had fetched. | Medium | Low-Medium — confusion and wasted time, not data loss | Each lane owner | Habitual `git fetch --all` before starting work; consider a CI/branch-protection check that flags local/origin divergence | OPEN |
+
+## Legend
+
+- **Likelihood / Impact:** Low, Medium, High, Critical, or Certain (for risks
+  already observed rather than merely possible).
+- **Status:** `OPEN` (not addressed), `MITIGATED` (addressed somewhere but not
+  everywhere it needs to be — state where), `CLOSED` (fully resolved),
+  `MATERIALIZED` (the risk happened — replace with an incident note and a new
+  follow-up risk if needed).
