@@ -6,6 +6,31 @@ ADR.
 
 ---
 
+**2026-08-21 — Varun (via `shared/v1-1-recommendation-and-audit-sample`)** —
+Shipped `shared/` v1.1 (`SCHEMA_VERSION` "1.0" → "1.1"), the Phase 1 deliverable
+from `docs/DEADLINES.md`: added `Recommendation` + `AgentOpinion` (governance's
+output contract, mirroring `TrustEvaluation`'s role for the trust lane) and
+`AuditSample` (the rung-scaled post-hoc review mechanism, ADR-0009) to
+`shared/contracts.py`; `RecommendationStatus`, `OpinionVerdict`, `ReviewVerdict`
+to `shared/enums.py` (uppercase values, with a comment flagging — not fixing —
+`AgentState`'s pre-existing lowercase inconsistency); `SAMPLING_RATE_BY_RUNG`,
+`MIN_SAMPLES_FOR_ACCURACY_ESTIMATE`, `sampling_rate_of()` to
+`shared/constants.py`; `SAMPLE_EVIDENCE_INSUFFICIENT`, `SAMPLE_REVIEW_DISAGREEMENT`,
+`RECOMMENDATION_CLAMPED` to `shared/reason_codes.py`. Documented, as docstrings
+on `TrustEvaluation`, the two ambiguities `AUDIT.md` flagged: the
+`eligible_for_increase`/`direction` relationship and the
+`current_limit`/`current_rung` invariant. Purely additive — no existing field or
+type changed; a short list of contract gaps this surfaced (notably: no field
+distinguishing ground-truth-derived vs. sample-derived accuracy on
+`TrustEvaluation`) was handed back for a decision rather than added to the diff.
+**Why:** `docs/DEADLINES.md` requires `shared/` to freeze at this merge with all
+four lane owners' approval, and everything downstream of it (governance's
+recommendation output, the backend's review queue, the trust engine's
+production ground-truth source) is blocked on this contract existing first.
+**Affects:** all four lanes — this is the last `shared/` change permitted
+before the 6 September feature freeze per the standing rules in
+`docs/DEADLINES.md`.
+
 **2026-08-21 — Varun (via `chore/rename-and-docs`)** — Merged
 `origin/uk/shared-trust-contracts` and `origin/uk/trust` into
 `chore/rename-and-docs` before doing any rename/documentation work, since
