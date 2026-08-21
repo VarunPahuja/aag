@@ -6,6 +6,24 @@ ADR.
 
 ---
 
+**2026-08-21 — Varun (via `chore/infra-baseline`)** — Filled in every 0-byte
+root-level placeholder: `docker-compose.yml` (postgres:16 + adminer, no
+Redis/Celery/observability), `.env.example`, `Makefile`
+(setup/up/down/db-reset/test/test-trust/openapi/lint/fmt/dev/frontend, all
+skipping gracefully when a lane has no code yet), `.github/workflows/ci.yml`
+(same skip-gracefully philosophy, plus an `openapi.json` staleness check),
+`.gitattributes`, `README.md`, and `scripts/*.ps1` for teammates without GNU
+make. Also fixed 19 pre-existing ruff findings in `trust/` (mechanical only —
+import order, `range(0, n)`, one NaN-check inconsistency between two
+near-identical `_clamp01` helpers; deliberately did not run `ruff format`,
+which would have restyled the author's test-constructor style far beyond
+what the findings needed) so the new CI lint step doesn't fail on day one.
+**Why:** nothing in the repo ran end to end before this — `docs/DEADLINES.md`
+needs a working `make setup && make up` for Phase 2 to start. **Affects:**
+every lane; `make setup`/`make test-trust` verified working on this machine
+(after fixing a Windows backslash-path bug the first run caught); `make
+up`/`down` could not be verified here — no Docker installed on this machine.
+
 **2026-08-21 — Varun (via `shared/v1-1-recommendation-and-audit-sample`)** —
 Shipped `shared/` v1.1 (`SCHEMA_VERSION` "1.0" → "1.1"), the Phase 1 deliverable
 from `docs/DEADLINES.md`: added `Recommendation` + `AgentOpinion` (governance's
