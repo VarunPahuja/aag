@@ -25,6 +25,7 @@ which would invalidate the Wilson bound derived from it.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from shared.constants import TRUST_SCORE_MAX
@@ -34,6 +35,7 @@ from shared.reason_codes import (
     NO_ACTED_DECISIONS,
     WEIGHTS_RENORMALISED,
 )
+
 from trust_engine.constants import (
     CRITICAL_ERROR_WEIGHT,
     MIN_RULED_ESCALATIONS_FOR_AGREEMENT,
@@ -126,6 +128,6 @@ def compute_trust_score(
 
 
 def _clamp01(x: float) -> float:
-    if x != x:  # NaN
+    if math.isnan(x):
         return 0.0
-    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+    return 0.0 if x < 0.0 else (min(x, 1.0))

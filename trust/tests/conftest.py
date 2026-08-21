@@ -5,15 +5,13 @@ that can't be reproduced exactly is worse than no test at all.
 from __future__ import annotations
 
 import itertools
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from shared.contracts import DecisionRecord
 from shared.enums import Action
 
 _seq = itertools.count()
-BASE = datetime(2026, 7, 1, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 1, tzinfo=UTC)
 
 
 def decision(

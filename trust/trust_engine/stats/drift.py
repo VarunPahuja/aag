@@ -25,6 +25,7 @@ import math
 
 from shared.contracts import DecisionRecord, DriftResult
 from shared.enums import DriftSeverity
+
 from trust_engine.constants import (
     CRITICAL_ERROR_WINDOW,
     DRIFT_ACCURACY_DROP_PP,

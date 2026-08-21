@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import pytest
-
 from shared.enums import DriftSeverity
+
+from tests.conftest import correct_approval, critical_error, escalation, noncritical_error, run
 from trust_engine.stats.drift import (
     accuracy_counts,
     critical_errors_in_window,
@@ -12,8 +13,6 @@ from trust_engine.stats.drift import (
     split_history,
     two_proportion_z,
 )
-
-from tests.conftest import correct_approval, critical_error, escalation, noncritical_error, run
 
 
 def test_identical_rates_give_zero_z():

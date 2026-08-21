@@ -88,4 +88,4 @@ def wilson_lower_bound(successes: int, trials: int, z: float = Z_95) -> float:
 def _clamp01(x: float) -> float:
     if math.isnan(x):
         return 0.0
-    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+    return 0.0 if x < 0.0 else (min(x, 1.0))
