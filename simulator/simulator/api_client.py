@@ -1,0 +1,154 @@
+"""
+simulator/api_client.py
+------------------------
+HTTP client that talks to the backend API.
+
+THE CRITICAL RULE:
+  The simulator NEVER writes directly to the database.
+  Every invoice passes through this client → the real API → the policy engine.
+  This ensures the charts on the dashboard are built from data that actually
+  passed through the governance layer, which is the whole demo.
+
+DESIGN:
+  - Uses httpx.Client (synchronous — no async complexity for a CLI tool)
+  - JWT auth injected from environment or constructor argument
+  - Retry with exponential backoff for rate-limit errors (429)
+  - All money amounts travel as strings (matching the shared contract)
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import time
+from typing import Optional
+
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+import httpx
+
+from shared.constants import DEFAULT_API_BASE_URL, DEFAULT_API_VERSION
+from shared.contracts import (
+    AgentDecisionRecord,
+    AgentStatusResponse,
+    Invoice,
+    SubmitInvoiceRequest,
+    SubmitInvoiceResponse,
+)
+
+
+class APIClient:
+    """
+    Typed HTTP client for the Earned Autonomy Engine backend API.
+
+    Args:
+        base_url:   Backend base URL, e.g. "http://localhost:8000"
+        jwt_token:  Bearer token (falls back to API_JWT_TOKEN env var)
+        timeout:    Per-request timeout in seconds
+        max_retries: Number of retry attempts on 429/503 responses
+    """
+
+    def __init__(
+        self,
+        base_url: str = DEFAULT_API_BASE_URL,
+        jwt_token: Optional[str] = None,
+        timeout: float = 30.0,
+        max_retries: int = 3,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_prefix = f"/api/{DEFAULT_API_VERSION}"
+        self._max_retries = max_retries
+
+        resolved_token = jwt_token or os.environ.get("API_JWT_TOKEN")
+        headers = {"Content-Type": "application/json"}
+        if resolved_token:
+            headers["Authorization"] = f"Bearer {resolved_token}"
+
+        self._client = httpx.Client(
+            base_url=self.base_url,
+            headers=headers,
+            timeout=timeout,
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def submit_invoice(
+        self,
+        invoice: Invoice,
+        agent_id: str,
+    ) -> SubmitInvoiceResponse:
+        """
+        POST /api/v1/invoices
+        Submit an invoice through the policy engine.
+        Returns the backend's policy decision.
+        """
+        body = SubmitInvoiceRequest(
+            invoice=invoice,
+            agent_id=agent_id,
+        )
+        data = self._post(
+            f"{self.api_prefix}/invoices",
+            body.model_dump(mode="json"),
+        )
+        return SubmitInvoiceResponse(**data)
+
+    def get_agent_status(self, agent_id: str) -> AgentStatusResponse:
+        """GET /api/v1/agents/{agent_id}"""
+        data = self._get(f"{self.api_prefix}/agents/{agent_id}")
+        return AgentStatusResponse(**data)
+
+    def health_check(self) -> bool:
+        """GET /health — returns True if the backend is reachable."""
+        try:
+            resp = self._client.get("/health", timeout=5.0)
+            return resp.status_code < 500
+        except Exception:
+            return False
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "APIClient":
+        return self
+
+    def __exit__(self, *_) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get(self, path: str) -> dict:
+        return self._request("GET", path)
+
+    def _post(self, path: str, body: dict) -> dict:
+        return self._request("POST", path, json=body)
+
+    def _request(self, method: str, path: str, **kwargs) -> dict:
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                resp = self._client.request(method, path, **kwargs)
+                if resp.status_code == 429:
+                    # Rate limited — back off
+                    wait = 2 ** attempt
+                    time.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as exc:
+                raise RuntimeError(
+                    f"API error {exc.response.status_code} on {method} {path}: "
+                    f"{exc.response.text}"
+                ) from exc
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self._max_retries:
+                    time.sleep(2 ** attempt)
+        raise RuntimeError(
+            f"API request failed after {self._max_retries} attempts: {last_exc}"
+        )

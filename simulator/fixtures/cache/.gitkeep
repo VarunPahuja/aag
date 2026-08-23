@@ -1,0 +1,4 @@
+# This directory holds SHA-256 keyed decision cache files for GeminiAgent.
+# Cache files are named: <sha256_of_invoice_content_plus_prompt_version>.json
+# They are gitignored to avoid committing API responses to the repo.
+# The directory itself is tracked so it exists on fresh clones.

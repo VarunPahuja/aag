@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/* ============================================================
+   OPEN SANS — Primary font for the entire application
+   Loaded via Next.js font optimization (next/font/google).
+   The CSS variable --font-open-sans is injected on <html> by
+   the font loader in layout.tsx.
+   ============================================================ */
+
+@theme {
+  /* Override Tailwind's font-sans to resolve to Open Sans */
+  --font-family-sans: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+  --font-family-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+}
+
+:root {
+  --font-open-sans: "Open Sans", sans-serif;
+  --deloitte-green: #86BC25;
+  --deloitte-green-dark: #6a971d;
+  --deloitte-green-light: #f3f9e9;
+}
+
+/* ============================================================
+   GLOBAL FONT RESET
+   Ensures Open Sans is applied absolutely everywhere —
+   including elements that browsers reset to system-ui.
+   ============================================================ */
+
+html {
+  font-family: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  font-family: inherit;
+}
+
+body {
+  font-family: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  background-color: #F7F8F6;
+  color: #0F172A;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   TYPOGRAPHIC SCALE
+   ============================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+p, span, div, li, td, th, label, input, select, textarea, button {
+  font-family: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+}
+
+/* Preserve monospace only for explicitly mono-classed elements */
+code, pre, kbd, samp, .font-mono {
+  font-family: var(--font-family-mono) !important;
+}
+
+/* ============================================================
+   FORM ELEMENTS — browsers often reset these to system-ui
+   ============================================================ */
+
+input,
+select,
+textarea,
+button,
+optgroup,
+option {
+  font-family: var(--font-open-sans), "Open Sans", ui-sans-serif, sans-serif;
+  font-size: inherit;
+}
+
+select:focus, input:focus {
+  outline: none !important;
+  border-color: #86BC25 !important;
+  box-shadow: 0 0 0 2px rgba(134, 188, 37, 0.2) !important;
+}
+
+select, input, button {
+  accent-color: #86BC25;
+}
+
+/* ============================================================
+   CUSTOM SELECTION
+   ============================================================ */
+
+::selection {
+  background-color: rgba(134, 188, 37, 0.22);
+  color: #0F172A;
+}
+
+/* ============================================================
+   CUSTOM SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+
+/* ============================================================
+   LAYOUT PRIMITIVES
+   ============================================================ */
+
+.editorial-divider {
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.editorial-panel {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   TYPOGRAPHIC UTILITIES
+   ============================================================ */
+
+.eyebrow-label {
+  font-family: var(--font-open-sans), "Open Sans", sans-serif;
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+
+.metric-strip-item {
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+
+.editorial-table {
+  width: 100%;
+  font-size: 0.8125rem;
+  font-family: var(--font-open-sans), "Open Sans", sans-serif;
+  border-collapse: collapse;
+}
+
+.editorial-table th {
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.25rem;
+  background-color: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  font-family: var(--font-open-sans), "Open Sans", sans-serif;
+}
+
+.editorial-table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #F1F5F9;
+  color: #0F172A;
+  font-family: var(--font-open-sans), "Open Sans", sans-serif;
+}
+
+.editorial-table tr:hover td {
+  background-color: #F8FAFC;
+}
+
+/* ============================================================
+   PAGE CONTAINERS
+   ============================================================ */
+
+.editorial-header {
+  padding: 2.5rem 3rem 1.75rem 3rem;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.editorial-content {
+  padding: 2.5rem 3rem;
+}
