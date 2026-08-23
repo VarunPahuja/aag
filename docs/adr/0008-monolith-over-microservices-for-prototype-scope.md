@@ -10,7 +10,7 @@ Four lanes, four owners, and a genuine architectural boundary between them
 (ADR-0001) could plausibly be built as four independently deployable services
 talking over the network, or as four packages in one repository that get
 wired together in-process inside a single deployable backend. This is a
-capstone project with a fixed deadline (2026-09-12) and a four-person team —
+capstone project with a fixed deadline (2026-09-15) and a four-person team —
 the choice has real cost either way: services buy independence, a monorepo
 buys speed and simplicity.
 

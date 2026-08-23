@@ -6,6 +6,60 @@ ADR.
 
 ---
 
+**2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Named Utkarsh
+backup reviewer: if Varun P. is unavailable, Utkarsh can approve and merge
+anything that doesn't touch `shared/` (which still needs all four owners).
+**Why:** Varun P. has interview commitments 24 Aug - 3 Sept and the team
+cannot afford a lane sitting blocked on review during that window (RISKS.md
+R12). **Affects:** the review process for every lane but `shared/` itself;
+documented in `docs/DEADLINES.md` and `docs/lanes/uk.md`.
+
+**2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Deleted
+`infra/grafana/.gitkeep` and `infra/prometheus/.gitkeep`, and the now-empty
+`infra/grafana/` and `infra/prometheus/` directories. **Why:** dead scaffold
+left over from the 17 Aug initial commit for an observability stack
+`docker-compose.yml` already explicitly states is cut from scope ("No Redis,
+no Celery, no observability stack (Prometheus/Grafana)"). Flagged in
+`docs/audits/2026-08-23-state-audit.md` §4. **Affects:** `infra/` only;
+nothing referenced either directory.
+
+**2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Committed
+`docs/DEADLINES.md`, `docs/ONBOARDING.md`, `docs/SYSTEM-EXPLAINED.md`, and
+`docs/lanes/{ad,uk,vc,vp}.md` to `main` for the first time. **Why:** all of
+these existed only outside git before today. That is the direct, named root
+cause (RISKS.md R11, ADR-0010) of ~35,600 lines being built on
+`origin/ad/simulator-frontend` against an invented `shared/`, because nobody
+who cloned the 17 Aug scaffold could discover the real one existed. A
+document that isn't in the repository doesn't exist as far as a fresh clone —
+or a fresh clone's AI assistant — is concerned. **Affects:** every lane;
+`docs/ONBOARDING.md` now tells anyone joining, or anyone whose local branch
+predates 23 Aug, exactly how to catch up.
+
+**2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Merged the
+stranded `origin/docs/audit-and-risk-fix` branch (the RISKS.md three-week
+timeline correction and the 2026-08-21 pre-merge audit file), 2 days after it
+became mergeable. **Why:** it was clean and conflict-free the entire time —
+there was no technical reason for it to sit unmerged; it was simply never
+picked up. **Affects:** `docs/RISKS.md`, adds
+`docs/audits/2026-08-21-pre-merge-audit.md`.
+
+**2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Wrote ADR-0010:
+`main`'s frozen v1.1 `shared/` contracts are canonical; the divergent design
+independently built on `origin/ad/simulator-frontend` is partially ported
+(estimated 7-9 person-days per `docs/audits/2026-08-23-port-feasibility.md`),
+not merged as-is and not discarded. Submission moved **12 September → 15
+September 2026**; feature freeze moved **6 September → 9 September 2026**,
+giving the port three extra days of runway it would not otherwise have had.
+**Why:** two incompatible definitions of the core domain cannot coexist in a
+system whose entire premise is a single auditable source of truth (ADR-0005);
+discarding ~5,900 lines of real, working, port-feasible code costs more
+(10-13 person-days) than fixing its foundation (7-9). **Affects:** `shared/`,
+`simulator/`, `frontend/`; every date in `docs/DEADLINES.md` and
+`docs/lanes/*.md`; see ADR-0010 for full reasoning, `docs/RISKS.md` R9 for
+the risk this closes down to a scoped, owned, dated piece of work.
+
+---
+
 **2026-08-21 — Varun (via `chore/infra-baseline`)** — Filled in every 0-byte
 root-level placeholder: `docker-compose.yml` (postgres:16 + adminer, no
 Redis/Celery/observability), `.env.example`, `Makefile`

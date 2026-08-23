@@ -2,9 +2,10 @@
 
 This is the single source of truth for the project. If you are new to the repo — a
 teammate, a mentor, a judge — start here. It is written to require zero prior
-context. Everything in this file is checked against the actual repo state as of
-**2026-08-21**; where the code doesn't yet match the intent, that's stated
-explicitly rather than glossed over.
+context. For the full design, glossary, and every architectural decision
+explained, see `docs/SYSTEM-EXPLAINED.md`. Everything in this file is checked
+against the actual repo state as of **2026-08-23**; where the code doesn't yet
+match the intent, that's stated explicitly rather than glossed over.
 
 ---
 
@@ -52,17 +53,23 @@ lanes instead of one team building one service — see
 
 ## The four lanes
 
-| Lane | Branch | Owns |
+| Lane | Owner | Directory |
 |---|---|---|
-| Backend | `vp/backend` | FastAPI, Postgres, SQLAlchemy, Alembic, the Policy Engine, API endpoints, JWT/RBAC, Docker Compose, and wiring the other three lanes together |
-| Trust Engine | `uk/trust` | Wilson confidence bounds, accuracy/human-agreement metrics, critical-error weighting, recent-vs-historical drift detection, trust score composition, the autonomy ladder, cooldowns, and tests. **Hard rules**: no FastAPI, no SQLAlchemy/psycopg/DB access, no Redis, no Celery, no network calls. Pure functions wherever possible. Must emit the `TrustEvaluation` contract. |
-| Governance | `vc/governance` | LangGraph governance agents, Gemini integration, human-readable recommendations |
-| Simulator + Dashboard | `ad/simulator-frontend` | Synthetic invoice generation (with deterministic ground truth) and the Next.js dashboard |
+| Backend | Varun P. (team lead) | `backend/` |
+| Trust Engine | Utkarsh | `trust/`. Wilson confidence bounds, accuracy/human-agreement metrics, critical-error weighting, recent-vs-historical drift detection, trust score composition, the autonomy ladder, cooldowns, and tests. **Hard rules**: no FastAPI, no SQLAlchemy/psycopg/DB access, no Redis, no Celery, no network calls. Pure functions wherever possible. Must emit the `TrustEvaluation` contract |
+| Governance | Varun C. | `governance/`. LangGraph governance agents, Gemini integration, human-readable recommendations |
+| Simulator | Adhya (porting `origin/ad/simulator-frontend` onto real contracts), then Utkarsh | `simulator/`. Synthetic invoice generation with deterministic ground truth |
+| Frontend | Adhya | `frontend/`. The Next.js dashboard |
+
+Backend owns Postgres, SQLAlchemy, Alembic, the Policy Engine, API endpoints,
+JWT/RBAC, Docker Compose, and wiring the other lanes together.
 
 Cross-lane contracts — the types every lane agrees to use — live in `shared/`
 and are governed as a "treaty": see
 [ADR-0005](adr/0005-shared-contracts-as-cross-lane-treaty.md) and
-`CONTRIBUTING.md`.
+`CONTRIBUTING.md`. `main`'s frozen v1.1 `shared/` is the only valid contract
+set — see [ADR-0010](adr/0010-main-shared-contracts-canonical.md) for why
+that needed saying explicitly.
 
 ## End-to-end request flow (intended design)
 
@@ -106,21 +113,28 @@ require sign-off from all four lane owners (see `CONTRIBUTING.md`).
 | `AgentState(str, Enum)` | `probation`, `active`, `restricted`, `suspended` |
 | `DriftSeverity(str, Enum)` | `NONE`, `WARNING`, `CONFIRMED`, `CRITICAL` |
 | `Direction(str, Enum)` | `INCREASE`, `HOLD`, `CLAWBACK` |
+| `RecommendationStatus(str, Enum)` (v1.1) | `PENDING`, `APPROVED`, `REJECTED`, `SUPERSEDED` |
+| `OpinionVerdict(str, Enum)` (v1.1) | `CONCUR`, `OBJECT`, `ABSTAIN` |
+| `ReviewVerdict(str, Enum)` (v1.1) | `AGREED`, `DISAGREED`, `INCONCLUSIVE` |
 
 ### `shared/constants.py`
 
-`SCHEMA_VERSION="1.0"`, `CURRENCY="INR"`, `AUTONOMY_LADDER=(500, 1000, 2500,
+`SCHEMA_VERSION="1.1"`, `CURRENCY="INR"`, `AUTONOMY_LADDER=(500, 1000, 2500,
 5000, 10000)`, `AUTONOMY_FLOOR=500`, `MAX_RUNG=4`, `TRUST_SCORE_MIN/MAX=0.0/100.0`,
 `CRITICAL_ERROR_DEFINITION` (a critical error is APPROVE-ing an invoice whose
 ground truth is REJECT — money leaves the building; the reverse is an error but
-not a critical one), plus `rung_of(limit)` / `limit_of(rung)` helpers.
+not a critical one), `rung_of(limit)` / `limit_of(rung)` helpers, plus (v1.1)
+`SAMPLING_RATE_BY_RUNG=(1.0, 0.50, 0.25, 0.10, 0.05)`,
+`MIN_SAMPLES_FOR_ACCURACY_ESTIMATE=20`, and a `sampling_rate_of(rung)` helper
+for post-hoc audit sampling (ADR-0009).
 
 ### `shared/reason_codes.py`
 
-15 machine-readable string constants (increase-blocked reasons, increase-allowed
-reasons, clawback reasons, evidence-quality notes) plus a `HUMAN_READABLE` dict
-and a `describe(codes)` formatter — the rule is the human-readable sentence is
-always generated *from* a code, never written free-hand.
+18 machine-readable string constants (increase-blocked reasons, increase-allowed
+reasons, clawback reasons, evidence-quality notes, and — new in v1.1 —
+audit-sample findings) plus a `HUMAN_READABLE` dict and a `describe(codes)`
+formatter — the rule is the human-readable sentence is always generated
+*from* a code, never written free-hand.
 
 ### `shared/contracts.py`
 
@@ -132,6 +146,9 @@ always generated *from* a code, never written free-hand.
 | `AgentContext` | `current_limit=AUTONOMY_FLOOR`, `decisions_since_last_change=0`, `decisions_since_clawback=None`, `state=PROBATION` — the agent's standing, supplied by the backend |
 | `DriftResult` | `severity=NONE`, `detected=False`, `recent_accuracy`, `baseline_accuracy`, `drop_pp`, `z_statistic`, `p_value`, `critical_errors_in_window=0`, `recent_n=0`, `baseline_n=0`, `underpowered=False` |
 | `TrustEvaluation` | The complete engine output: identity/versioning, decision counts, the three `ProportionResult`s, error counts, `trust_score` + `components` + `weights_renormalised`, `drift`, ladder position (`current_limit/rung`, `recommended_limit/rung`, `direction`, `eligible_for_increase`), `state`, `reason_codes`, `evaluated_at`, `config_fingerprint` |
+| `AgentOpinion` (v1.1) | One governance agent's stance before opinions combine into a `Recommendation`: `agent_name`, `verdict` (`OpinionVerdict`), `reasoning`, `concerns`, `confidence` |
+| `Recommendation` (v1.1) | Governance's complete output, mirroring `TrustEvaluation`'s role for the trust lane: `recommendation_id`, `agent_id`, `direction`, `proposed_limit`/`proposed_rung`, `rationale`, `opinions: tuple[AgentOpinion, ...]`, `has_dissent`, `confidence`, `governance_mode`, `status` (`RecommendationStatus`), `trust_evaluation_ref`, `clamped`/`clamped_from` |
+| `AuditSample` (v1.1) | A decision pulled for post-hoc human review at the rung-scaled rate (ADR-0009): `sample_id`, `decision_id`, `agent_id`, `sampled_at`, `reviewed_at`, `reviewer`, `verdict` (`ReviewVerdict`), `reviewer_action`, plus computed `is_reviewed`/`is_pending` |
 
 `DecisionRecord.ground_truth` is documented (in `Action`'s own docstring) as
 existing because "every synthetic invoice carries a deterministic correct
@@ -177,19 +194,24 @@ the intended shape of a demo once it does:
 
 ## Current status
 
-Reality as of **2026-08-21**, not aspiration. (`main` itself is still an empty
-directory skeleton; the trust engine and shared contracts described here exist
-on branches — see `DECISION_LOG.md` for how those branches relate.)
+Reality as of **2026-08-23**, not aspiration. Full detail in
+`docs/audits/2026-08-23-state-audit.md` (and, for the simulator/frontend row
+specifically, `docs/audits/2026-08-23-port-feasibility.md`); this table is
+the summary.
 
-| Lane | What exists | What's stubbed | What's absent |
+| Lane | What exists on `main` | What's stubbed | What's absent |
 |---|---|---|---|
-| `shared/` (treaty files) | All four files fully defined: enums, constants, reason codes, contracts (`DecisionRecord`, `ProportionResult`, `ScoreComponent`, `AgentContext`, `DriftResult`, `TrustEvaluation`) | — | Not yet merged to `main` |
-| Trust Engine (`uk/trust`) | Wilson score interval, accuracy/utilization/human-agreement proportions, error breakdown, two-stage drift detection, trust-score composition with weight renormalisation — all pure functions, 113 tests (112 passing, 1 skipped for an optional dev dependency) | — | Autonomy ladder, cooldowns, and clawback logic (constants exist, e.g. `MIN_SAMPLE_FOR_INCREASE`, `COOLDOWN_BETWEEN_INCREASES`, but nothing implements them); no function produces the actual `TrustEvaluation` contract type — `compute_trust_score()` returns a different, local `ScoreResult` shape instead; precision/recall metrics named in the ownership brief don't exist as functions (only `accuracy()` does) |
-| Backend (`vp/backend`) | Empty directory skeleton (`app/api`, `app/models`, `app/policy`, `app/services`, `app/tasks`, `app/observability`, all `__init__.py`-only) | — | Everything: FastAPI app, Postgres/SQLAlchemy models, Alembic migrations, the Policy Engine, API endpoints, JWT/RBAC, Docker Compose content, and any code that calls into the trust engine |
-| Governance (`vc/governance`) | Empty directory skeleton (`governance/agents`, `governance/prompts`) | — | Everything: LangGraph agents, Gemini integration, recommendation generation, any `Recommendation`-shaped contract (none exists in `shared/` either) |
-| Simulator + Dashboard (`ad/simulator-frontend`) | Empty directory skeleton (`simulator/simulator/agents`, `frontend/src/{app,components,lib,mocks,types}`) | — | Everything: synthetic invoice generation, the governed agent itself, the Next.js dashboard |
+| `shared/` (treaty files) | **Merged 2026-08-21, frozen v1.1.** All four files: enums (incl. `RecommendationStatus`, `OpinionVerdict`, `ReviewVerdict`), constants (incl. `SAMPLING_RATE_BY_RUNG`), 18 reason codes, contracts (`DecisionRecord`, `ProportionResult`, `ScoreComponent`, `AgentContext`, `DriftResult`, `TrustEvaluation`, `AgentOpinion`, `Recommendation`, `AuditSample`) | — | Nothing — this is the one lane that's actually done |
+| Trust Engine (`trust/`) | Wilson score interval, accuracy/utilization/human-agreement proportions, error breakdown, two-stage drift detection, trust-score composition with weight renormalisation — all pure functions, 113 tests (112 passing, 1 skipped for an optional dev dependency, on CI) | — | Autonomy ladder, cooldowns, and clawback logic (constants exist, e.g. `MIN_SAMPLE_FOR_INCREASE`, `COOLDOWN_BETWEEN_INCREASES`, but nothing implements them yet — due 26 Aug, on schedule); no function produces the actual `TrustEvaluation` contract type — `compute_trust_score()` still returns a different, local `ScoreResult` shape; precision/recall metrics named in the original ownership brief don't exist as functions (only `accuracy()` does) |
+| Backend (`backend/`) | Empty directory skeleton (`app/api`, `app/models`, `app/policy`, `app/services`, `app/tasks`, `app/observability`, all `__init__.py`-only) | — | Everything. Zero commits since the 17 Aug scaffold. Its 23 Aug deliverable (`backend/openapi.json`) was missed — rescheduled to 25 Aug |
+| Governance (`governance/`) | Empty directory skeleton (`governance/agents`, `governance/prompts`) | — | Everything. Zero commits since the 17 Aug scaffold |
+| Simulator (`simulator/` on `main`) | Empty on `main`. **~5,900 lines of real, working code exist on `origin/ad/simulator-frontend`** (97 tests green there), built against an independently-designed `shared/` incompatible with the frozen one above | — | A merge — the branch conflicts on 5 files and needs porting, not merging, per ADR-0010. Port in progress, due 27 Aug |
+| Frontend (`frontend/` on `main`) | Empty on `main`. Same branch as above has 5 working routes, a build that passes `tsc`/`npm run build`, and a chart (`AutonomyTimeline.tsx`) close to reusable as-is — but hand-written types, no `shadcn/ui`, and a leftover scaffold folder (`nexttemp/`) that breaks typecheck until removed | — | A merge, for the same reason as simulator. Frontend type/scaffold cleanup due 29 Aug |
 
-**Bottom line:** the statistical core is real and well-tested; the product
-around it — the actual "earned autonomy" mechanics, and three of the four
-lanes — has not been started. See `docs/RISKS.md` for what that means for the
-deadline.
+**Bottom line:** the statistical core is real and well-tested. The actual
+"earned autonomy" ladder mechanics are still unstarted but on schedule. The
+big change since 21 Aug isn't that more is *merged* — backend and governance
+are still at zero — it's that a large, real, but incompatible body of
+simulator/frontend work now exists and needs porting rather than either lane
+starting from nothing. See `docs/RISKS.md` and `docs/DEADLINES.md` for what
+that means for the 15 September deadline.
