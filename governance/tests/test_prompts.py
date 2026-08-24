@@ -8,19 +8,24 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import FrozenInstanceError, fields, replace
+from pathlib import Path
 
 import pytest
-from shared.contracts import AgentOpinion
+from shared.contracts import AgentOpinion, TrustEvaluation
 from shared.enums import OpinionVerdict
 from shared.reason_codes import HUMAN_READABLE
 
 from governance.agents import AGENT_NAMES
 from governance.prompts import (
+    FIELD_ORDER,
     PROMPT_VERSION,
     OpinionParseError,
+    OpinionResponse,
     build_prompt,
+    evidence,
     evidence_fingerprint,
+    gemini_response_schema,
     load_prompt_text,
     parse_opinion,
     render_evidence,
@@ -147,6 +152,110 @@ def test_no_prompt_invites_the_model_to_set_a_limit(healthy_increase):
         prompt = build_prompt(agent_name, healthy_increase)
         assert "proposed_limit" not in prompt.system
         assert "You cannot change a limit" in prompt.system
+
+
+# --- prompt injection boundary --------------------------------------------------------
+
+
+# Every string-typed field of TrustEvaluation the renderer is permitted to interpolate.
+# All three are system-generated: agent_id is minted by the backend, reason codes are a
+# closed vocabulary in shared/reason_codes.py, and component names are set by the trust
+# engine. Nothing here originates with a supplier.
+APPROVED_FREE_TEXT_FIELDS = frozenset({"agent_id", "reason_codes"})
+
+
+def test_no_free_text_from_invoices_reaches_the_prompt():
+    """Pin *which* string-typed fields the renderer reads, not what its output says.
+
+    Invoice text is supplier-controlled. Rendering any of it would let a supplier write
+    instructions into a memo field and argue their own agent into a higher limit
+    (see evidence.py's module docstring).
+
+    Asserting on field names rather than on output text is the point. A test that
+    scanned the rendered string for "ignore previous instructions" would pass happily on
+    the day someone adds a vendor-supplied description field — which is precisely the
+    regression worth catching.
+    """
+    source = (Path(evidence.__file__)).read_text(encoding="utf-8")
+    referenced = set(re.findall(r"evaluation\.([a-z_]+)", source))
+
+    string_typed = {
+        field.name
+        for field in fields(TrustEvaluation)
+        if "str" in str(field.type) and field.name != "schema_version"
+    }
+
+    leaked = (referenced & string_typed) - APPROVED_FREE_TEXT_FIELDS
+    assert not leaked, (
+        f"evidence.py interpolates string-typed field(s) {sorted(leaked)} into an LLM "
+        f"prompt. If these can carry supplier-controlled text, that is indirect prompt "
+        f"injection — see evidence.py's module docstring. Widening this needs an ADR."
+    )
+
+
+def test_the_approved_fields_still_exist_on_the_contract():
+    """Guards the guard: a renamed field in shared/ must not silently empty the allowlist."""
+    contract_fields = {field.name for field in fields(TrustEvaluation)}
+    assert APPROVED_FREE_TEXT_FIELDS <= contract_fields
+
+
+# --- the Gemini dialect ---------------------------------------------------------------
+
+
+def test_gemini_schema_has_no_refs_or_defs():
+    """Gemini's responseSchema is an OpenAPI 3.0 subset with no $ref resolution.
+
+    Pydantic hoists the OpinionVerdict enum into $defs and references it; sent as-is,
+    the API rejects it. This is the integration failure worth catching offline rather
+    than at the first live call.
+    """
+    schema = gemini_response_schema()
+    serialised = json.dumps(schema)
+
+    assert "$defs" not in serialised
+    assert "$ref" not in serialised
+    assert "additionalProperties" not in serialised
+
+
+def test_gemini_schema_inlines_the_verdict_enum():
+    verdict = gemini_response_schema()["properties"]["verdict"]
+    assert verdict["type"] == "string"
+    assert set(verdict["enum"]) == {"CONCUR", "OBJECT", "ABSTAIN"}
+
+
+def test_gemini_schema_resolves_nested_array_items():
+    concerns = gemini_response_schema()["properties"]["concerns"]
+    assert concerns["type"] == "array"
+    assert concerns["items"]["type"] == "string"
+
+
+def test_reasoning_is_ordered_before_verdict():
+    """The model must argue before it concludes, not rationalise afterwards."""
+    ordering = gemini_response_schema()["propertyOrdering"]
+    assert ordering.index("reasoning") < ordering.index("verdict")
+    assert ordering.index("concerns") < ordering.index("verdict")
+
+
+def test_field_order_matches_the_model_exactly():
+    """A field added to OpinionResponse without an ordering entry would be ordered
+    arbitrarily by the API, silently undoing the reasoning-first property."""
+    assert tuple(OpinionResponse.model_fields) == FIELD_ORDER
+    assert set(gemini_response_schema()["properties"]) == set(FIELD_ORDER)
+
+
+def test_gemini_schema_still_offers_no_way_to_ask_for_authority():
+    """The constrained-decoding path must be as narrow as the validation path."""
+    assert set(gemini_response_schema()["properties"]) == {
+        "reasoning",
+        "concerns",
+        "verdict",
+        "confidence",
+    }
+
+
+def test_required_fields_survive_the_translation():
+    required = set(gemini_response_schema()["required"])
+    assert {"reasoning", "verdict", "confidence"} <= required
 
 
 # --- response validation --------------------------------------------------------------

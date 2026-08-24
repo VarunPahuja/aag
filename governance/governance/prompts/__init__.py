@@ -19,19 +19,23 @@ from governance.prompts.loader import (
     load_prompt_text,
 )
 from governance.prompts.schema import (
+    FIELD_ORDER,
     OpinionParseError,
     OpinionResponse,
+    gemini_response_schema,
     parse_opinion,
     response_json_schema,
 )
 
 __all__ = [
+    "FIELD_ORDER",
     "PROMPT_VERSION",
     "OpinionParseError",
     "OpinionResponse",
     "Prompt",
     "build_prompt",
     "evidence_fingerprint",
+    "gemini_response_schema",
     "load_prompt_text",
     "parse_opinion",
     "render_evidence",

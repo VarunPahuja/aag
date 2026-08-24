@@ -22,7 +22,7 @@ from pathlib import Path
 from shared.contracts import TrustEvaluation
 
 from governance.prompts.evidence import evidence_fingerprint, render_evidence
-from governance.prompts.schema import response_json_schema
+from governance.prompts.schema import gemini_response_schema
 
 PROMPT_DIR = Path(__file__).parent
 SHARED_PREAMBLE = "shared"
@@ -72,9 +72,14 @@ def build_prompt(
 ) -> Prompt:
     """Assemble the shared preamble, one agent's brief, the evidence, and the schema.
 
-    The output contract is appended from `response_json_schema()` rather than written
+    The output contract is appended from `gemini_response_schema()` rather than written
     into each prompt file, so the shape a model is asked for is generated from the same
     Pydantic model that validates its answer.
+
+    The schema goes in the prompt text *as well as* in the API's `response_schema`
+    field. Belt and braces: constrained decoding enforces the shape, and the prompt copy
+    means a model reading its instructions knows what the fields mean — a schema alone
+    conveys that `confidence` is a number between 0 and 1, not what it should measure.
     """
     system = "\n\n".join(
         [
@@ -92,7 +97,7 @@ def build_prompt(
                 "against this schema:"
             ),
             "```json",
-            json.dumps(response_json_schema(), indent=2, sort_keys=True),
+            json.dumps(gemini_response_schema(), indent=2, sort_keys=True),
             "```",
         ]
     )
