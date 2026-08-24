@@ -35,7 +35,7 @@ if _repo_root not in sys.path:
 
 from dataclasses import dataclass, field
 
-from shared.constants import (
+from simulator.constants import (
     AMOUNT_LOG_NORMAL_MU,
     AMOUNT_LOG_NORMAL_SIGMA,
     AMOUNT_MAX_INR,

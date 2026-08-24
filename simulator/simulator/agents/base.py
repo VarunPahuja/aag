@@ -27,7 +27,7 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.contracts import AgentDecisionRecord, Invoice
+from simulator.models import AgentOutcome, Invoice
 
 
 @runtime_checkable
@@ -42,7 +42,7 @@ class AgentProtocol(Protocol):
     agent_id: str   # Stable identifier, used as the cache namespace
     name: str       # Human-readable display name
 
-    def decide(self, invoice: Invoice) -> AgentDecisionRecord:
+    def decide(self, invoice: Invoice) -> AgentOutcome:
         """
         Process a single invoice and return a decision record.
 
@@ -51,6 +51,6 @@ class AgentProtocol(Protocol):
                      but the agent must NOT look at ground_truth_* fields).
 
         Returns:
-            AgentDecisionRecord with decision, reason, confidence, and cache metadata.
+            AgentOutcome with action, reason, confidence, and cache metadata.
         """
         ...

@@ -29,14 +29,8 @@ if _repo_root not in sys.path:
 
 import httpx
 
-from shared.constants import DEFAULT_API_BASE_URL, DEFAULT_API_VERSION
-from shared.contracts import (
-    AgentDecisionRecord,
-    AgentStatusResponse,
-    Invoice,
-    SubmitInvoiceRequest,
-    SubmitInvoiceResponse,
-)
+from simulator.constants import DEFAULT_API_BASE_URL, DEFAULT_API_VERSION
+from simulator.models import Invoice
 
 
 class APIClient:
@@ -80,26 +74,23 @@ class APIClient:
         self,
         invoice: Invoice,
         agent_id: str,
-    ) -> SubmitInvoiceResponse:
+    ) -> dict:
         """
         POST /api/v1/invoices
         Submit an invoice through the policy engine.
         Returns the backend's policy decision.
         """
-        body = SubmitInvoiceRequest(
-            invoice=invoice,
-            agent_id=agent_id,
-        )
+        body = {"invoice": invoice.model_dump(mode="json"), "agent_id": agent_id}
         data = self._post(
             f"{self.api_prefix}/invoices",
-            body.model_dump(mode="json"),
+            body,
         )
-        return SubmitInvoiceResponse(**data)
+        return data
 
-    def get_agent_status(self, agent_id: str) -> AgentStatusResponse:
+    def get_agent_status(self, agent_id: str) -> dict:
         """GET /api/v1/agents/{agent_id}"""
         data = self._get(f"{self.api_prefix}/agents/{agent_id}")
-        return AgentStatusResponse(**data)
+        return data
 
     def health_check(self) -> bool:
         """GET /health — returns True if the backend is reachable."""

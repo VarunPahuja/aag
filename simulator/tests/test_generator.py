@@ -29,8 +29,9 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import AMOUNT_MIN_INR, AMOUNT_MAX_INR, DEFAULT_SEED
-from shared.enums import AgentDecision, SimulationPhase
+from simulator.constants import AMOUNT_MIN_INR, AMOUNT_MAX_INR, DEFAULT_SEED
+from shared.enums import Action
+from simulator.models import SimulationPhase
 from simulator.distributions import baseline_params, shifted_params, recovery_params
 from simulator.generator import InvoiceGenerator
 
@@ -149,7 +150,7 @@ class TestSchemaValidity:
         """ground_truth_decision must never be None."""
         for inv in baseline_invoices:
             assert inv.ground_truth_decision is not None
-            assert isinstance(inv.ground_truth_decision, AgentDecision)
+            assert isinstance(inv.ground_truth_decision, Action)
 
     def test_ground_truth_reason_non_empty(self, baseline_invoices):
         """ground_truth_reason must be a non-empty string."""
@@ -257,5 +258,5 @@ class TestDistributionProperties:
         """A batch of 100 baseline invoices should include approve, reject, and escalate."""
         decisions = {inv.ground_truth_decision for inv in baseline_invoices}
         # At least approve and escalate should appear; reject might not on small samples
-        assert AgentDecision.APPROVE in decisions
-        assert AgentDecision.ESCALATE in decisions
+        assert Action.APPROVE in decisions
+        assert Action.ESCALATE in decisions

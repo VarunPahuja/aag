@@ -33,10 +33,11 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import CATEGORY_LIMIT_OVERRIDES, DEFAULT_SEED
-from shared.contracts import AgentDecisionRecord, Invoice
-from shared.enums import AgentDecision, AutonomyTier, InvoiceCategory
-from shared import reason_codes as RC
+from shared.constants import AUTONOMY_FLOOR, AUTONOMY_LADDER
+from shared.enums import Action
+from simulator import reason_codes as RC
+from simulator.constants import DEFAULT_SEED
+from simulator.models import AgentOutcome, Invoice
 
 
 class ScriptedAgent:
@@ -57,15 +58,15 @@ class ScriptedAgent:
         name: str = "ScriptedAgent v1",
         error_rate: float = 0.08,
         seed: int = DEFAULT_SEED,
-        tier: AutonomyTier = AutonomyTier.LOW,
+        current_limit: int = AUTONOMY_FLOOR,
     ) -> None:
         self.agent_id = agent_id
         self.name = name
         self.error_rate = error_rate
-        self.tier = tier
+        self.current_limit = current_limit
         self._rng = random.Random(seed)
 
-    def decide(self, invoice: Invoice) -> AgentDecisionRecord:
+    def decide(self, invoice: Invoice) -> AgentOutcome:
         """Decide on an invoice using simple rules + optional error injection."""
         correct_decision, correct_reason = self._rule_based_decision(invoice)
 
@@ -74,19 +75,19 @@ class ScriptedAgent:
             wrong_decision, wrong_reason = self._flip_decision(
                 correct_decision, invoice
             )
-            return AgentDecisionRecord(
+            return AgentOutcome(
                 invoice_id=invoice.invoice_id,
                 agent_id=self.agent_id,
-                decision=wrong_decision,
+                action=wrong_decision,
                 reason=wrong_reason,
                 confidence=0.6,   # Lower confidence signals uncertainty
                 from_cache=False,
             )
 
-        return AgentDecisionRecord(
+        return AgentOutcome(
             invoice_id=invoice.invoice_id,
             agent_id=self.agent_id,
-            decision=correct_decision,
+            action=correct_decision,
             reason=correct_reason,
             confidence=0.9,
             from_cache=False,
@@ -98,49 +99,39 @@ class ScriptedAgent:
 
     def _rule_based_decision(
         self, invoice: Invoice
-    ) -> tuple[AgentDecision, str]:
+    ) -> tuple[Action, str]:
         """Simple rules — similar to labeller but less sophisticated."""
         if invoice.missing_field_names:
-            return AgentDecision.ESCALATE, RC.ESCALATE_MISSING_FIELDS
+            return Action.ESCALATE, RC.ESCALATE_MISSING_FIELDS
 
         amount = Decimal(invoice.amount)
         if amount <= 0:
-            return AgentDecision.REJECT, RC.REJECT_NEGATIVE_AMOUNT
+            return Action.REJECT, RC.REJECT_NEGATIVE_AMOUNT
 
         try:
-            cat = InvoiceCategory(invoice.category)
+            invoice.category
         except ValueError:
-            return AgentDecision.REJECT, RC.REJECT_INVALID_CATEGORY
+            return Action.REJECT, RC.REJECT_INVALID_CATEGORY
 
-        limit = self._get_limit(cat)
-        high_limit = self._get_high_limit(cat)
+        limit = self.current_limit
+        high_limit = AUTONOMY_LADDER[-1]
 
         if amount > high_limit:
-            return AgentDecision.REJECT, RC.REJECT_EXCEEDS_LIMIT
+            return Action.REJECT, RC.REJECT_EXCEEDS_LIMIT
         if amount > limit:
-            return AgentDecision.ESCALATE, RC.ESCALATE_EXCEEDS_TIER
+            return Action.ESCALATE, RC.ESCALATE_EXCEEDS_TIER
 
-        return AgentDecision.APPROVE, RC.APPROVE_WITHIN_LIMIT
+        return Action.APPROVE, RC.APPROVE_WITHIN_LIMIT
 
     def _flip_decision(
-        self, correct: AgentDecision, invoice: Invoice
-    ) -> tuple[AgentDecision, str]:
+        self, correct: Action, invoice: Invoice
+    ) -> tuple[Action, str]:
         """Return a plausible wrong decision."""
-        if correct == AgentDecision.APPROVE:
+        if correct == Action.APPROVE:
             # Wrongly escalate (most common mistake)
-            return AgentDecision.ESCALATE, RC.ESCALATE_BOUNDARY_AMOUNT
-        if correct == AgentDecision.ESCALATE:
+            return Action.ESCALATE, RC.ESCALATE_BOUNDARY_AMOUNT
+        if correct == Action.ESCALATE:
             # Wrongly approve (miss the escalation trigger)
-            return AgentDecision.APPROVE, RC.APPROVE_WITHIN_LIMIT
+            return Action.APPROVE, RC.APPROVE_WITHIN_LIMIT
         # correct == REJECT → wrongly escalate instead
-        return AgentDecision.ESCALATE, RC.ESCALATE_POLICY_CONFLICT
-
-    def _get_limit(self, category: InvoiceCategory) -> int:
-        return CATEGORY_LIMIT_OVERRIDES.get(self.tier.value, {}).get(
-            category.value, 5000
-        )
-
-    def _get_high_limit(self, category: InvoiceCategory) -> int:
-        return CATEGORY_LIMIT_OVERRIDES.get("high", {}).get(
-            category.value, 50000
-        )
+        return Action.ESCALATE, RC.ESCALATE_POLICY_CONFLICT

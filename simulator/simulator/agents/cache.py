@@ -34,8 +34,8 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.contracts import AgentDecisionRecord, Invoice
-from shared.constants import AGENT_PROMPT_VERSION
+from simulator.constants import AGENT_PROMPT_VERSION
+from simulator.models import AgentOutcome, Invoice
 
 
 class DecisionCache:
@@ -59,7 +59,7 @@ class DecisionCache:
     # Public API
     # ------------------------------------------------------------------
 
-    def get(self, invoice: Invoice) -> Optional[AgentDecisionRecord]:
+    def get(self, invoice: Invoice) -> Optional[AgentOutcome]:
         """Return a cached decision record, or None if not cached."""
         key = self._make_key(invoice)
         path = self._key_to_path(key)
@@ -68,7 +68,7 @@ class DecisionCache:
             return None
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            record = AgentDecisionRecord(**data)
+            record = AgentOutcome(**data)
             record.from_cache = True
             record.cache_key = key
             self._hits += 1
@@ -78,7 +78,7 @@ class DecisionCache:
             self._misses += 1
             return None
 
-    def put(self, invoice: Invoice, record: AgentDecisionRecord) -> str:
+    def put(self, invoice: Invoice, record: AgentOutcome) -> str:
         """Store a decision record in the cache. Returns the cache key."""
         key = self._make_key(invoice)
         path = self._key_to_path(key)

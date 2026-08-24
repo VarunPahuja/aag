@@ -41,13 +41,13 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import DEFAULT_SEED, WILSON_Z
-from shared.enums import AgentDecision, SimulationPhase
+from simulator.constants import DEFAULT_SEED, WILSON_Z
+from shared.enums import Action as AgentDecision
+from simulator.models import SimulationPhase, SimulationRunConfig
 from simulator.generator import InvoiceGenerator
 from simulator.distributions import baseline_params, shifted_params, recovery_params
 from simulator.agents.scripted import ScriptedAgent
 from simulator.runner import SimulationRunner, wilson_lower_bound
-from shared.contracts import SimulationRunConfig
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ from shared.contracts import SimulationRunConfig
 def run_simulation(phase_str: str, n: int = 200) -> dict:
     """Run a simulation and return a summary dict."""
     from simulator.distributions import get_params
-    from shared.enums import SimulationPhase as SP
+    from simulator.models import SimulationPhase as SP
 
     phase_enum = SP(phase_str)
     params = get_params(phase_str)
@@ -113,16 +113,16 @@ class TestGroundTruthDistribution:
             "Baseline has no REJECT decisions — distribution may be too easy"
         )
 
-    def test_degraded_has_more_escalate_than_baseline(self):
-        """Degraded phase must have more ESCALATE decisions (harder invoices)."""
+    def test_degraded_has_more_rejects_than_baseline(self):
+        """Degraded phase must have more hard-invalid invoices."""
         baseline_invoices = InvoiceGenerator(seed=DEFAULT_SEED, params=baseline_params()).generate(200)
         degraded_invoices = InvoiceGenerator(seed=DEFAULT_SEED, params=shifted_params(), phase=SimulationPhase.DEGRADED).generate(200)
 
-        baseline_esc = sum(1 for inv in baseline_invoices if inv.ground_truth_decision == AgentDecision.ESCALATE)
-        degraded_esc = sum(1 for inv in degraded_invoices if inv.ground_truth_decision == AgentDecision.ESCALATE)
+        baseline_reject = sum(1 for inv in baseline_invoices if inv.ground_truth_decision == AgentDecision.REJECT)
+        degraded_reject = sum(1 for inv in degraded_invoices if inv.ground_truth_decision == AgentDecision.REJECT)
 
-        assert degraded_esc > baseline_esc, (
-            f"Degraded should have more ESCALATEs: baseline={baseline_esc}, degraded={degraded_esc}"
+        assert degraded_reject > baseline_reject, (
+            f"Degraded should have more REJECTs: baseline={baseline_reject}, degraded={degraded_reject}"
         )
 
     def test_degraded_has_more_boundary_cases(self):

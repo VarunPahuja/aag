@@ -30,15 +30,14 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import (
+from simulator.constants import (
     AMOUNT_MAX_INR,
     AMOUNT_MIN_INR,
     BLOCKED_VENDORS,
     DEFAULT_SEED,
     REQUIRED_INVOICE_FIELDS,
 )
-from shared.contracts import Invoice
-from shared.enums import InvoiceCategory, SimulationPhase
+from simulator.models import Invoice, InvoiceCategory, SimulationPhase
 from simulator.distributions import DistributionParams
 from simulator.labeller import GroundTruthLabeller
 
@@ -249,12 +248,9 @@ class InvoiceGenerator:
         In degraded phase, some fraction of amounts are nudged into the
         boundary zone (±boundary_tolerance of the category policy limit).
         """
-        from shared.constants import CATEGORY_LIMIT_OVERRIDES
-
         # Should this invoice be a boundary case?
         if self.rng.random() < self.params.boundary_fraction:
-            # Pick the LOW tier limit for this category as the boundary target
-            limit = CATEGORY_LIMIT_OVERRIDES["low"].get(category.value, 5000)
+            limit = 500
             tol = self.params.boundary_tolerance
             # Uniformly sample within ±tol of the limit
             lo = int(limit * (1 - tol))
@@ -305,8 +301,7 @@ class InvoiceGenerator:
 
     def _is_boundary_amount(self, amount: int, category: InvoiceCategory) -> bool:
         """Check if the amount falls within boundary_tolerance of the LOW tier limit."""
-        from shared.constants import CATEGORY_LIMIT_OVERRIDES
-        limit = CATEGORY_LIMIT_OVERRIDES["low"].get(category.value, 5000)
+        limit = 500
         tol = self.params.boundary_tolerance
         return abs(amount - limit) / limit <= tol
 

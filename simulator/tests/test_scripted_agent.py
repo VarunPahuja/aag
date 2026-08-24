@@ -24,9 +24,8 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import DEFAULT_SEED
-from shared.contracts import AgentDecisionRecord
-from shared.enums import SimulationPhase
+from simulator.constants import DEFAULT_SEED
+from simulator.models import AgentOutcome, SimulationPhase
 from simulator.generator import InvoiceGenerator
 from simulator.distributions import baseline_params
 from simulator.agents.scripted import ScriptedAgent
@@ -73,7 +72,7 @@ class TestProtocolCompliance:
 
     def test_decide_returns_agent_decision_record(self, clean_agent, invoices):
         record = clean_agent.decide(invoices[0])
-        assert isinstance(record, AgentDecisionRecord)
+        assert isinstance(record, AgentOutcome)
 
     def test_record_has_invoice_id(self, clean_agent, invoices):
         record = clean_agent.decide(invoices[0])

@@ -23,8 +23,9 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.enums import AgentDecision, AutonomyTier, InvoiceCategory, SimulationPhase
-from shared import reason_codes as RC
+from shared.enums import Action as AgentDecision
+from simulator.models import InvoiceCategory, SimulationPhase
+from simulator import reason_codes as RC
 from simulator.labeller import GroundTruthLabeller
 
 
@@ -59,7 +60,7 @@ class FakeInvoice:
 
 @pytest.fixture
 def labeller():
-    return GroundTruthLabeller(autonomy_tier=AutonomyTier.LOW)
+    return GroundTruthLabeller(current_limit=2500)
 
 
 # ---------------------------------------------------------------------------
@@ -216,15 +217,14 @@ class TestRule7ExceedsTierLimit:
 
 class TestRule8BoundaryZone:
     def test_amount_in_boundary_zone_escalates(self, labeller):
-        # LOW limit for travel = 3,000; 95% = 2,850 → boundary zone [2,850, 3,000]
-        inv = FakeInvoice(amount="2900.00", category="travel")
+        # Current rung limit is ₹2,500; boundary zone is [₹2,375, ₹2,500].
+        inv = FakeInvoice(amount="2400.00", category="travel")
         decision, reason, confidence = labeller.label(inv)
         assert decision == AgentDecision.ESCALATE
         assert reason == RC.ESCALATE_BOUNDARY_AMOUNT
         assert confidence == 0.7
 
     def test_amount_just_below_boundary_approves(self, labeller):
-        # Just below the boundary zone lower bound for supplies (2,500 * 0.95 = 2,375)
         inv = FakeInvoice(amount="2000.00", category="supplies")
         decision, _, _ = labeller.label(inv)
         assert decision == AgentDecision.APPROVE
@@ -300,6 +300,6 @@ class TestDeterminism:
     def test_labeller_has_no_mutable_state(self):
         """Two separate labeller instances must produce identical results."""
         inv = FakeInvoice(amount="2800.00", category="travel")
-        lab1 = GroundTruthLabeller(autonomy_tier=AutonomyTier.LOW)
-        lab2 = GroundTruthLabeller(autonomy_tier=AutonomyTier.LOW)
+        lab1 = GroundTruthLabeller(current_limit=2500)
+        lab2 = GroundTruthLabeller(current_limit=2500)
         assert lab1.label(inv) == lab2.label(inv)

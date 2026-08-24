@@ -33,14 +33,11 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import (
-    BLOCKED_VENDORS,
-    CATEGORY_LIMIT_OVERRIDES,
-    TIER_LIMITS,
-    REQUIRED_INVOICE_FIELDS,
-)
-from shared.enums import AgentDecision, AutonomyTier, InvoiceCategory
-from shared import reason_codes as RC
+from shared.constants import AUTONOMY_FLOOR, AUTONOMY_LADDER
+from simulator.constants import BLOCKED_VENDORS
+from shared.enums import Action
+from simulator import reason_codes as RC
+from simulator.models import Invoice, InvoiceCategory
 
 
 # Threshold below which an ambiguous vendor is always approved (tiny amounts are fine)
@@ -57,12 +54,12 @@ class GroundTruthLabeller:
     (boundary cases are genuinely ambiguous even under the rules).
     """
 
-    def __init__(self, autonomy_tier: AutonomyTier = AutonomyTier.LOW) -> None:
+    def __init__(self, current_limit: int = AUTONOMY_FLOOR) -> None:
         """
         autonomy_tier controls which limit table is used.
         In simulation, agents start at LOW; the trust engine may upgrade them.
         """
-        self.autonomy_tier = autonomy_tier
+        self.current_limit = current_limit
 
     # ------------------------------------------------------------------
     # Public
@@ -70,31 +67,31 @@ class GroundTruthLabeller:
 
     def label(
         self, invoice  # type: Invoice — avoid circular import at module level
-    ) -> tuple[AgentDecision, str, float]:
+    ) -> tuple[Action, str, float]:
         """
         Apply rules in priority order and return (decision, reason_code, confidence).
         """
         # Rule 1: Missing required fields
         if invoice.missing_field_names:
-            return AgentDecision.ESCALATE, RC.ESCALATE_MISSING_FIELDS, 1.0
+            return Action.ESCALATE, RC.ESCALATE_MISSING_FIELDS, 1.0
 
         # Rule 2: Blocked vendor
         if invoice.vendor_name in BLOCKED_VENDORS:
-            return AgentDecision.REJECT, RC.REJECT_BLOCKED_VENDOR, 1.0
+            return Action.REJECT, RC.REJECT_BLOCKED_VENDOR, 1.0
 
         # Rule 3: Invalid category (shouldn't happen with a typed enum but belt-and-suspenders)
         try:
-            cat = InvoiceCategory(invoice.category)
+            InvoiceCategory(invoice.category)
         except ValueError:
-            return AgentDecision.REJECT, RC.REJECT_INVALID_CATEGORY, 1.0
+            return Action.REJECT, RC.REJECT_INVALID_CATEGORY, 1.0
 
         # Rule 4: Parse and validate amount
         try:
             amount = Decimal(invoice.amount)
         except InvalidOperation:
-            return AgentDecision.REJECT, RC.REJECT_NEGATIVE_AMOUNT, 1.0
+            return Action.REJECT, RC.REJECT_NEGATIVE_AMOUNT, 1.0
         if amount <= 0:
-            return AgentDecision.REJECT, RC.REJECT_NEGATIVE_AMOUNT, 1.0
+            return Action.REJECT, RC.REJECT_NEGATIVE_AMOUNT, 1.0
 
         # Rule 5: Future date
         invoice_date = invoice.invoice_date
@@ -102,43 +99,32 @@ class GroundTruthLabeller:
             from datetime import datetime
             invoice_date = datetime.strptime(invoice_date, "%Y-%m-%d").date()
         if invoice_date > date.today():
-            return AgentDecision.REJECT, RC.REJECT_FUTURE_DATE, 1.0
+            return Action.REJECT, RC.REJECT_FUTURE_DATE, 1.0
 
         # Rule 6: Amount exceeds HIGH tier limit (globally too large)
-        high_limit = self._get_limit(cat, AutonomyTier.HIGH)
+        high_limit = AUTONOMY_LADDER[-1]
         if amount > high_limit:
-            return AgentDecision.REJECT, RC.REJECT_EXCEEDS_LIMIT, 1.0
+            return Action.REJECT, RC.REJECT_EXCEEDS_LIMIT, 1.0
 
         # Rule 7: Amount exceeds current tier limit → escalate for human review
-        current_limit = self._get_limit(cat, self.autonomy_tier)
+        current_limit = self.current_limit
         if amount > current_limit:
-            return AgentDecision.ESCALATE, RC.ESCALATE_EXCEEDS_TIER, 1.0
+            return Action.ESCALATE, RC.ESCALATE_EXCEEDS_TIER, 1.0
 
         # Rule 8: Boundary zone (±5 % of current limit)
         tol = 0.05
         lower_bound = current_limit * (1 - tol)
         if lower_bound <= float(amount) <= current_limit:
             # Amount is in the zone [limit * 0.95, limit] — escalate, confidence 0.7
-            return AgentDecision.ESCALATE, RC.ESCALATE_BOUNDARY_AMOUNT, 0.7
+            return Action.ESCALATE, RC.ESCALATE_BOUNDARY_AMOUNT, 0.7
 
         # Rule 9: Ambiguous vendor + non-trivial amount
         if invoice.is_ambiguous_vendor and float(amount) > TRIVIAL_AMOUNT_THRESHOLD_INR:
-            return AgentDecision.ESCALATE, RC.ESCALATE_AMBIGUOUS_VENDOR, 0.8
+            return Action.ESCALATE, RC.ESCALATE_AMBIGUOUS_VENDOR, 0.8
 
         # Rule 10: Approve
         if float(amount) <= current_limit * 0.5:
             # Well below limit — low risk
-            return AgentDecision.APPROVE, RC.APPROVE_LOW_RISK, 1.0
+            return Action.APPROVE, RC.APPROVE_LOW_RISK, 1.0
 
-        return AgentDecision.APPROVE, RC.APPROVE_WITHIN_LIMIT, 1.0
-
-    # ------------------------------------------------------------------
-    # Private
-    # ------------------------------------------------------------------
-
-    def _get_limit(self, category: InvoiceCategory, tier: AutonomyTier) -> int:
-        """Return the policy limit for a category at a given tier (INR as int)."""
-        tier_key = tier.value
-        cat_key = category.value
-        overrides = CATEGORY_LIMIT_OVERRIDES.get(tier_key, {})
-        return overrides.get(cat_key, TIER_LIMITS[tier_key])
+        return Action.APPROVE, RC.APPROVE_WITHIN_LIMIT, 1.0

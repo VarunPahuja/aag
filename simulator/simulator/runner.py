@@ -27,7 +27,6 @@ WILSON LOWER BOUND:
 
 from __future__ import annotations
 
-import math
 import sys
 import os
 from datetime import datetime
@@ -36,35 +35,19 @@ from typing import Optional, Callable
 _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
+_trust_root = os.path.join(_repo_root, "trust")
+if _trust_root not in sys.path:
+    sys.path.insert(0, _trust_root)
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
-from shared.constants import WILSON_Z
-from shared.contracts import (
-    AgentDecisionRecord,
-    Invoice,
-    SimulationRunConfig,
-    SimulationRunResult,
-)
-from shared.enums import AgentDecision, SimulationPhase
+from shared.enums import Action
+from simulator.models import AgentOutcome, Invoice, SimulationRunConfig, SimulationRunResult
+from trust.trust_engine.stats.wilson import wilson_lower_bound
 from simulator.api_client import APIClient
 
 console = Console()
-
-
-def wilson_lower_bound(correct: int, total: int, z: float = WILSON_Z) -> float:
-    """
-    95 % Wilson score interval lower bound.
-    Returns 0.0 if total == 0.
-    """
-    if total == 0:
-        return 0.0
-    p = correct / total
-    denominator = 1 + z**2 / total
-    centre = p + z**2 / (2 * total)
-    margin = z * math.sqrt(p * (1 - p) / total + z**2 / (4 * total**2))
-    return (centre - margin) / denominator
 
 
 class SimulationRunner:
@@ -148,17 +131,17 @@ class SimulationRunner:
 
     def _process_one(
         self, invoice: Invoice, result: SimulationRunResult
-    ) -> AgentDecisionRecord:
+    ) -> AgentOutcome:
         # Agent decides (may hit cache)
         record = self.agent.decide(invoice)
 
         # Score against ground truth
-        record.is_correct = record.decision == invoice.ground_truth_decision
+        record.is_correct = record.action == invoice.ground_truth_decision
 
         # Update counters
-        if record.decision == AgentDecision.APPROVE:
+        if record.action == Action.APPROVE:
             result.approved_count += 1
-        elif record.decision == AgentDecision.REJECT:
+        elif record.action == Action.REJECT:
             result.rejected_count += 1
         else:
             result.escalated_count += 1

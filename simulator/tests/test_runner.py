@@ -24,9 +24,8 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from shared.constants import DEFAULT_SEED, WILSON_Z
-from shared.enums import SimulationPhase
-from shared.contracts import SimulationRunConfig
+from simulator.constants import DEFAULT_SEED, WILSON_Z
+from simulator.models import SimulationPhase, SimulationRunConfig
 from simulator.runner import SimulationRunner, wilson_lower_bound
 from simulator.generator import InvoiceGenerator
 from simulator.distributions import baseline_params, shifted_params
@@ -121,9 +120,8 @@ def _make_config(phase: SimulationPhase = SimulationPhase.GOOD) -> SimulationRun
         phase=phase,
         invoice_count=50,
         seed=DEFAULT_SEED,
-        agent_type="scripted",
         agent_id="scripted-agent-001",
-        api_base_url="http://localhost:8000",
+        submit=False,
     )
 
 

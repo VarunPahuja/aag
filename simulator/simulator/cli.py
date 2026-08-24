@@ -46,12 +46,11 @@ from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 
-from shared.constants import DEFAULT_API_BASE_URL, DEFAULT_SEED
-from shared.contracts import Invoice, SimulationRunConfig
-from shared.enums import SimulationPhase
+from simulator.constants import DEFAULT_API_BASE_URL, DEFAULT_SEED
+from simulator.models import Invoice, SimulationPhase, SimulationRunConfig
 from simulator.distributions import get_params
 from simulator.generator import InvoiceGenerator
-from simulator.runner import SimulationRunner, wilson_lower_bound
+from simulator.runner import SimulationRunner
 
 app = typer.Typer(
     name="simulator",
