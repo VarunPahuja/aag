@@ -204,14 +204,23 @@ the summary.
 | `shared/` (treaty files) | **Merged 2026-08-21, frozen v1.1.** All four files: enums (incl. `RecommendationStatus`, `OpinionVerdict`, `ReviewVerdict`), constants (incl. `SAMPLING_RATE_BY_RUNG`), 18 reason codes, contracts (`DecisionRecord`, `ProportionResult`, `ScoreComponent`, `AgentContext`, `DriftResult`, `TrustEvaluation`, `AgentOpinion`, `Recommendation`, `AuditSample`) | — | Nothing — this is the one lane that's actually done |
 | Trust Engine (`trust/`) | Wilson score interval, accuracy/utilization/human-agreement proportions, error breakdown, two-stage drift detection, trust-score composition with weight renormalisation — all pure functions, 113 tests (112 passing, 1 skipped for an optional dev dependency, on CI) | — | Autonomy ladder, cooldowns, and clawback logic (constants exist, e.g. `MIN_SAMPLE_FOR_INCREASE`, `COOLDOWN_BETWEEN_INCREASES`, but nothing implements them yet — due 26 Aug, on schedule); no function produces the actual `TrustEvaluation` contract type — `compute_trust_score()` still returns a different, local `ScoreResult` shape; precision/recall metrics named in the original ownership brief don't exist as functions (only `accuracy()` does) |
 | Backend (`backend/`) | Empty directory skeleton (`app/api`, `app/models`, `app/policy`, `app/services`, `app/tasks`, `app/observability`, all `__init__.py`-only) | — | Everything. Zero commits since the 17 Aug scaffold. Its 23 Aug deliverable (`backend/openapi.json`) was missed — rescheduled to 25 Aug |
-| Governance (`governance/`) | Empty directory skeleton (`governance/agents`, `governance/prompts`) | — | Everything. Zero commits since the 17 Aug scaffold |
+| Governance (`governance/`) | **Updated 2026-08-24 — not yet on `main`.** Two branches open: `vc/langgraph-skeleton` (PR #6, CI green, awaiting review) has the LangGraph workflow — four agent nodes in parallel, a coordinator, `stub` mode, and `recommend()` as the whole public surface. `vc/prompts-and-cached-mode` (stacked on it, no PR yet) adds versioned prompt files per agent, a deterministic evidence renderer, and a Pydantic + Gemini-schema boundary that validates every model response. 121 tests, ruff clean, zero LLM calls anywhere | `cached` and `live` modes raise `NotImplementedError` naming their due dates rather than silently serving stub opinions | The Gemini client and cached replay (due 30 Aug); live mode with timeout/retry/fallback (due 3 Sept). Nothing has been merged to `main` yet, so from `main`'s point of view this lane is still empty |
 | Simulator (`simulator/` on `main`) | Empty on `main`. **~5,900 lines of real, working code exist on `origin/ad/simulator-frontend`** (97 tests green there), built against an independently-designed `shared/` incompatible with the frozen one above | — | A merge — the branch conflicts on 5 files and needs porting, not merging, per ADR-0010. Port in progress, due 27 Aug |
 | Frontend (`frontend/` on `main`) | Empty on `main`. Same branch as above has 5 working routes, a build that passes `tsc`/`npm run build`, and a chart (`AutonomyTimeline.tsx`) close to reusable as-is — but hand-written types, no `shadcn/ui`, and a leftover scaffold folder (`nexttemp/`) that breaks typecheck until removed | — | A merge, for the same reason as simulator. Frontend type/scaffold cleanup due 29 Aug |
 
 **Bottom line:** the statistical core is real and well-tested. The actual
 "earned autonomy" ladder mechanics are still unstarted but on schedule. The
-big change since 21 Aug isn't that more is *merged* — backend and governance
-are still at zero — it's that a large, real, but incompatible body of
-simulator/frontend work now exists and needs porting rather than either lane
-starting from nothing. See `docs/RISKS.md` and `docs/DEADLINES.md` for what
-that means for the 15 September deadline.
+big change since 21 Aug isn't that more is *merged* — `main` itself has not
+moved — it's that a large, real, but incompatible body of simulator/frontend
+work now exists and needs porting rather than that lane starting from nothing.
+Governance is no longer at zero as of 24 Aug, but its work sits on two
+unmerged branches; backend remains the one lane with nothing written. See
+`docs/RISKS.md` and `docs/DEADLINES.md` for what that means for the 15
+September deadline.
+
+> **A note on this table's dates.** Every row except Governance was verified
+> against the repo on 2026-08-23 and has not been re-checked since. The
+> Governance row was updated on 2026-08-24 by its owner. Trust's 26 Aug
+> deliverable (`evaluate()`, ladder, cooldowns, clawback) was still absent from
+> `trust/` as of that date — expected, it is due that day, but worth knowing if
+> you are reading this row as current.
