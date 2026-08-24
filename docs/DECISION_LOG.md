@@ -6,6 +6,31 @@ ADR.
 
 ---
 
+**2026-08-24 — Varun C. (via `vc/langgraph-skeleton`)** — Set governance's
+default mode to `stub`, not `cached`. `resolve_mode()` raises `ValueError` on
+an unrecognised mode rather than falling back. **Why:** an unset
+`GOVERNANCE_MODE` must never reach for a fixture directory that does not exist
+yet, and must never be one typo away from a live API call. A mode that
+silently degraded to stub would look like a working demo while proving
+nothing. **Affects:** anything invoking `governance.recommend()`; `cached`
+becomes the demo default explicitly, at the call site, once it exists (30 Aug).
+
+**2026-08-24 — Varun C. (via `vc/langgraph-skeleton`)** — `Recommendation.
+trust_evaluation_ref` is supplied by the caller, not generated in governance.
+**Why:** `TrustEvaluation` carries no identity field, and the backend is the
+only component that persists both sides; minting an id here would produce a
+reference pointing at nothing. **Affects:** `vp/backend` — the backend must
+pass its own evaluation id into `recommend()`. **Needs Varun P.'s
+confirmation**, as it changes the call signature he builds against.
+
+**2026-08-24 — Varun C. (via `vc/langgraph-skeleton`)** — Governance's audit
+agent detects unruled escalations and critical-error clustering, but *not* the
+per-vendor or time-windowed anomalies described in `docs/lanes/vc.md`.
+**Why:** those need `DecisionRecord` history; `TrustEvaluation` carries only
+aggregates. Widening the input is a cross-lane contract change and `shared/`
+is frozen until 9 Sept (ADR-0005). **Affects:** scope of the audit agent;
+revisit via ADR if the wider input is wanted.
+
 **2026-08-23 — Varun (via `docs/reset-and-reschedule`)** — Named Utkarsh
 backup reviewer: if Varun P. is unavailable, Utkarsh can approve and merge
 anything that doesn't touch `shared/` (which still needs all four owners).
