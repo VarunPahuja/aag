@@ -1,5 +1,10 @@
 """Trust score composition. Pure: metrics in, a number in [0, 100] out.
 
+Returns a plain tuple, not a lane-local dataclass — TrustEvaluation
+(shared/contracts.py) is the only public result shape for this lane now.
+See docs/adr/0005 on why a second, incompatible shape for the same idea was a
+real problem, not a style nit.
+
 WEIGHT RENORMALISATION
 -----------------------
 A new agent has no human-ruled escalations, so the human-agreement component has no
@@ -11,11 +16,7 @@ components that DO have evidence — but NOT all absences qualify. Accuracy and
 utilization are the two BEHAVIOURAL axes (are you right? do you act?) and are NEVER
 dropped once any decision exists — abstaining scores 0 on them rather than hiding from
 them. Only human agreement and the critical penalty may be redistributed, because their
-absence is genuinely uninformative (no hard cases arose, or nobody reviewed them yet).
-
-An earlier version of this dropped accuracy too when an agent had never acted,
-redistributing its 50% weight onto human agreement — scoring "escalate everything,
-decide nothing" at 68.8/100. That bug is what test_score.py exists to catch.
+absence is genuinely uninformative.
 
 CRITICAL-ERROR PENALTY
 ------------------------
@@ -25,17 +26,12 @@ which would invalidate the Wilson bound derived from it.
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
-
-from shared.constants import TRUST_SCORE_MAX
 from shared.contracts import ProportionResult, ScoreComponent
 from shared.reason_codes import (
     AGREEMENT_EVIDENCE_INSUFFICIENT,
     NO_ACTED_DECISIONS,
     WEIGHTS_RENORMALISED,
 )
-
 from trust_engine.constants import (
     CRITICAL_ERROR_WEIGHT,
     MIN_RULED_ESCALATIONS_FOR_AGREEMENT,
@@ -49,14 +45,6 @@ ACCURACY = "accuracy_wilson_lower"
 AGREEMENT = "human_agreement"
 CRITICAL_PENALTY = "critical_error_penalty"
 UTILIZATION = "autonomy_utilization"
-
-
-@dataclass(frozen=True, slots=True)
-class ScoreResult:
-    trust_score: float
-    components: tuple
-    renormalised: bool
-    reason_codes: tuple
 
 
 def critical_error_penalty(critical_errors: int, acted_total: int) -> float | None:
@@ -73,10 +61,10 @@ def compute_trust_score(
     human_agreement: ProportionResult,
     utilization: ProportionResult,
     critical_errors: int,
-) -> ScoreResult:
+) -> tuple[float, tuple[ScoreComponent, ...], bool, tuple[str, ...]]:
+    """Returns (trust_score, components, weights_renormalised, reason_codes)."""
     acted_total = accuracy.trials
-    total_decisions = utilization.trials
-    has_any_decisions = total_decisions > 0
+    has_any_decisions = utilization.trials > 0
     reasons: list[str] = []
 
     # Accuracy and utilization are the behavioural axes — never dropped once any
@@ -103,11 +91,11 @@ def compute_trust_score(
     ]
 
     available_weight = sum(w for _, _, w, ok in raw if ok)
-    renormalised = bool(available_weight) and abs(available_weight - 1.0) > 1e-9
-    if renormalised:
+    weights_renormalised = bool(available_weight) and abs(available_weight - 1.0) > 1e-9
+    if weights_renormalised:
         reasons.append(WEIGHTS_RENORMALISED)
 
-    components = []
+    components: list[ScoreComponent] = []
     for name, value, nominal, ok in raw:
         effective = (nominal / available_weight) if (ok and available_weight) else 0.0
         components.append(
@@ -118,16 +106,13 @@ def compute_trust_score(
         )
 
     total = sum(c.contribution for c in components) if available_weight else 0.0
+    trust_score = round(_clamp01(total) * 100.0, 4)
 
-    return ScoreResult(
-        trust_score=round(_clamp01(total) * TRUST_SCORE_MAX, 4),
-        components=tuple(components),
-        renormalised=renormalised,
-        reason_codes=tuple(reasons),
-    )
+    return trust_score, tuple(components), weights_renormalised, tuple(reasons)
 
 
 def _clamp01(x: float) -> float:
+    import math
     if math.isnan(x):
         return 0.0
-    return 0.0 if x < 0.0 else (min(x, 1.0))
+    return 0.0 if x < 0.0 else min(x, 1.0)
