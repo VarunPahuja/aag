@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import pytest
 from shared.enums import Action
 from shared.reason_codes import (
@@ -30,13 +32,22 @@ from trust_engine.score import (
 from trust_engine.stats.rates import accuracy, error_breakdown, human_agreement, utilization
 
 
-def score_of(decisions):
-    return compute_trust_score(
+class _Result(NamedTuple):
+    """Test-only convenience wrapper around compute_trust_score()'s plain
+    tuple return. Never imported by trust_engine itself."""
+    trust_score: float
+    components: tuple
+    weights_renormalised: bool
+    reason_codes: tuple
+
+
+def score_of(decisions) -> _Result:
+    return _Result(*compute_trust_score(
         accuracy=accuracy(decisions),
         human_agreement=human_agreement(decisions),
         utilization=utilization(decisions),
         critical_errors=error_breakdown(decisions).critical,
-    )
+    ))
 
 
 def component(result, name):
@@ -51,7 +62,7 @@ def test_nominal_weights_sum_to_one():
 def test_full_evidence_uses_nominal_weights_unchanged():
     decisions = run(60, correct_approval) + run(10, escalation, recommended=Action.APPROVE, ruling=Action.APPROVE)
     result = score_of(decisions)
-    assert result.renormalised is False
+    assert result.weights_renormalised is False
     for name, nominal in [
         (ACCURACY, WEIGHT_WILSON_LOWER), (AGREEMENT, WEIGHT_HUMAN_AGREEMENT),
         (CRITICAL_PENALTY, WEIGHT_CRITICAL_PENALTY), (UTILIZATION, WEIGHT_UTILIZATION),
@@ -63,7 +74,7 @@ def test_agent_with_no_ruled_escalations_is_not_capped_at_75():
     decisions = run(60, correct_approval)
     result = score_of(decisions)
     assert component(result, AGREEMENT).available is False
-    assert result.renormalised is True
+    assert result.weights_renormalised is True
     assert AGREEMENT_EVIDENCE_INSUFFICIENT in result.reason_codes
     assert WEIGHTS_RENORMALISED in result.reason_codes
     assert result.trust_score > 75.0
