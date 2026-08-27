@@ -32,6 +32,7 @@ from shared.reason_codes import (
     NO_ACTED_DECISIONS,
     WEIGHTS_RENORMALISED,
 )
+
 from trust_engine.constants import (
     CRITICAL_ERROR_WEIGHT,
     MIN_RULED_ESCALATIONS_FOR_AGREEMENT,

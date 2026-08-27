@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from shared.constants import AUTONOMY_LADDER, MAX_RUNG, limit_of, rung_of
 from shared.contracts import AgentContext, DriftResult
 from shared.enums import AgentState, Direction, DriftSeverity
@@ -21,6 +20,7 @@ from shared.reason_codes import (
     NO_RECENT_CRITICAL_ERRORS,
     TRUST_BELOW_THRESHOLD,
 )
+
 from trust_engine.constants import (
     CLEAN_DECISIONS_AFTER_CLAWBACK,
     COOLDOWN_BETWEEN_INCREASES,

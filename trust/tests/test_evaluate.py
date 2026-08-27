@@ -7,14 +7,13 @@ invariants hold on the assembled TrustEvaluation.
 from __future__ import annotations
 
 import pytest
-
 from shared.constants import AUTONOMY_LADDER, rung_of
 from shared.contracts import AgentContext
 from shared.enums import Action, AgentState, Direction, DriftSeverity
-from trust_engine.constants import COOLDOWN_BETWEEN_INCREASES, MIN_SAMPLE_FOR_INCREASE
-from trust_engine.evaluate import evaluate
 
 from tests.conftest import correct_approval, critical_error, escalation, noncritical_error, run
+from trust_engine.constants import COOLDOWN_BETWEEN_INCREASES
+from trust_engine.evaluate import evaluate
 
 
 def test_cold_start_agent_produces_a_valid_evaluation():

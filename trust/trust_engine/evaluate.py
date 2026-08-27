@@ -8,14 +8,21 @@ Pure: same decisions + same context always produce the same TrustEvaluation.
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from shared.constants import rung_of
 from shared.contracts import AgentContext, DecisionRecord, TrustEvaluation
+
 from trust_engine.ladder import evaluate_ladder
 from trust_engine.score import compute_trust_score
 from trust_engine.stats.drift import critical_errors_in_window, detect_drift
-from trust_engine.stats.rates import accuracy, error_breakdown, human_agreement, partition, utilization
+from trust_engine.stats.rates import (
+    accuracy,
+    error_breakdown,
+    human_agreement,
+    partition,
+    utilization,
+)
 
 
 def evaluate(decisions: Sequence[DecisionRecord], context: AgentContext) -> TrustEvaluation:

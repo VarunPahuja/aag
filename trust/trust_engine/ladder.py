@@ -45,6 +45,7 @@ from shared.reason_codes import (
     NO_RECENT_CRITICAL_ERRORS,
     TRUST_BELOW_THRESHOLD,
 )
+
 from trust_engine.constants import (
     CLEAN_DECISIONS_AFTER_CLAWBACK,
     COOLDOWN_BETWEEN_INCREASES,
