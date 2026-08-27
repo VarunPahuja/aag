@@ -6,6 +6,26 @@ ADR.
 
 ---
 
+**2026-08-27 — Varun (via `docs/resurrect-pr5`)** — Re-applied PR #5's commit
+(`6a77eed`, "transplant Wilson table, ADR defend-it lines, layer walkthrough
+into SYSTEM-EXPLAINED.md"), cherry-picked cleanly onto `main` as `7a169f6`.
+**Why:** PR #5 was opened with base `docs/reset-and-reschedule` instead of
+`main`. PR #4 (`docs/reset-and-reschedule` → `main`) merged at
+2026-08-23T13:15:55Z; PR #5 merged its commit into `docs/reset-and-reschedule`
+32 seconds later, at 13:16:27Z — by which point that branch had already done
+its one job and nobody opened a follow-up PR to carry the new commit into
+`main`. GitHub shows PR #5 as `MERGED`, and it was, into a branch that never
+reached `main` — `origin/docs/reset-and-reschedule` still exists, still
+sitting at that commit, four days later. Content was verified missing
+(`git merge-base --is-ancestor 6a77eed origin/main` → false) and restorable
+without conflict (`main`'s `docs/SYSTEM-EXPLAINED.md` was still byte-identical
+to `6a77eed`'s parent, so nothing on `main` needed reconciling). **Affects:**
+`docs/SYSTEM-EXPLAINED.md` only — the Wilson lower-bound numbers table, a
+"Defend it" line on all 10 ADRs, and the plain/technical layer-by-layer
+walkthrough are back; verified in `docs/audits/2026-08-27-delta-audit.md` §1
+and the PR that carries this entry. `docs/RISKS.md`/`docs/CONTEXT.md`'s own
+staleness (unrelated to this gap) is not addressed here.
+
 **2026-08-24 — Varun C. (via `vc/langgraph-skeleton`)** — Set governance's
 default mode to `stub`, not `cached`. `resolve_mode()` raises `ValueError` on
 an unrecognised mode rather than falling back. **Why:** an unset
