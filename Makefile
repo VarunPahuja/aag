@@ -25,24 +25,14 @@ endif
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sed 's/:.*## / — /'
 
-setup: ## Create .venv, install trust/ (+dev deps), and backend/governance if they exist yet
+setup: ## Create .venv and install every Python lane (trust, simulator, governance, backend) in editable mode
 	python -m venv .venv
 	$(VENV_PYTHON) -m pip install --upgrade pip
-	$(VENV_PYTHON) -m pip install -e trust
-	$(VENV_PYTHON) -m pip install pytest pytest-cov hypothesis ruff
+	$(VENV_PYTHON) -m pip install -e trust -e simulator -e governance -e backend
+	$(VENV_PYTHON) -m pip install pytest pytest-cov pytest-asyncio hypothesis httpx ruff
 	@echo "Skipped statsmodels (see docs/RISKS.md R7: pulls in numpy/scipy/pandas"
 	@echo "for one optional cross-validation test that skips gracefully without"
 	@echo "it). Install it yourself if you need that one test: pip install statsmodels"
-ifneq ($(wildcard backend/pyproject.toml backend/requirements.txt),)
-	$(VENV_PYTHON) -m pip install -e backend
-else
-	@echo "backend/ has no pyproject.toml or requirements.txt yet — skipping (see docs/DEADLINES.md)"
-endif
-ifneq ($(wildcard governance/pyproject.toml governance/requirements.txt),)
-	$(VENV_PYTHON) -m pip install -e governance
-else
-	@echo "governance/ has no pyproject.toml or requirements.txt yet — skipping (see docs/DEADLINES.md)"
-endif
 	@echo "Done. Next: make up"
 
 up: ## Start Postgres (+ Adminer) and wait for the DB healthcheck
@@ -62,18 +52,11 @@ else
 	@echo "backend/alembic.ini doesn't exist yet — DB recreated but not migrated/seeded (see docs/DEADLINES.md)"
 endif
 
-test: ## Run pytest across trust/, backend/, governance/ (skips lanes with no tests yet)
+test: ## Run pytest across all four Python lanes: trust/, simulator/, governance/, backend/
 	$(VENV_PYTHON) -m pytest trust/ -q
-ifneq ($(wildcard backend/tests/test_*.py),)
-	$(VENV_PYTHON) -m pytest backend/tests -q
-else
-	@echo "backend/tests has no test_*.py yet — skipping"
-endif
-ifneq ($(wildcard governance/tests/test_*.py),)
+	$(VENV_PYTHON) -m pytest simulator/tests -q
 	$(VENV_PYTHON) -m pytest governance/tests -q
-else
-	@echo "governance/tests has no test_*.py yet — skipping"
-endif
+	$(VENV_PYTHON) -m pytest backend/tests -q
 
 test-trust: ## Run only the trust engine's test suite
 	$(VENV_PYTHON) -m pytest trust/ -q

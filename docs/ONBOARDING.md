@@ -28,12 +28,19 @@ meeting and before the final Q&A.
     git checkout <your-branch>
     cp .env.example .env
 
-Python lanes:
+Python lanes — one venv, all four lanes installed editable, every time
+(`make setup` or `.\scripts\setup.ps1` do exactly this):
 
     python -m venv .venv
     .venv\Scripts\activate            # Windows
     source .venv/bin/activate         # macOS / Linux
-    pip install -e ./trust[dev]
+    pip install -e trust -e simulator -e governance -e backend
+    pip install pytest pytest-cov pytest-asyncio hypothesis httpx ruff
+
+Installing only `trust` and working on another lane fails on import with no
+obvious cause — `simulator/` imports `trust.trust_engine.stats.wilson`,
+`governance/` imports `shared.contracts`, and `backend/tests` needs `httpx`
+for its `TestClient`. Install all four even if you're only touching one.
 
 Frontend:
 
@@ -42,6 +49,9 @@ Frontend:
 Verify before writing anything:
 
     pytest trust/ -q                  # expect 112 passed, 1 skipped
+    pytest simulator/tests -q         # expect 97 passed
+    pytest governance/tests -q        # expect 67 passed
+    pytest backend/tests -q           # expect 56 passed
     make up                           # database must come up
 
 If either fails, post the **full error text** in the group before starting work.
