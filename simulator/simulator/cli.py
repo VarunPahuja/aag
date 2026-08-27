@@ -16,16 +16,13 @@ USAGE EXAMPLES:
   python -m simulator generate --phase degraded  --count 200 --seed 42
   python -m simulator generate --phase recovery  --count 200 --seed 42
 
-  # Run the scripted agent against the good fixture (no API key needed)
+  # Run the scripted agent against the good fixture
   python -m simulator run --phase good --agent scripted
-
-  # Run the LLM agent (requires GEMINI_API_KEY)
-  python -m simulator run --phase good --agent llm
 
   # Validate a fixture
   python -m simulator validate fixtures/good.json
 
-  # Smoke test — verify error rates (requires GEMINI_API_KEY)
+  # Smoke test — verify error rates
   python -m simulator smoke-test
 """
 
@@ -116,18 +113,17 @@ def generate(
 @app.command()
 def run(
     phase: SimulationPhase = typer.Option(SimulationPhase.GOOD, help="Distribution phase"),
-    agent_type: str = typer.Option("scripted", "--agent", help="Agent type: llm | scripted"),
+    agent_type: str = typer.Option("scripted", "--agent", help="Agent type: scripted"),
     count: int = typer.Option(100, help="Number of invoices to process"),
     seed: int = typer.Option(DEFAULT_SEED, help="Random seed"),
     api_url: str = typer.Option(DEFAULT_API_BASE_URL, help="Backend API base URL"),
-    api_key: Optional[str] = typer.Option(None, "--gemini-key", help="Gemini API key (llm agent only)"),
     submit: bool = typer.Option(False, "--submit/--no-submit", help="Submit invoices to backend API"),
     fixture: Optional[Path] = typer.Option(None, help="Load invoices from fixture file instead of generating"),
 ) -> None:
     """Run an agent over invoices and report accuracy metrics."""
 
     # Build agent
-    agent = _build_agent(agent_type, api_key)
+    agent = _build_agent(agent_type)
     console.print(f"[bold]Agent:[/] {agent.name}")
 
     # Load or generate invoices
@@ -207,14 +203,13 @@ def validate(
 @app.command(name="smoke-test")
 def smoke_test(
     n_per_phase: int = typer.Option(20, help="Invoices per phase (good + degraded)"),
-    agent_type: str = typer.Option("scripted", "--agent", help="Agent: llm | scripted"),
-    api_key: Optional[str] = typer.Option(None, "--gemini-key"),
+    agent_type: str = typer.Option("scripted", "--agent", help="Agent: scripted"),
 ) -> None:
     """
     Quick validation: run agent over good + degraded invoices and report error rates.
-    Target: good error rate 5-15 %, degraded clearly higher (>20 % for LLM agent).
+    Target: good error rate 5-15 %, degraded clearly higher (>20 %).
     """
-    agent = _build_agent(agent_type, api_key)
+    agent = _build_agent(agent_type)
     console.print(f"[bold]Smoke test[/] with {agent.name}, {n_per_phase} invoices per phase\n")
 
     results = {}
@@ -279,15 +274,12 @@ def smoke_test(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_agent(agent_type: str, api_key: Optional[str] = None):
-    if agent_type == "llm":
-        from simulator.agents.llm import GeminiAgent
-        return GeminiAgent(api_key=api_key)
-    elif agent_type == "scripted":
+def _build_agent(agent_type: str):
+    if agent_type == "scripted":
         from simulator.agents.scripted import ScriptedAgent
         return ScriptedAgent()
     else:
-        console.print(f"[red]Unknown agent type: {agent_type!r}. Choose 'llm' or 'scripted'.[/]")
+        console.print(f"[red]Unknown agent type: {agent_type!r}. Choose 'scripted'.[/]")
         raise typer.Exit(1)
 
 
