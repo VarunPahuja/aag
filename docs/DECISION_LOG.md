@@ -6,6 +6,34 @@ ADR.
 
 ---
 
+**2026-08-27 — Varun P. (via `vp/openapi-contract`)** — Published the complete
+backend HTTP contract: `backend/app/main.py`, all eighteen endpoints stubbed
+against internally-consistent fixtures (three agents — one mid-ladder and
+eligible for an increase, one on probation with a small sample, one clawed
+back after confirmed drift), `export_openapi.py`, `backend/openapi.json`
+committed. Every response model mirroring a `shared/contracts.py` dataclass
+(`DecisionRecord`, `TrustEvaluation`, `DriftResult`, `ProportionResult`,
+`ScoreComponent`, `Recommendation`, `AgentOpinion`, `AuditSample`,
+`AgentContext`) does so field-for-field, enforced by a generalized
+contract-drift test (`backend/tests/test_schema_contracts.py`) rather than
+nine hand-written ones. Wrote ADR-0011 for the two decisions made once and
+applied everywhere: the `items`/`total`/`page`/`page_size` pagination
+envelope, and a mandatory `reason` on every mutating endpoint, including the
+two (`POST /decisions`, `POST /simulation/runs`) that don't look like
+governance decisions at first glance. No database models, migrations, or
+SQLAlchemy anywhere in this branch — persistence is separate work
+(docs/DEADLINES.md: Fri 28 Aug onward). **Why:** Tue 25 Aug deliverable,
+already two days late (docs/audits/2026-08-27-delta-audit.md); the frontend
+lane has been blocked on this file since 21 Aug. **Affects:** `backend/`
+only. Also fixed the dev environment while touching it: `make setup` /
+`scripts/setup.ps1` now install all four Python lanes (trust, simulator,
+governance, backend) editable unconditionally — the old conditional
+"install if it exists" logic was written when backend/governance were
+empty and silently left simulator out entirely; `make test` runs pytest
+across all four; `docs/ONBOARDING.md` updated to match, since "install only
+`trust[dev]`" left simulator and governance tests failing on import with no
+obvious cause for anyone following it literally.
+
 **2026-08-27 — Varun (via `docs/resurrect-pr5`)** — Re-applied PR #5's commit
 (`6a77eed`, "transplant Wilson table, ADR defend-it lines, layer walkthrough
 into SYSTEM-EXPLAINED.md"), cherry-picked cleanly onto `main` as `7a169f6`.

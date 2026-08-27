@@ -1,0 +1,2902 @@
+{
+  "components": {
+    "schemas": {
+      "Action": {
+        "description": "What the agent did, or what ground truth says it should have done.\n\nESCALATE is only ever an *agent* action. Ground truth is always APPROVE or REJECT,\nbecause every synthetic invoice carries a deterministic correct answer.",
+        "enum": [
+          "APPROVE",
+          "REJECT",
+          "ESCALATE"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "AgentContextOut": {
+        "description": "Mirrors `shared.contracts.AgentContext` field-for-field.",
+        "properties": {
+          "current_limit": {
+            "title": "Current Limit",
+            "type": "integer"
+          },
+          "decisions_since_clawback": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisions Since Clawback"
+          },
+          "decisions_since_last_change": {
+            "title": "Decisions Since Last Change",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AgentState"
+          }
+        },
+        "required": [
+          "current_limit",
+          "decisions_since_last_change",
+          "decisions_since_clawback",
+          "state"
+        ],
+        "title": "AgentContextOut",
+        "type": "object"
+      },
+      "AgentOpinionOut": {
+        "description": "Mirrors `shared.contracts.AgentOpinion` field-for-field.",
+        "properties": {
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "concerns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Concerns",
+            "type": "array"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "reasoning": {
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/OpinionVerdict"
+          }
+        },
+        "required": [
+          "agent_name",
+          "verdict",
+          "reasoning",
+          "concerns",
+          "confidence"
+        ],
+        "title": "AgentOpinionOut",
+        "type": "object"
+      },
+      "AgentOut": {
+        "description": "A governed agent. Backend-local resource \u2014 no `shared/` equivalent.\n\n`current_rung`/`current_limit` are always kept in sync with\n`shared.constants.rung_of`/`limit_of` (the invariant `TrustEvaluation`\ndocuments applies here too, since this is the same pair of numbers).",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/AgentContextOut"
+          },
+          "current_limit": {
+            "title": "Current Limit",
+            "type": "integer"
+          },
+          "current_rung": {
+            "title": "Current Rung",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AgentState"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "current_limit",
+          "current_rung",
+          "state",
+          "context"
+        ],
+        "title": "AgentOut",
+        "type": "object"
+      },
+      "AgentState": {
+        "enum": [
+          "probation",
+          "active",
+          "restricted",
+          "suspended"
+        ],
+        "title": "AgentState",
+        "type": "string"
+      },
+      "AuditLogEntryOut": {
+        "description": "One hash-chained row. `prev_hash`/`hash` make tampering with history\ndetectable \u2014 see docs/lanes/vp.md: \"sha256(prev_hash +\ncanonical_json(payload))\". Read-only; nothing in this API ever mutates\nan existing row.",
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "actor_type": {
+            "title": "Actor Type",
+            "type": "string"
+          },
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "prev_hash": {
+            "title": "Prev Hash",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "actor",
+          "actor_type",
+          "event_type",
+          "entity_type",
+          "entity_id",
+          "payload",
+          "prev_hash",
+          "hash"
+        ],
+        "title": "AuditLogEntryOut",
+        "type": "object"
+      },
+      "AuditSampleOut": {
+        "description": "Mirrors `shared.contracts.AuditSample` field-for-field.",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer"
+          },
+          "reviewer_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Action"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          },
+          "sampled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sampled At"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sample_id",
+          "decision_id",
+          "agent_id",
+          "sampled_at",
+          "reviewed_at",
+          "reviewer",
+          "verdict",
+          "reviewer_action"
+        ],
+        "title": "AuditSampleOut",
+        "type": "object"
+      },
+      "AuditSampleReview": {
+        "description": "Request body for `POST /api/v1/audit-samples/{sample_id}/review`.\n\nOnly ADMIN or REVIEWER may call this (`app/deps.py`) \u2014 reviewing sampled\ndecisions is REVIEWER's actual job (ADR-0009); AUDITOR stays read-only.",
+        "properties": {
+          "reason": {
+            "description": "What the reviewer found, and why",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "reviewer_action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ReviewVerdict"
+          }
+        },
+        "required": [
+          "verdict",
+          "reviewer_action",
+          "reason"
+        ],
+        "title": "AuditSampleReview",
+        "type": "object"
+      },
+      "DecisionCreate": {
+        "description": "Request body for `POST /api/v1/decisions` \u2014 the simulator's ingest path.\n\nEvery field needed to construct a `DecisionRecord` (see\n`shared.contracts.DecisionRecord`), plus `reason`\n(cross-cutting rule: every state-changing endpoint requires one \u2014 here,\nwhy this decision is being submitted, e.g. which simulation run or\ninvoice-processing batch produced it).",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "amount": {
+            "exclusiveMinimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "ground_truth": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "invoice_id": {
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why this decision is being submitted",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invoice_id",
+          "amount",
+          "action",
+          "ground_truth",
+          "agent_id",
+          "reason"
+        ],
+        "title": "DecisionCreate",
+        "type": "object"
+      },
+      "DecisionRecordOut": {
+        "description": "Mirrors `shared.contracts.DecisionRecord` field-for-field.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "ground_truth": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "human_ruling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Action"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invoice_id": {
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "recommended_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Action"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision_id",
+          "sequence",
+          "invoice_id",
+          "amount",
+          "action",
+          "ground_truth",
+          "agent_id",
+          "decided_at",
+          "recommended_action",
+          "human_ruling"
+        ],
+        "title": "DecisionRecordOut",
+        "type": "object"
+      },
+      "Direction": {
+        "enum": [
+          "INCREASE",
+          "HOLD",
+          "CLAWBACK"
+        ],
+        "title": "Direction",
+        "type": "string"
+      },
+      "DriftResultOut": {
+        "description": "Mirrors `shared.contracts.DriftResult` field-for-field.",
+        "properties": {
+          "baseline_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Accuracy"
+          },
+          "baseline_n": {
+            "title": "Baseline N",
+            "type": "integer"
+          },
+          "critical_errors_in_window": {
+            "title": "Critical Errors In Window",
+            "type": "integer"
+          },
+          "detected": {
+            "title": "Detected",
+            "type": "boolean"
+          },
+          "drop_pp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop Pp"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Value"
+          },
+          "recent_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Accuracy"
+          },
+          "recent_n": {
+            "title": "Recent N",
+            "type": "integer"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/DriftSeverity"
+          },
+          "underpowered": {
+            "title": "Underpowered",
+            "type": "boolean"
+          },
+          "z_statistic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z Statistic"
+          }
+        },
+        "required": [
+          "severity",
+          "detected",
+          "recent_accuracy",
+          "baseline_accuracy",
+          "drop_pp",
+          "z_statistic",
+          "p_value",
+          "critical_errors_in_window",
+          "recent_n",
+          "baseline_n",
+          "underpowered"
+        ],
+        "title": "DriftResultOut",
+        "type": "object"
+      },
+      "DriftSeverity": {
+        "enum": [
+          "NONE",
+          "WARNING",
+          "CONFIRMED",
+          "CRITICAL"
+        ],
+        "title": "DriftSeverity",
+        "type": "string"
+      },
+      "ErrorBody": {
+        "description": "Every non-2xx response returns this shape as its JSON body.\n\n`code` is a short machine-readable slug (e.g. \"not_found\", \"forbidden\",\n\"validation_error\") for client branching; `message` is one sentence a human\nreads; `detail` carries whatever extra structure the specific failure needs\n(field errors, the resource id that was missing, etc.) and may be null.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthOut": {
+        "properties": {
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "schema_version"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
+      "OpinionVerdict": {
+        "description": "A single governance agent's stance on a recommendation, before opinions are\ncombined into one Recommendation.",
+        "enum": [
+          "CONCUR",
+          "OBJECT",
+          "ABSTAIN"
+        ],
+        "title": "OpinionVerdict",
+        "type": "string"
+      },
+      "Page_AgentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AgentOut]",
+        "type": "object"
+      },
+      "Page_AuditLogEntryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogEntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AuditLogEntryOut]",
+        "type": "object"
+      },
+      "Page_AuditSampleOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditSampleOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AuditSampleOut]",
+        "type": "object"
+      },
+      "Page_DecisionRecordOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionRecordOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[DecisionRecordOut]",
+        "type": "object"
+      },
+      "Page_PolicyVersionOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PolicyVersionOut]",
+        "type": "object"
+      },
+      "Page_RecommendationOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[RecommendationOut]",
+        "type": "object"
+      },
+      "Page_TrustEvaluationOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrustEvaluationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[TrustEvaluationOut]",
+        "type": "object"
+      },
+      "PolicyVersionOut": {
+        "description": "One row of an agent's append-only limit history.\n\ndocs/lanes/vp.md: \"`policy_versions` is append-only and every decision\nreferences one\" \u2014 this is what `GET /agents/{agent_id}/policy-versions`\nreturns, oldest-relevant invariant first: `previous_version_id` chains\neach row to the one it replaced, `None` only on an agent's very first\nversion.",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Version Id"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "rung": {
+            "title": "Rung",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "limit",
+          "rung",
+          "effective_from",
+          "created_by",
+          "reason",
+          "previous_version_id"
+        ],
+        "title": "PolicyVersionOut",
+        "type": "object"
+      },
+      "ProportionResultOut": {
+        "description": "Mirrors `shared.contracts.ProportionResult` field-for-field.",
+        "properties": {
+          "point": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Point"
+          },
+          "successes": {
+            "title": "Successes",
+            "type": "integer"
+          },
+          "trials": {
+            "title": "Trials",
+            "type": "integer"
+          },
+          "wilson_lower": {
+            "title": "Wilson Lower",
+            "type": "number"
+          },
+          "wilson_upper": {
+            "title": "Wilson Upper",
+            "type": "number"
+          }
+        },
+        "required": [
+          "successes",
+          "trials",
+          "point",
+          "wilson_lower",
+          "wilson_upper"
+        ],
+        "title": "ProportionResultOut",
+        "type": "object"
+      },
+      "RecommendationDecision": {
+        "description": "Request body for both `POST .../approve` and `POST .../reject`.\n\n`reason` is mandatory on both \u2014 approving *and* rejecting are mutations,\nand the cross-cutting rule doesn't carve out an exception for the\n\"yes\" path. Only ADMIN may call either endpoint (see `app/deps.py`,\n`Role.ADMIN` docstring: \"Reviewer explicitly cannot approve\").",
+        "properties": {
+          "reason": {
+            "description": "Why this decision was made",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RecommendationDecision",
+        "type": "object"
+      },
+      "RecommendationOut": {
+        "description": "Mirrors `shared.contracts.Recommendation` field-for-field.",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "clamped": {
+            "title": "Clamped",
+            "type": "boolean"
+          },
+          "clamped_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clamped From"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "governance_mode": {
+            "title": "Governance Mode",
+            "type": "string"
+          },
+          "has_dissent": {
+            "title": "Has Dissent",
+            "type": "boolean"
+          },
+          "opinions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentOpinionOut"
+            },
+            "title": "Opinions",
+            "type": "array"
+          },
+          "proposed_limit": {
+            "title": "Proposed Limit",
+            "type": "integer"
+          },
+          "proposed_rung": {
+            "title": "Proposed Rung",
+            "type": "integer"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "recommendation_id": {
+            "title": "Recommendation Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RecommendationStatus"
+          },
+          "trust_evaluation_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Evaluation Ref"
+          }
+        },
+        "required": [
+          "recommendation_id",
+          "agent_id",
+          "schema_version",
+          "direction",
+          "proposed_limit",
+          "proposed_rung",
+          "rationale",
+          "opinions",
+          "has_dissent",
+          "confidence",
+          "governance_mode",
+          "status",
+          "trust_evaluation_ref",
+          "generated_at",
+          "clamped",
+          "clamped_from"
+        ],
+        "title": "RecommendationOut",
+        "type": "object"
+      },
+      "RecommendationStatus": {
+        "description": "Lifecycle of a governance recommendation, from proposed to resolved.",
+        "enum": [
+          "PENDING",
+          "APPROVED",
+          "REJECTED",
+          "SUPERSEDED"
+        ],
+        "title": "RecommendationStatus",
+        "type": "string"
+      },
+      "ReviewVerdict": {
+        "description": "A human reviewer's verdict on a sampled decision, from comparing the agent's\naction against what the reviewer determines was correct.",
+        "enum": [
+          "AGREED",
+          "DISAGREED",
+          "INCONCLUSIVE"
+        ],
+        "title": "ReviewVerdict",
+        "type": "string"
+      },
+      "RunStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed"
+        ],
+        "title": "RunStatus",
+        "type": "string"
+      },
+      "ScoreComponentOut": {
+        "description": "Mirrors `shared.contracts.ScoreComponent` field-for-field.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "effective_weight": {
+            "title": "Effective Weight",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nominal_weight": {
+            "title": "Nominal Weight",
+            "type": "number"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "nominal_weight",
+          "effective_weight",
+          "available"
+        ],
+        "title": "ScoreComponentOut",
+        "type": "object"
+      },
+      "SimulationPhase": {
+        "description": "Mirrors `simulator.simulator.models.SimulationPhase` by value, not by\nimport \u2014 `simulator/` is a lane the backend must not depend on\n(docs/lanes/vp.md: \"Do not write code outside backend/\"; the simulator\nsubmits to this API, this API does not reach into the simulator).",
+        "enum": [
+          "good",
+          "degraded",
+          "recovery"
+        ],
+        "title": "SimulationPhase",
+        "type": "string"
+      },
+      "SimulationRunCreate": {
+        "description": "Request body for `POST /api/v1/simulation/runs`.\n\nOnly ADMIN may start a run (`app/deps.py`) \u2014 this is an operational\naction, not a governance authorization, but it still changes state\n(kicks off a batch of decisions), so `reason` is still required.",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "invoice_count": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/SimulationPhase"
+          },
+          "reason": {
+            "description": "Why this run is being started",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "seed": {
+            "default": 42,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "phase",
+          "agent_id",
+          "invoice_count",
+          "reason"
+        ],
+        "title": "SimulationRunCreate",
+        "type": "object"
+      },
+      "SimulationRunOut": {
+        "description": "The status/result of one simulation run.",
+        "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "decisions_submitted": {
+            "title": "Decisions Submitted",
+            "type": "integer"
+          },
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/SimulationPhase"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "wilson_lower_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wilson Lower Bound"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "phase",
+          "agent_id",
+          "invoice_count",
+          "seed",
+          "started_at",
+          "completed_at",
+          "decisions_submitted",
+          "accuracy",
+          "wilson_lower_bound"
+        ],
+        "title": "SimulationRunOut",
+        "type": "object"
+      },
+      "TrustEvaluationOut": {
+        "description": "Mirrors `shared.contracts.TrustEvaluation` field-for-field, plus `id`\n(see module docstring \u2014 this is the one backend-minted addition).",
+        "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProportionResultOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acted_decisions": {
+            "title": "Acted Decisions",
+            "type": "integer"
+          },
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreComponentOut"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "config_fingerprint": {
+            "title": "Config Fingerprint",
+            "type": "string"
+          },
+          "critical_error_rate": {
+            "title": "Critical Error Rate",
+            "type": "number"
+          },
+          "critical_errors": {
+            "title": "Critical Errors",
+            "type": "integer"
+          },
+          "critical_errors_in_recent_window": {
+            "title": "Critical Errors In Recent Window",
+            "type": "integer"
+          },
+          "current_limit": {
+            "title": "Current Limit",
+            "type": "integer"
+          },
+          "current_rung": {
+            "title": "Current Rung",
+            "type": "integer"
+          },
+          "decisions_since_last_change": {
+            "title": "Decisions Since Last Change",
+            "type": "integer"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "drift": {
+            "$ref": "#/components/schemas/DriftResultOut"
+          },
+          "eligible_for_increase": {
+            "title": "Eligible For Increase",
+            "type": "boolean"
+          },
+          "escalated_decisions": {
+            "title": "Escalated Decisions",
+            "type": "integer"
+          },
+          "evaluated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluated At"
+          },
+          "human_agreement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProportionResultOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "noncritical_errors": {
+            "title": "Noncritical Errors",
+            "type": "integer"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "recommended_limit": {
+            "title": "Recommended Limit",
+            "type": "integer"
+          },
+          "recommended_rung": {
+            "title": "Recommended Rung",
+            "type": "integer"
+          },
+          "ruled_escalations": {
+            "title": "Ruled Escalations",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AgentState"
+          },
+          "total_decisions": {
+            "title": "Total Decisions",
+            "type": "integer"
+          },
+          "trust_score": {
+            "title": "Trust Score",
+            "type": "number"
+          },
+          "utilization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProportionResultOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weights_renormalised": {
+            "title": "Weights Renormalised",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "schema_version",
+          "total_decisions",
+          "acted_decisions",
+          "escalated_decisions",
+          "ruled_escalations",
+          "accuracy",
+          "human_agreement",
+          "utilization",
+          "critical_errors",
+          "noncritical_errors",
+          "critical_error_rate",
+          "critical_errors_in_recent_window",
+          "trust_score",
+          "components",
+          "weights_renormalised",
+          "drift",
+          "current_limit",
+          "recommended_limit",
+          "current_rung",
+          "recommended_rung",
+          "direction",
+          "state",
+          "eligible_for_increase",
+          "decisions_since_last_change",
+          "reason_codes",
+          "evaluated_at",
+          "config_fingerprint"
+        ],
+        "title": "TrustEvaluationOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "The integration point for all four lanes: the Policy Engine, persistence and audit, the HTTP contract, and the hard ceiling. See docs/SYSTEM-EXPLAINED.md for the full design.",
+    "title": "Adaptive AI Governance Platform \u2014 Backend",
+    "version": "1.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/agents": {
+      "get": {
+        "description": "List every governed agent.\n\nOnce implemented: a `SELECT` over `agents`, ordered by `id`, paginated\nwith `LIMIT`/`OFFSET`. No filtering by state yet \u2014 add `?state=` if the\ndashboard needs it before persistence lands.",
+        "operationId": "list_agents_api_v1_agents_get",
+        "parameters": [
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AgentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agents",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}": {
+      "get": {
+        "description": "Fetch one agent by id, including its current `AgentContext`.\n\nOnce implemented: a `SELECT ... WHERE id = :agent_id`, 404 if no row.",
+        "operationId": "get_agent_api_v1_agents__agent_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/policy-versions": {
+      "get": {
+        "description": "The agent's append-only limit history, newest first.\n\nOnce implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY\neffective_from DESC`. `previous_version_id` always chains to a row\nthat exists, except the very first version for an agent.",
+        "operationId": "list_policy_versions_api_v1_agents__agent_id__policy_versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PolicyVersionOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Policy Versions",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/trust": {
+      "get": {
+        "description": "The agent's most recent `TrustEvaluation`.\n\nOnce implemented: calls `trust_engine.evaluate(decisions, context)` with\nthe agent's full decision history and current `AgentContext`, persists\nthe result with a minted `id`, and returns it \u2014 or, if evaluation is\ncached, the most recent persisted row.",
+        "operationId": "get_current_trust_api_v1_agents__agent_id__trust_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustEvaluationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Current Trust",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/trust/history": {
+      "get": {
+        "description": "Every `TrustEvaluation` ever computed for this agent, newest first \u2014\nwhat the dashboard's trust-over-time chart is built from.\n\nOnce implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY\nevaluated_at DESC`.",
+        "operationId": "list_trust_history_api_v1_agents__agent_id__trust_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TrustEvaluationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Trust History",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/audit-log": {
+      "get": {
+        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nOnce implemented: `SELECT ... ORDER BY ts DESC`. Verifying the chain\n(recomputing each `hash` from `prev_hash` + the row's own payload) is a\nread-side operation a caller can do against this same data, not\nsomething the backend does on every read.",
+        "operationId": "list_audit_log_api_v1_audit_log_get",
+        "parameters": [
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditLogEntryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Audit Log",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit-samples": {
+      "get": {
+        "description": "List sampled decisions pulled for human review, newest first.\n\nOnce implemented: `SELECT ... ORDER BY sampled_at DESC`, with a\n`?pending=true` filter for the review queue view \u2014 samples are pulled\nat `sampling_rate_of(agent.current_rung)` (shared/constants.py) as\ndecisions are recorded, not on a schedule.",
+        "operationId": "list_audit_samples_api_v1_audit_samples_get",
+        "parameters": [
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditSampleOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Audit Samples",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit-samples/{sample_id}/review": {
+      "post": {
+        "description": "Record a human review of one sampled decision. REVIEWER or ADMIN only.\n\nOnce implemented: writes `reviewed_at`/`reviewer`/`verdict`/\n`reviewer_action` onto the `audit_samples` row, and \u2014 if `verdict` is\n`DISAGREED` \u2014 emits `SAMPLE_REVIEW_DISAGREEMENT`\n(shared/reason_codes.py) into the agent's next trust evaluation, since\na disagreeing sample is itself evidence. This stub validates the sample\nexists and is still pending, then returns a copy reflecting the\nreview \u2014 it does not persist it or feed the trust engine.",
+        "operationId": "review_audit_sample_api_v1_audit_samples__sample_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sample_id",
+            "required": true,
+            "schema": {
+              "title": "Sample Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditSampleReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditSampleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The current role may not perform this action."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The resource is not in a state this action applies to."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Audit Sample",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/decisions": {
+      "get": {
+        "description": "List decisions, newest first.\n\nOnce implemented: `SELECT ... ORDER BY decided_at DESC`, with\n`?agent_id=` / `?action=` filters \u2014 not needed yet, add when the\ndashboard's decisions table asks for them.",
+        "operationId": "list_decisions_api_v1_decisions_get",
+        "parameters": [
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DecisionRecordOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Decisions",
+        "tags": [
+          "decisions"
+        ]
+      },
+      "post": {
+        "description": "Ingest one decision from the simulator (or, eventually, a real agent).\n\nOnce implemented: validates the agent exists and the invoice hasn't\nalready been decided, assigns the next `sequence` number for the agent,\nwrites a `DecisionRecord`-shaped row, and appends a hash-chained\n`audit_log` entry in the same transaction (docs/lanes/vp.md). This stub\nechoes back a `DecisionRecordOut` built from the request, with a minted\nid and `decided_at`, but does not persist it \u2014 call it twice with the\nsame body and you get two different ids back.",
+        "operationId": "create_decision_api_v1_decisions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRecordOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Decision",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/decisions/{decision_id}": {
+      "get": {
+        "description": "Fetch one decision by id.\n\nOnce implemented: `SELECT ... WHERE id = :decision_id`, 404 if no row.",
+        "operationId": "get_decision_api_v1_decisions__decision_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRecordOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Decision",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Always 200 while the process is up. No DB check yet \u2014 once\npersistence lands, this should also verify a connection round-trip and\nreturn 503 if the database is unreachable rather than lying about it.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/recommendations": {
+      "get": {
+        "description": "List recommendations, newest first.\n\nOnce implemented: `SELECT ... ORDER BY generated_at DESC`, with a\n`?status=PENDING` filter for the approvals queue view.",
+        "operationId": "list_recommendations_api_v1_recommendations_get",
+        "parameters": [
+          {
+            "description": "1-indexed page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-indexed page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RecommendationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recommendations",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{rec_id}": {
+      "get": {
+        "description": "Fetch one recommendation by id, including its full opinion panel.",
+        "operationId": "get_recommendation_api_v1_recommendations__rec_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rec_id",
+            "required": true,
+            "schema": {
+              "title": "Rec Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recommendation",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{rec_id}/approve": {
+      "post": {
+        "description": "Authorize a pending INCREASE. ADMIN only.\n\nOnce implemented: writes an `approvals` row (`decided_by`, `verdict`,\n`reason`, `decided_at`), flips `Recommendation.status` to `APPROVED`,\nand \u2014 in the same transaction \u2014 writes the new `policy_versions` row\nthat actually changes `agents.current_limit`\n(docs/lanes/vp.md: \"Never update agents.current_limit without writing a\npolicy_versions row in the same transaction\"). This stub validates the\nrecommendation exists and is still `PENDING`, then returns a copy with\n`status=APPROVED` \u2014 it does not persist the change or write a policy\nversion.",
+        "operationId": "approve_recommendation_api_v1_recommendations__rec_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rec_id",
+            "required": true,
+            "schema": {
+              "title": "Rec Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The current role may not perform this action."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The resource is not in a state this action applies to."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Recommendation",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/{rec_id}/reject": {
+      "post": {
+        "description": "Reject a pending recommendation. ADMIN only, same as approve.\n\nOnce implemented: writes an `approvals` row with `verdict=REJECTED` and\nflips `Recommendation.status` to `REJECTED`. No policy version is\nwritten \u2014 the agent's limit does not change.",
+        "operationId": "reject_recommendation_api_v1_recommendations__rec_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rec_id",
+            "required": true,
+            "schema": {
+              "title": "Rec Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The current role may not perform this action."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The resource is not in a state this action applies to."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Recommendation",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/simulation/runs": {
+      "post": {
+        "description": "Start a simulation run \u2014 the simulator generates `invoice_count`\nsynthetic invoices for `phase` and posts each resulting decision to\n`POST /api/v1/decisions`.\n\nOnce implemented: enqueues the run (no Celery \u2014 see docs/CONTEXT.md's\ncut-scope list; a background task or a synchronous call is enough for\nthis project's scale) and returns immediately with `status=pending`.\nThis stub returns a freshly-minted run in `pending` status without\nactually starting anything.",
+        "operationId": "start_simulation_run_api_v1_simulation_runs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The current role may not perform this action."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Simulation Run",
+        "tags": [
+          "simulation"
+        ]
+      }
+    },
+    "/api/v1/simulation/runs/{run_id}": {
+      "get": {
+        "description": "Poll a run's status and, once complete, its summary accuracy/Wilson\nlower bound over the decisions it submitted.\n\nOnce implemented: `SELECT ... WHERE id = :run_id`, 404 if no row.",
+        "operationId": "get_simulation_run_api_v1_simulation_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Simulation Run",
+        "tags": [
+          "simulation"
+        ]
+      }
+    }
+  }
+}
