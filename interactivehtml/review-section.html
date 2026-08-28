@@ -1,0 +1,78 @@
+<section id="review">
+  <div class="eyebrow">For the mentor</div>
+  <h2>Review notes</h2>
+  <p>A compressed statement of what this project claims, so a reaction can be recorded against specific items rather than against the whole. Notes save in this browser and copy out in one action.</p>
+
+  <div class="card" style="margin:18px 0">
+    <h3 style="margin-top:0">The project in eight claims</h3>
+    <ol style="margin:10px 0 0 18px;font-size:14px;line-height:1.7">
+      <li>Static permission ceilings, not model capability, are the binding constraint on agentic ROI.</li>
+      <li>A ceiling should be a variable repriced by evidence, not a constant set by role.</li>
+      <li>The evidence must be statistical and reproducible, never an LLM's judgement.</li>
+      <li>Sample size matters as much as accuracy — hence the Wilson lower bound rather than the raw rate.</li>
+      <li>Enforcement must be deterministic code the LLM cannot reach.</li>
+      <li>Increases require human authorisation; clawbacks do not. Asymmetric risk, asymmetric controls.</li>
+      <li>Ground truth in production comes from post-hoc sampled review, at a rate that falls as trust rises.</li>
+      <li>The existing governance market observes and documents. None of it reprices the permission itself.</li>
+    </ol>
+  </div>
+
+  <div id="rv"></div>
+  <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap">
+    <button id="rvcopy" style="font-family:'IBM Plex Sans';font-size:13px;padding:9px 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer">Copy all notes</button>
+    <button id="rvclear" style="font-family:'IBM Plex Sans';font-size:13px;padding:9px 16px;border:1px solid var(--rule-strong);background:none;color:var(--slate);cursor:pointer">Clear</button>
+    <span id="rvmsg" class="mono" style="font-size:12px;color:var(--teal)"></span>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin-top:12px">Notes stay in this browser only. Use copy to paste them into a reply.</p>
+</section>
+
+<script>
+(function(){
+  var items=[
+    ['concept','Is the core concept sound and worth building?'],
+    ['groundtruth','Post-hoc sampled review as the ground-truth mechanism — does it match practice?'],
+    ['risk','Would a risk function accept statistical evidence as the basis for granting autonomy?'],
+    ['domain','Is invoice approval the right demo domain?'],
+    ['approval','Per-increase human approval, or periodic batch review?'],
+    ['category','One decision category in the demo, or two?'],
+    ['stack','Tech stack — anything you would change or expect to see?'],
+    ['scope','Scope for the remaining time — what to add, what to cut'],
+    ['demo','The demo itself — what would you want to see on the day?'],
+    ['other','Anything else']
+  ];
+  var host=document.getElementById('rv'), K='aagp_review_v1';
+  var saved={}; try{saved=JSON.parse(localStorage.getItem(K)||'{}')}catch(e){}
+  items.forEach(function(it,i){
+    var w=document.createElement('div');
+    w.style.cssText='border-top:1px solid var(--rule);padding:14px 0';
+    if(i===items.length-1) w.style.borderBottom='1px solid var(--rule)';
+    var lab=document.createElement('label');
+    lab.style.cssText='display:block;font-size:14px;font-weight:600;margin-bottom:7px';
+    lab.textContent=String(i+1).padStart(2,'0')+'  '+it[1];
+    lab.setAttribute('for','rv_'+it[0]);
+    var ta=document.createElement('textarea');
+    ta.id='rv_'+it[0]; ta.value=saved[it[0]]||''; ta.rows=2; ta.placeholder='Your view';
+    ta.style.cssText='width:100%;font-family:inherit;font-size:13.5px;line-height:1.6;padding:9px 11px;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);resize:vertical';
+    ta.addEventListener('input',function(){
+      saved[it[0]]=ta.value;
+      try{localStorage.setItem(K,JSON.stringify(saved))}catch(e){}
+      msg('Saved');
+    });
+    w.appendChild(lab); w.appendChild(ta); host.appendChild(w);
+  });
+  function msg(t){var m=document.getElementById('rvmsg');m.textContent=t;setTimeout(function(){m.textContent=''},1800)}
+  document.getElementById('rvcopy').addEventListener('click',function(){
+    var out=items.filter(function(it){return (saved[it[0]]||'').trim()})
+      .map(function(it,i){return (i+1)+'. '+it[1]+'\n   '+saved[it[0]].trim()}).join('\n\n');
+    if(!out){msg('Nothing to copy yet');return}
+    navigator.clipboard.writeText('Review notes — Adaptive AI Governance Platform\n\n'+out)
+      .then(function(){msg('Copied')},function(){msg('Copy failed')});
+  });
+  document.getElementById('rvclear').addEventListener('click',function(){
+    if(!confirm('Clear all notes?'))return;
+    saved={}; try{localStorage.removeItem(K)}catch(e){}
+    document.querySelectorAll('#rv textarea').forEach(function(t){t.value=''});
+    msg('Cleared');
+  });
+})();
+</script>

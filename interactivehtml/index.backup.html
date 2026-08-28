@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive AI Governance Platform — Project Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#131720;
+  --paper:#F3F4F1;
+  --card:#FFFFFF;
+  --rule:#DEDFD9;
+  --rule-strong:#C3C5BC;
+  --ochre:#8F5D10;
+  --ochre-bg:#F6EEDE;
+  --teal:#13645A;
+  --teal-bg:#E3EFEC;
+  --rust:#96382B;
+  --rust-bg:#F6E8E5;
+  --slate:#5D6771;
+  --slate-2:#848D96;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:'Archivo',sans-serif;letter-spacing:-.02em;line-height:1.15}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+.wrap{display:grid;grid-template-columns:212px 1fr;max-width:1180px;margin:0 auto;gap:0}
+nav{position:sticky;top:0;height:100vh;padding:38px 20px 38px 24px;border-right:1px solid var(--rule);overflow-y:auto}
+nav .brand{font-family:'Archivo';font-weight:700;font-size:13px;letter-spacing:.02em;line-height:1.3;margin-bottom:4px}
+nav .sub{font-size:11px;color:var(--slate-2);margin-bottom:26px;font-family:'IBM Plex Mono'}
+nav a{display:block;font-size:12.5px;color:var(--slate);text-decoration:none;padding:5px 0;border-left:2px solid transparent;padding-left:10px;margin-left:-12px;transition:.15s}
+nav a:hover{color:var(--ink)}
+nav a.on{color:var(--ink);border-left-color:var(--ochre);font-weight:500}
+main{padding:0 0 100px 46px;min-width:0}
+section{padding:52px 0;border-bottom:1px solid var(--rule)}
+section:first-child{padding-top:44px}
+
+.eyebrow{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ochre);margin-bottom:12px}
+h2{font-size:27px;font-weight:600;margin-bottom:12px}
+h3{font-size:17px;font-weight:600;margin:26px 0 8px}
+p{margin-bottom:13px;max-width:66ch}
+.lede{font-size:17px;line-height:1.6;color:var(--ink);max-width:60ch}
+.muted{color:var(--slate)}
+strong{font-weight:600}
+code{font-family:'IBM Plex Mono';font-size:.88em;background:#EAEBE6;padding:1px 5px;border-radius:3px}
+
+/* hero */
+.hero h1{font-size:44px;font-weight:700;margin-bottom:8px;letter-spacing:-.03em}
+.hero .tag{font-family:'IBM Plex Mono';font-size:12px;color:var(--slate);margin-bottom:26px}
+.rungs{display:flex;align-items:flex-end;gap:5px;height:56px;margin:26px 0 8px}
+.rung{width:52px;background:var(--ochre-bg);border:1px solid var(--ochre);border-bottom:none;position:relative}
+.rung span{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-family:'IBM Plex Mono';font-size:10px;color:var(--ochre)}
+.rungline{border-top:1px solid var(--ink);width:280px;margin-bottom:22px}
+
+.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-top:28px}
+.meta div{background:var(--card);padding:13px 15px}
+.meta .k{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-2);margin-bottom:3px}
+.meta .v{font-size:14px;font-weight:500}
+
+/* generic card */
+.card{background:var(--card);border:1px solid var(--rule);padding:20px 22px;margin:16px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+
+/* layer list */
+.layer{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--slate-2);padding:16px 20px;margin-bottom:10px;border-radius:0}
+.layer.t-stat{border-left-color:var(--ochre)}
+.layer.t-llm{border-left-color:var(--rust)}
+.layer.t-det{border-left-color:var(--teal)}
+.layer.t-human{border-left-color:var(--ink)}
+.layer h4{font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.layer .who{font-family:'IBM Plex Mono';font-size:11px;color:var(--slate-2);font-weight:400;white-space:nowrap}
+.layer p{font-size:14px;color:var(--slate);margin:5px 0 0;max-width:none}
+
+/* rule strip */
+.rulestrip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--ink);border:1px solid var(--ink);margin:22px 0}
+.rulestrip div{background:var(--card);padding:14px 16px}
+.rulestrip .w{font-family:'Archivo';font-weight:700;font-size:15px;margin-bottom:3px}
+.rulestrip .d{font-size:12.5px;color:var(--slate);line-height:1.5}
+.rulestrip .w.a{color:var(--rust)}.rulestrip .w.b{color:var(--ochre)}
+.rulestrip .w.c{color:var(--teal)}.rulestrip .w.d2{color:var(--ink)}
+
+/* wilson widget */
+.wil{background:var(--ink);color:#EFEFEA;padding:26px;margin:20px 0}
+.wil h3{color:#fff;margin-top:0;font-size:16px}
+.wil .ctrls{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:20px 0 10px}
+.wil label{display:block;font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#9AA3AC;margin-bottom:7px}
+.wil input[type=range]{width:100%;accent-color:#D89A3C}
+.wil .out{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#2A303B;border:1px solid #2A303B;margin-top:18px}
+.wil .out div{background:#1A1F29;padding:15px 17px}
+.wil .out .k{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8A939C;margin-bottom:5px}
+.wil .out .v{font-family:'Archivo';font-size:30px;font-weight:700;letter-spacing:-.02em}
+.wil .out .v.dim{color:#6E7883}
+.wil .out .v.hot{color:#E0A855}
+.bar{height:26px;background:#242A34;position:relative;margin-top:16px;border:1px solid #2F3641}
+.bar .fill{position:absolute;left:0;top:0;bottom:0;background:#3D4653}
+.bar .lb{position:absolute;top:0;bottom:0;width:2px;background:#E0A855}
+.bar .lbl{position:absolute;top:30px;font-family:'IBM Plex Mono';font-size:10px;color:#E0A855;transform:translateX(-50%);white-space:nowrap}
+.wil .verdict{margin-top:34px;font-size:14px;line-height:1.6;color:#C3CAD2;border-top:1px solid #2A303B;padding-top:16px}
+.wil .verdict b{color:#E0A855;font-weight:500}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:16px 0;background:var(--card)}
+th,td{text-align:left;padding:10px 12px;border:1px solid var(--rule);vertical-align:top}
+th{font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate);font-weight:500;background:#FAFAF8}
+tr.us td{background:var(--ochre-bg);border-color:var(--ochre)}
+tr.us td:first-child{font-weight:600}
+.yes{color:var(--teal);font-weight:500}
+.no{color:var(--slate-2)}
+
+/* stack */
+.stack{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px;margin-top:16px}
+.chip{background:var(--card);border:1px solid var(--rule);padding:11px 13px}
+.chip .n{font-weight:600;font-size:13.5px}
+.chip .r{font-size:11.5px;color:var(--slate);line-height:1.45;margin-top:2px}
+.chip .l{font-family:'IBM Plex Mono';font-size:10px;color:var(--teal);margin-top:5px}
+
+/* stepper */
+.steps{counter-reset:s;margin-top:18px}
+.step{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--rule)}
+.step:last-child{border-bottom:1px solid var(--rule)}
+.step .n{counter-increment:s;font-family:'IBM Plex Mono';font-size:12px;color:var(--ochre);padding-top:2px}
+.step .n::before{content:counter(s,decimal-leading-zero)}
+.step h4{font-size:14.5px;font-weight:600}
+.step p{font-size:13.5px;color:var(--slate);margin:3px 0 0;max-width:64ch}
+
+/* mock ui */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--rule-strong);margin-top:20px;flex-wrap:wrap}
+.tabs button{font-family:'IBM Plex Sans';font-size:13px;background:none;border:none;border-bottom:2px solid transparent;padding:9px 15px;cursor:pointer;color:var(--slate);margin-bottom:-1px}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ochre);font-weight:600}
+.pane{display:none;background:var(--card);border:1px solid var(--rule);border-top:none;padding:20px}
+.pane.on{display:block}
+.appbar{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--rule);padding-bottom:11px;margin-bottom:16px}
+.appbar .t{font-family:'Archivo';font-weight:600;font-size:15px}
+.appbar .u{font-family:'IBM Plex Mono';font-size:11px;color:var(--slate-2)}
+.pill{display:inline-block;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.05em;padding:2px 7px;border:1px solid;text-transform:uppercase}
+.p-ok{color:var(--teal);border-color:var(--teal);background:var(--teal-bg)}
+.p-warn{color:var(--ochre);border-color:var(--ochre);background:var(--ochre-bg)}
+.p-bad{color:var(--rust);border-color:var(--rust);background:var(--rust-bg)}
+.p-neut{color:var(--slate);border-color:var(--rule-strong);background:#F7F7F5}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:16px}
+.kpis div{background:var(--card);padding:11px 13px}
+.kpis .k{font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)}
+.kpis .v{font-family:'Archivo';font-size:21px;font-weight:700;margin-top:2px}
+.mocktable{font-size:12.5px}
+.mocktable th,.mocktable td{padding:8px 10px}
+.ladderviz{display:flex;align-items:flex-end;gap:4px;height:96px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.lv{flex:1;background:#EDEEE9;border:1px solid var(--rule-strong);position:relative}
+.lv.at{background:var(--ochre-bg);border-color:var(--ochre)}
+.lv.past{background:#E6E7E1}
+.lv b{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-family:'IBM Plex Mono';font-size:9.5px;font-weight:400;color:var(--slate)}
+.lv.at b{color:var(--ochre);font-weight:500}
+.spark{width:100%;height:80px;display:block}
+.opinion{border:1px solid var(--rule);padding:11px 13px;margin-bottom:8px;background:#FBFBF9}
+.opinion .h{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.opinion .nm{font-weight:600;font-size:13px}
+.opinion .rs{font-size:12.5px;color:var(--slate);line-height:1.5}
+.btnrow{display:flex;gap:8px;margin-top:14px}
+.btn{font-family:'IBM Plex Sans';font-size:12.5px;padding:7px 14px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:default}
+.btn.ghost{background:none;color:var(--ink)}
+.logline{font-family:'IBM Plex Mono';font-size:11.5px;padding:6px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:130px 1fr 88px;gap:10px;color:var(--slate)}
+.logline b{color:var(--ink);font-weight:500}
+.hashok{color:var(--teal)}
+
+/* progress */
+.prog{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:18px}
+.tl{border-left:2px solid var(--rule-strong);padding-left:16px;margin-left:5px}
+.tl .it{position:relative;padding:0 0 16px}
+.tl .it::before{content:'';position:absolute;left:-21px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--rule-strong)}
+.tl.done .it::before{background:var(--teal)}
+.tl .d{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--slate-2);letter-spacing:.05em}
+.tl .t{font-size:13.5px;font-weight:500;margin-top:1px}
+.tl .m{font-size:12.5px;color:var(--slate);line-height:1.5}
+.barmeter{height:6px;background:var(--rule);margin:6px 0 2px}
+.barmeter i{display:block;height:100%;background:var(--teal)}
+
+.q{border-left:3px solid var(--ochre);padding:12px 0 12px 16px;margin-bottom:14px}
+.q .qt{font-weight:600;font-size:14.5px;margin-bottom:3px}
+.q .qb{font-size:13.5px;color:var(--slate);max-width:66ch}
+
+.note{background:var(--ochre-bg);border:1px solid var(--ochre);padding:14px 17px;margin:18px 0;font-size:13.5px}
+.note b{color:var(--ochre)}
+
+@media(max-width:900px){
+  .wrap{grid-template-columns:1fr}
+  nav{position:static;height:auto;border-right:none;border-bottom:1px solid var(--rule);padding:20px}
+  nav a{display:inline-block;margin-right:14px;margin-left:0;border-left:none;padding-left:0}
+  nav a.on{border-left:none;text-decoration:underline;text-decoration-color:var(--ochre)}
+  main{padding:0 20px 60px}
+  .meta,.grid2,.grid3,.rulestrip,.kpis,.prog,.wil .ctrls,.wil .out{grid-template-columns:1fr}
+  .hero h1{font-size:32px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+:focus-visible{outline:2px solid var(--ochre);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="brand">Adaptive AI<br>Governance Platform</div>
+  <div class="sub">Team CheatCodes · MUJ</div>
+  <a href="#top" class="on">Overview</a>
+  <a href="#problem">The problem today</a>
+  <a href="#loop">How it works</a>
+  <a href="#layers">Layers &amp; team</a>
+  <a href="#wilson">The evidence model</a>
+  <a href="#landscape">Landscape research</a>
+  <a href="#stack">Tech stack</a>
+  <a href="#onboarding">Onboarding an agent</a>
+  <a href="#demo">Product walkthrough</a>
+  <a href="#progress">Work done &amp; planned</a>
+  <a href="#questions">Open questions</a>
+  <a href="#review">Review notes</a>
+</nav>
+
+<main>
+
+<section id="top" class="hero">
+  <div class="eyebrow">Deloitte USI Capstone 2026 · Project briefing</div>
+  <h1>Autonomy that is earned, not granted.</h1>
+  <div class="tag">Adaptive AI Governance Platform — Earned Autonomy Engine</div>
+  <p class="lede">An enterprise deploys an AI agent to approve invoices. Someone sets its spending limit on day one, and nobody revisits it. We make that limit a variable — continuously repriced by statistical evidence from the agent's own decision history, raised only with human sign-off, and clawed back automatically when performance degrades.</p>
+  <div class="rungs" aria-hidden="true">
+    <div class="rung" style="height:22%"><span>₹500</span></div>
+    <div class="rung" style="height:38%"><span>1,000</span></div>
+    <div class="rung" style="height:56%"><span>2,500</span></div>
+    <div class="rung" style="height:76%"><span>5,000</span></div>
+    <div class="rung" style="height:100%"><span>10,000</span></div>
+  </div>
+  <div class="rungline"></div>
+  <p class="muted" style="font-size:13px">The five-rung autonomy ladder. An agent starts at the floor and climbs one rung at a time.</p>
+  <div class="meta">
+    <div><div class="k">Team</div><div class="v">4 · CheatCodes</div></div>
+    <div><div class="k">Submission</div><div class="v">15 September 2026</div></div>
+    <div><div class="k">Tests passing</div><div class="v">338</div></div>
+    <div><div class="k">Cost to build</div><div class="v">₹0 · fully OSS</div></div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="eyebrow">Context</div>
+  <h2>What the manual process looks like today</h2>
+  <p>Invoice approval runs on a <strong>delegation of authority matrix</strong>. Every approver carries a spending limit tied to their role — team lead, manager, director, finance. An invoice arrives, gets matched against its PO, and routes to whoever's limit covers it.</p>
+  <p>That limit is set by policy. It changes on promotion, or at the annual DOA review. It does not change because a particular approver has been accurate for eight months.</p>
+  <p>The controls around it are <strong>periodic and retrospective</strong>. Internal audit samples a batch of approvals each quarter. Exceptions surface at close, or when a vendor complains, or when a payment reverses. Errors are caught — weeks or months later.</p>
+  <h3>What happens when an AI agent enters that process</h3>
+  <p>Nothing about the matrix changes. The agent is slotted in as another approver with a fixed limit, set low because nobody is sure. And it stays there, because the DOA review is about roles, not performance.</p>
+  <div class="grid2">
+    <div class="card"><h4 style="font-size:14.5px;font-weight:600;color:var(--rust);margin-bottom:5px">Proven agents stay capped</h4><p style="font-size:13.5px;color:var(--slate);margin:0">Humans keep reviewing decisions the agent has demonstrably mastered. The ROI that justified the deployment never arrives.</p></div>
+    <div class="card"><h4 style="font-size:14.5px;font-weight:600;color:var(--rust);margin-bottom:5px">Degrading agents keep privilege</h4><p style="font-size:13.5px;color:var(--slate);margin:0">A drop in quality is invisible until the next quarterly audit sample happens to catch it. The detection window is a quarter wide.</p></div>
+  </div>
+  <h3>What we change</h3>
+  <p>Three things, all of which map onto controls that already exist rather than replacing them.</p>
+  <table>
+    <thead><tr><th style="width:26%">Control today</th><th style="width:37%">How it works now</th><th>Under our platform</th></tr></thead>
+    <tbody>
+      <tr><td>Delegation of authority</td><td>A constant, set by role, reviewed annually</td><td>A variable, repriced by evidence, still human-authorised</td></tr>
+      <tr><td>Internal audit sampling</td><td>A batch pulled quarterly at fixed cost</td><td>Continuous, at a rate that falls as trust is proven</td></tr>
+      <tr><td>Degradation detection</td><td>Next audit cycle — up to a quarter</td><td>Within one review window, with automatic clawback</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="font-size:13.5px">What deliberately does not change: a human still authorises every increase, exactly as they would a DOA amendment, and every change is logged against a named approver.</p>
+</section>
+
+<section id="loop">
+  <div class="eyebrow">Mechanism</div>
+  <h2>The control loop</h2>
+  <p>One invoice, start to finish. Note where the LLM sits: there is deterministic code on both sides of it.</p>
+  <svg viewBox="0 0 640 470" style="width:100%;max-width:640px;margin:18px 0" role="img" aria-label="Control loop from invoice arrival through policy enforcement, audit log, trust engine, governance agents, hard ceiling, and human approval, with a fast automatic clawback path.">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#5D6771" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+    <g font-family="IBM Plex Sans" font-size="12.5">
+      <rect x="200" y="8" width="240" height="34" fill="#fff" stroke="#C3C5BC"/><text x="320" y="30" text-anchor="middle" fill="#131720">Invoice arrives · agent decides</text>
+      <line x1="320" y1="42" x2="320" y2="62" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="66" width="240" height="44" fill="#E3EFEC" stroke="#13645A"/><text x="320" y="84" text-anchor="middle" font-weight="600" fill="#13645A">Policy engine</text><text x="320" y="100" text-anchor="middle" font-size="11.5" fill="#13645A">Enforces the current limit</text>
+      <line x1="320" y1="110" x2="320" y2="130" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="134" width="240" height="44" fill="#E3EFEC" stroke="#13645A"/><text x="320" y="152" text-anchor="middle" font-weight="600" fill="#13645A">Audit log</text><text x="320" y="168" text-anchor="middle" font-size="11.5" fill="#13645A">Append-only, hash-chained</text>
+      <line x1="320" y1="178" x2="320" y2="198" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="202" width="240" height="44" fill="#F6EEDE" stroke="#8F5D10"/><text x="320" y="220" text-anchor="middle" font-weight="600" fill="#8F5D10">Trust engine</text><text x="320" y="236" text-anchor="middle" font-size="11.5" fill="#8F5D10">Wilson bounds · drift · ladder</text>
+      <line x1="320" y1="246" x2="320" y2="266" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="270" width="240" height="44" fill="#F6E8E5" stroke="#96382B"/><text x="320" y="288" text-anchor="middle" font-weight="600" fill="#96382B">Governance agents</text><text x="320" y="304" text-anchor="middle" font-size="11.5" fill="#96382B">Four LLM agents · advisory only</text>
+      <line x1="320" y1="314" x2="320" y2="334" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="338" width="240" height="44" fill="#E3EFEC" stroke="#13645A"/><text x="320" y="356" text-anchor="middle" font-weight="600" fill="#13645A">Hard ceiling</text><text x="320" y="372" text-anchor="middle" font-size="11.5" fill="#13645A">Clamps to what evidence supports</text>
+      <line x1="320" y1="382" x2="320" y2="402" stroke="#5D6771" marker-end="url(#ar)"/>
+      <rect x="200" y="406" width="240" height="44" fill="#fff" stroke="#131720"/><text x="320" y="424" text-anchor="middle" font-weight="600" fill="#131720">Human approval</text><text x="320" y="440" text-anchor="middle" font-size="11.5" fill="#5D6771">New immutable policy version</text>
+      <path d="M200 428 L120 428 L120 88 L198 88" fill="none" stroke="#5D6771" marker-end="url(#ar)"/>
+      <text x="112" y="262" text-anchor="end" font-size="11" fill="#5D6771">new limit</text>
+      <path d="M440 224 L530 224 L530 88 L442 88" fill="none" stroke="#96382B" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+      <text x="540" y="152" font-size="11" fill="#96382B">clawback</text><text x="540" y="166" font-size="11" fill="#96382B">automatic</text>
+    </g>
+  </svg>
+  <p><strong>Two return paths, deliberately asymmetric.</strong> The slow path on the left requires a human signature before a limit rises. The fast path on the right drops the limit the moment drift is confirmed or a critical error appears — no human needed. Removing authority is always the safe direction; granting it is not.</p>
+</section>
+
+<section id="layers">
+  <div class="eyebrow">Architecture</div>
+  <h2>Four kinds of authority, four components</h2>
+  <p>The rule the whole system is built around. Each component does exactly one of these jobs, and none of them can do another's.</p>
+  <div class="rulestrip">
+    <div><div class="w a">LLM reasons</div><div class="d">Reads evidence, writes explanations. Never originates a verdict.</div></div>
+    <div><div class="w b">Statistics provide evidence</div><div class="d">Pure arithmetic over the decision log. Reproducible by anyone.</div></div>
+    <div><div class="w c">Policy engine enforces</div><div class="d">The only code that changes or blocks anything. Deterministic.</div></div>
+    <div><div class="w d2">Humans authorize</div><div class="d">Required before autonomy rises. Not required to take it away.</div></div>
+  </div>
+  <div class="layer t-stat">
+    <h4><span>Trust &amp; risk engine</span><span class="who">Utkarsh · trust/</span></h4>
+    <p>Pure statistics over the decision history — no database, no network, no clock. Wilson confidence bounds on accuracy, human agreement and utilization; critical-error weighting; two-stage drift detection; a composed trust score; and the ladder decision with cooldowns and clawback. Deterministic by contract, so any number it produces can be recomputed and defended.</p>
+  </div>
+  <div class="layer t-llm">
+    <h4><span>Agentic governance</span><span class="who">Varun C. · governance/</span></h4>
+    <p>Four LangGraph agents — Risk, Performance, Compliance, Audit — each writing an independent opinion on the evidence, combined by a coordinator into one recommendation an administrator can read. Disagreement between agents is surfaced, not averaged away. They produce recommendations only: no database writes, no policy mutation, enforced by a CI check on imports.</p>
+  </div>
+  <div class="layer t-det">
+    <h4><span>Backend &amp; policy infrastructure</span><span class="who">Varun P. · backend/</span></h4>
+    <p>The policy engine — the only component that enforces a limit, and a pure module with no LLM, database or network inside it. Plus the hard ceiling that clamps governance recommendations to what the evidence supports, immutable policy versioning, the hash-chained audit log, the approval workflow, JWT and role-based access, and the API surface every other lane meets at.</p>
+  </div>
+  <div class="layer t-human">
+    <h4><span>Product, simulation &amp; observability</span><span class="who">Adhya · frontend/ simulator/</span></h4>
+    <p>The dashboard an administrator actually uses — trust over time, ladder position, drift status, approvals queue, audit trail. And the simulator that generates synthetic invoices with known ground truth, so twelve weeks of agent behaviour compresses into a few minutes and the demo is reproducible from a seed.</p>
+  </div>
+</section>
+
+<section id="wilson">
+  <div class="eyebrow">The core idea</div>
+  <h2>Why accuracy alone is not evidence</h2>
+  <p>An agent that is five-for-five looks perfect and tells you almost nothing. We do not score on the raw rate — we score on the <strong>lower bound of a Wilson score confidence interval</strong>, which accounts for how much we have actually seen.</p>
+  <div class="wil">
+    <h3>Move the sample size and watch the bound</h3>
+    <div class="ctrls">
+      <div>
+        <label for="n">Decisions observed · <span class="mono" id="nv">5</span></label>
+        <input type="range" id="n" min="1" max="500" value="5">
+      </div>
+      <div>
+        <label for="acc">Observed accuracy · <span class="mono" id="av">100%</span></label>
+        <input type="range" id="acc" min="50" max="100" value="100">
+      </div>
+    </div>
+    <div class="out">
+      <div><div class="k">Point estimate</div><div class="v dim" id="pt">100.0%</div></div>
+      <div><div class="k">Wilson lower bound</div><div class="v hot" id="lb">56.6%</div></div>
+    </div>
+    <div class="bar"><div class="fill" id="fill" style="width:100%"></div><div class="lb" id="mark" style="left:56.6%"></div><div class="lbl" id="marklbl" style="left:56.6%">evidence floor</div></div>
+    <div class="verdict" id="verdict" style="margin-top:40px"></div>
+  </div>
+  <p><strong>The consequence:</strong> a perfect five-for-five record scores worse than 384-of-400. The bound rewards being good <em>and</em> having proven it. That is what makes the autonomy earned rather than granted, and it is why an increase requires evidence to accumulate rather than a lucky streak.</p>
+  <h3>What else feeds the trust score</h3>
+  <div class="grid3">
+    <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Human agreement</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">When the agent escalates, does the human reach the same conclusion it would have? Measured only on ruled escalations, with its own evidence gate.</p></div>
+    <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Critical-error weighting</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">Approving what should have been rejected sends money out. The reverse annoys a vendor. Weighted 5× in the score — never folded into accuracy itself.</p></div>
+    <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Drift detection</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">A 10pp accuracy-drop tripwire, then a pooled two-proportion z-test to confirm. Below 30 samples per window we report "underpowered" rather than claiming certainty.</p></div>
+  </div>
+  <h3>Where ground truth comes from</h3>
+  <p>In production nobody re-checks an invoice the agent auto-approved, so accuracy has no natural source. We added <strong>post-hoc audit sampling</strong>: a share of autonomous approvals goes to human review after the fact — 100% at the floor rung, 5% at the top. That sampled review is the ground truth, and the falling sampling rate is the measurable return: not just fewer escalations, a shrinking oversight burden.</p>
+</section>
+
+<section id="landscape">
+  <div class="eyebrow">Research</div>
+  <h2>What already exists, and the gap we sit in</h2>
+  <p>We reviewed the current AI-governance tooling landscape. The category is consolidating fast — <a href="https://www.arthur.ai/column/best-ai-governance-platforms-2026" style="color:var(--ochre)">Gartner projects over 40% of agentic AI projects will be cancelled by end of 2027</a> on cost and inadequate risk controls, and regulation is arriving: the EU AI Act's high-risk obligations take effect August 2026, the Colorado AI Act became enforceable in June 2026, and OWASP published its first agentic-risk taxonomy in December 2025.</p>
+  <p>Mature governance programmes are described as spanning four layers: policy and compliance, AI inventory and lifecycle, runtime enforcement, and observability. Almost every product concentrates on the first, second and fourth.</p>
+  <table>
+    <thead><tr><th style="width:20%">Platform</th><th style="width:30%">Primary focus</th><th style="width:16%">Runtime per-decision</th><th style="width:16%">Human-approved change</th><th>Permission earned from evidence</th></tr></thead>
+    <tbody>
+      <tr><td>IBM watsonx.governance</td><td>Model lifecycle, documentation, compliance reporting</td><td class="no">No — offline</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Credo AI</td><td>Policy packs, compliance mapping, agent traceability</td><td class="no">Partial</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Fiddler AI</td><td>Observability, drift monitoring, explainability, guardrails</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Arthur AI</td><td>Agent discovery, runtime guardrails, evaluations</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Microsoft Purview</td><td>Data access governance for Copilot and agents</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>MS Agent Governance Toolkit</td><td>Capability sandboxing, MCP gateways (OSS, Apr 2026)</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>DataRobot / ModelOp</td><td>Model risk management, system of record for AI assets</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr class="us"><td>This project</td><td>Per-decision permission ceilings repriced by statistical evidence</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+    </tbody>
+  </table>
+  <h3>The gap, stated precisely</h3>
+  <p>Existing tools answer <em>"is this agent behaving?"</em> — they observe, document, and block. None of them answer <em>"has this agent earned more authority, and how much?"</em> Guardrails are static: someone configures a boundary and it stays there. Discovery and observability tell you an agent exists and how it is performing, but nothing repriced the permission itself.</p>
+  <p>Our contribution is the runtime enforcement layer specifically, with permission as the variable: a credit score for agents rather than a report card. It is complementary to the tools above rather than competing — an enterprise could plausibly run Fiddler for observability and this for the authority decision.</p>
+  <div class="note"><b>Honest limitation.</b> This is a prototype demonstrating a mechanism, not a product. It governs one agent in one decision category with a simulated decision stream. The comparison above is about the concept, not about feature parity with commercial platforms.</div>
+</section>
+
+<section id="stack">
+  <div class="eyebrow">Implementation</div>
+  <h2>Tech stack</h2>
+  <p>Every component is open source with no licensing cost. The only optional paid element is a hosted LLM API for the governance narratives, and the platform runs fully deterministically without it.</p>
+  <div class="stack">
+    <div class="chip"><div class="n">Python 3.11</div><div class="r">Trust engine, backend, governance, simulator</div><div class="l">PSF</div></div>
+    <div class="chip"><div class="n">FastAPI</div><div class="r">API surface, auto-generated OpenAPI schema</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">PostgreSQL</div><div class="r">Append-only decision, policy and audit tables</div><div class="l">PostgreSQL</div></div>
+    <div class="chip"><div class="n">SQLAlchemy · Alembic</div><div class="r">ORM and versioned schema migrations</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">LangGraph</div><div class="r">Governance coordinator, four agent nodes</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">Google Gemini</div><div class="r">Agent narratives · cached mode is the demo default</div><div class="l">Free tier</div></div>
+    <div class="chip"><div class="n">Pydantic</div><div class="r">Structured LLM output validation, API schemas</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">Next.js · TypeScript</div><div class="r">Administrator dashboard</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">Tailwind · Recharts</div><div class="r">Styling and the confidence-band charts</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">Typer · httpx</div><div class="r">Simulator CLI and its HTTP client</div><div class="l">MIT / BSD</div></div>
+    <div class="chip"><div class="n">pytest · Hypothesis</div><div class="r">338 tests including property-based statistics tests</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">Docker Compose</div><div class="r">Reproducible local environment</div><div class="l">Apache 2.0</div></div>
+    <div class="chip"><div class="n">GitHub Actions</div><div class="r">CI: lint, tests, API schema freshness check</div><div class="l">Free tier</div></div>
+    <div class="chip"><div class="n">JWT · RBAC</div><div class="r">Admin, reviewer, auditor roles</div><div class="l">MIT</div></div>
+  </div>
+  <h3>Deliberately excluded</h3>
+  <p class="muted">Celery, Redis, Prometheus, Grafana, OpenTelemetry, Jaeger, MLflow, object storage and Kubernetes were all scoped out, each recorded as an architecture decision. The system is a monolith with enforced module boundaries — the boundaries that matter here are architectural, not network, and we enforce them with import rules in CI rather than paying for a distributed system on a three-week build.</p>
+  <h3>How correctness is defended</h3>
+  <div class="grid2">
+    <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Statistics cross-validated</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">The Wilson implementation is checked against <code>statsmodels</code> as an independent reference, plus property-based tests over random inputs.</p></div>
+    <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Boundaries enforced in CI</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">Tests fail the build if the trust engine imports a web framework or database, or if governance can reach the enforcement path.</p></div>
+  </div>
+</section>
+
+<section id="onboarding">
+  <div class="eyebrow">Adoption</div>
+  <h2>What onboarding an agent looks like</h2>
+  <p>The integration surface is a single HTTP call. An existing agent adds one request before it acts and receives a verdict — no change to the agent's internals, no rewrite, no framework dependency.</p>
+  <div class="steps">
+    <div class="step"><div class="n"></div><div><h4>Register the agent</h4><p>An administrator creates the agent record and names its decision category. Takes minutes; it is a form, not an integration.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>Set the floor and the ladder</h4><p>The agent starts in probation at the floor rung — ₹500 — with 100% of its autonomous approvals sampled for post-hoc review. Business owners define the stake bands; this is the workshop step, and the one that needs real subject-matter input.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>Add one call to the agent</h4><p><code>POST /api/v1/decisions</code> before it acts. Within limit, it proceeds and the decision is logged. Outside limit, it escalates into the approvals queue the organisation already uses. Nothing else about the agent changes.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>Evidence accumulates</h4><p>Every decision, every human ruling on an escalation, and every sampled review feeds the trust profile. Nothing moves yet — the agent is building a record.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>First recommendation</h4><p>Once the sample size, trust threshold, cooldown, drift and recovery gates all pass, the governance agents produce a recommendation with reasoning. It appears in the approvals queue with the evidence attached.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>An administrator signs</h4><p>Approve or reject, with a written reason. A new immutable policy version is created, the ceiling moves one rung, and the sampling rate steps down. Every subsequent decision references that policy version.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>Steady state</h4><p>The agent climbs as it proves itself and drops automatically if it degrades. The administrator's involvement is one signature per rung change — not one per invoice.</p></div></div>
+  </div>
+  <div class="note"><b>Fail-closed by design.</b> If the governance layer is unavailable, no recommendations are generated and the ceiling simply stops moving. If the policy engine is unreachable, every decision escalates. Autonomy is never silently granted by a failure.</div>
+</section>
+
+<section id="demo">
+  <div class="eyebrow">Product</div>
+  <h2>Walkthrough of the dashboard</h2>
+  <p>These are the administrator screens as they exist in the current build. They predate the contract freeze, so they still show the earlier three-tier authority model rather than the five-rung ladder described above, and the governance opinions and audit-chain verification are not yet surfaced. Migration onto the frozen contracts is scheduled for 2 September; what follows is what runs today.</p>
+  <div class="note"><b>Reading these accurately.</b> Three tiers rather than five rungs. Accuracy and the Wilson lower bound drawn as two separate lines rather than a shaded confidence band. A single approve-or-reject flow without the four per-agent governance opinions. Each is a scheduled change rather than a design decision &mdash; the statistical engine underneath already produces all of it, and the screens are the last lane to migrate.</div>
+
+<style>
+  /* ============================================================
+     fm- scoped styles for Earned Autonomy Engine briefing mockups.
+     Derived from frontend/src/app/globals.css (Deloitte editorial
+     design system: Open Sans, #86BC25 accent, 2px/4px radii, flat
+     bordered panels, no shadows).
+     ============================================================ */
+  .fm-root {
+    max-width: 900px;
+    min-width: 0;
+    margin: 0 auto;
+    font-family: "Open Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    color: #0F172A;
+    background-color: #F7F8F6; border: 1px solid #E2E8F0;
+  }
+  .fm-root * { box-sizing: border-box; }
+  .fm-mono { font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace; }
+
+  .fm-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 12px 0 12px;
+    background: #FFFFFF;
+    border-bottom: 1px solid #E2E8F0;
+    flex-wrap: wrap;
+  }
+  .fm-tab-btn {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748B;
+    background: #F7F8F6;
+    border: 1px solid #E2E8F0;
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .fm-tab-btn.fm-active { color: #5f8914; background: #FFFFFF; border-color: #86BC25; }
+
+  .fm-section { display: none; background: #F7F8F6; }
+  .fm-section.fm-active { display: block; }
+
+  .fm-eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #64748B;
+    display: block;
+  }
+  .fm-h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.01em; color: #0F172A; margin: 4px 0 0 0; }
+  .fm-h2 { font-size: 18px; font-weight: 900; letter-spacing: -0.01em; color: #0F172A; margin: 0; }
+  .fm-h3 { font-size: 15px; font-weight: 900; color: #0F172A; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #E2E8F0; }
+  .fm-sub { font-size: 12px; font-weight: 500; color: #475569; max-width: 520px; margin: 4px 0 0 0; line-height: 1.5; }
+
+  .fm-header { padding: 28px 32px 20px 32px; background: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
+  .fm-header-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .fm-content { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; }
+
+  .fm-panel { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; }
+  .fm-panel-pad { padding: 20px; }
+
+  .fm-summary-block { display: flex; align-items: center; gap: 14px; background: #F7F8F6; border: 1px solid #E2E8F0; padding: 8px 14px; border-radius: 2px; }
+  .fm-summary-divider { width: 1px; height: 26px; background: #E2E8F0; }
+  .fm-summary-num { font-size: 14px; font-weight: 900; color: #0F172A; display: block; }
+  .fm-summary-num.fm-warn { color: #92400e; }
+
+  .fm-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 2px; display: inline-block;
+  }
+  /* NOTE: in the shipped app, .tier-tag / .tier-low / .tier-medium / .tier-high are referenced
+     in TSX but never defined anywhere in globals.css -- the tier badge renders with NO chip
+     styling at all (plain inline text). Styled minimally here for legibility; see report. */
+  .fm-tier-tag { font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; }
+  .fm-badge-healthy { background: #dcfce7; color: #5f8914; }
+  .fm-badge-attention { background: #fef3c7; color: #78350f; }
+
+  .fm-agent-card { padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .fm-agent-id { display: flex; align-items: center; gap: 8px; flex-direction: column; align-items: flex-start; min-width: 200px; }
+  .fm-agent-name { font-size: 18px; font-weight: 800; color: #0F172A; letter-spacing: -0.01em; margin: 2px 0; }
+  .fm-agent-uid { font-size: 11px; color: #94a3b8; }
+
+  .fm-ladder { display: flex; flex-direction: column; gap: 5px; width: 168px; padding-left: 20px; border-left: 1px solid #E2E8F0; }
+  .fm-ladder-step { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; border-radius: 2px; border: 1px solid #E2E8F0; background: #F8FAFC; font-size: 11px; color: #94a3b8; font-weight: 600; }
+  .fm-ladder-step.fm-active { background: rgba(134,188,37,0.15); border-color: #86BC25; color: #5f8914; font-weight: 800; }
+  .fm-ladder-amt { font-family: "JetBrains Mono", monospace; font-weight: 800; }
+  .fm-ladder-tier { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; }
+
+  .fm-metric-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .fm-metric-strip div { display: flex; flex-direction: column; gap: 2px; }
+  .fm-metric-val { font-size: 16px; font-weight: 900; color: #0F172A; }
+  .fm-metric-val.fm-good { color: #5f8914; }
+  .fm-metric-val.fm-bad { color: #92400e; }
+
+  .fm-btn { font-family: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.02em; border: none; border-radius: 2px; padding: 8px 16px; cursor: pointer; color: #fff; }
+  .fm-btn-primary { background: #86BC25; }
+  .fm-btn-danger { background: #dc2626; }
+  .fm-link-btn { display: inline-flex; align-items: center; gap: 6px; background: #86BC25; color: #fff; font-size: 11px; font-weight: 700; padding: 8px 14px; border-radius: 2px; text-decoration: none; }
+
+  .fm-status-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; border: 1px solid transparent; display: inline-block; }
+  .fm-status-pending { background: #fef3c7; color: #78350f; border-color: #fde68a; }
+  .fm-status-approved { background: #dcfce7; color: #5f8914; border-color: #bbf7d0; }
+  .fm-status-rejected { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+
+  .fm-decision-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; border: 1px solid; }
+  .fm-decision-approve { background: #dcfce7; color: #5f8914; border-color: #bbf7d0; }
+  .fm-decision-reject { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+  .fm-decision-escalate { background: #fef3c7; color: #78350f; border-color: #fde68a; }
+
+  .fm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .fm-table th { text-align: left; font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 16px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; }
+  .fm-table td { padding: 12px 16px; border-bottom: 1px solid #F1F5F9; color: #0F172A; }
+  .fm-table tr.fm-row-selected td { background: #F1F5F9; font-weight: 600; }
+
+  .fm-approval-row { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .fm-approval-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .fm-approval-info { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .fm-approval-meta { display: flex; align-items: center; gap: 16px; }
+  .fm-escalate-toggle { font-size: 11px; font-weight: 700; color: #475569; background: none; border: none; cursor: pointer; padding: 0; }
+  .fm-escalate-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #F1F5F9; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; background: #F8FAFC; padding: 12px; border-radius: 2px; font-size: 12px; }
+
+  .fm-invoice-card { background: #fff; border: 1px solid #E2E8F0; border-radius: 4px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; flex-wrap: wrap; }
+
+  .fm-timeline-rail { position: relative; border-left: 2px solid #E2E8F0; margin-left: 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 18px; font-size: 12px; }
+  .fm-timeline-dot { position: absolute; left: -25px; width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; }
+  .fm-timeline-time { font-size: 11px; color: #94a3b8; }
+  .fm-timeline-title { font-weight: 700; color: #0F172A; margin: 2px 0; }
+  .fm-timeline-desc { color: #64748B; }
+
+  .fm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .fm-diag-box { background: rgba(254,242,242,0.8); border: 1px solid #fecaca; border-radius: 2px; padding: 14px; }
+  .fm-diag-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .fm-diag-cell { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 2px; }
+
+  .fm-select { width: 100%; background: #fff; border: 1px solid #cbd5e1; border-radius: 2px; padding: 8px 10px; font-size: 12px; font-weight: 700; color: #0F172A; font-family: inherit; }
+  .fm-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748B; display: block; margin-bottom: 4px; }
+
+  .fm-progress-track { width: 100%; background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden; }
+  .fm-progress-fill { background: #86BC25; height: 100%; width: 37%; }
+
+  .fm-run-row { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+  @media (max-width: 760px) {
+    .fm-metric-strip { grid-template-columns: repeat(2, 1fr); }
+    .fm-grid-2 { grid-template-columns: 1fr; }
+    .fm-header, .fm-content { padding-left: 18px; padding-right: 18px; }
+  }
+</style>
+
+<div class="fm-root">
+  <div class="fm-tabs">
+    <button class="fm-tab-btn fm-active" onclick="fmShow('agents', this)">Agents</button>
+    <button class="fm-tab-btn" onclick="fmShow('agent-detail', this)">Agent detail</button>
+    <button class="fm-tab-btn" onclick="fmShow('approvals', this)">Approvals</button>
+    <button class="fm-tab-btn" onclick="fmShow('audit', this)">Audit</button>
+    <button class="fm-tab-btn" onclick="fmShow('simulation', this)">Simulation</button>
+  </div>
+
+<!-- MOCKUP: agents -->
+<div class="fm-section fm-active" id="fm-mockup-agents">
+  <div class="fm-header">
+    <div class="fm-header-row">
+      <div>
+        <span class="fm-eyebrow">GOVERNED AI WORKFORCE</span>
+        <h1 class="fm-h1">Agents</h1>
+        <p class="fm-sub">Monitor earned autonomy, statistical reliability, and human oversight across registered AI agents.</p>
+      </div>
+      <div class="fm-summary-block">
+        <div><span class="fm-eyebrow" style="font-size:9px">ACTIVE AGENTS</span><span class="fm-summary-num">3</span></div>
+        <div class="fm-summary-divider"></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">TOTAL AUTHORITY</span><span class="fm-summary-num">₹21,000</span></div>
+        <div class="fm-summary-divider"></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">REQUIRES ATTENTION</span><span class="fm-summary-num fm-warn">2</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fm-content">
+    <!-- Agent card 1: gemini-agent-001 -->
+    <div class="fm-panel fm-agent-card">
+      <div class="fm-agent-id">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="fm-tier-tag">LOW</span>
+          <span class="fm-tag fm-badge-attention">ATTENTION REQUIRED</span>
+        </div>
+        <span class="fm-agent-name">GeminiAgent (gemini-2.5-flash)</span>
+        <span class="fm-agent-uid fm-mono">gemini-agent-001</span>
+      </div>
+
+      <div class="fm-ladder">
+        <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+      </div>
+
+      <div class="fm-metric-strip" style="flex:1;min-width:280px;">
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹3,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">87%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-bad">79%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">320</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">PENDING</span><span class="fm-metric-val">4</span></div>
+      </div>
+
+      <a href="#" class="fm-link-btn">VIEW AGENT →</a>
+    </div>
+
+    <!-- Agent card 2: scripted-agent-001 -->
+    <div class="fm-panel fm-agent-card">
+      <div class="fm-agent-id">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="fm-tier-tag">MEDIUM</span>
+          <span class="fm-tag fm-badge-healthy">HEALTHY</span>
+        </div>
+        <span class="fm-agent-name">ScriptedAgent v1</span>
+        <span class="fm-agent-uid fm-mono">scripted-agent-001</span>
+      </div>
+
+      <div class="fm-ladder">
+        <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+      </div>
+
+      <div class="fm-metric-strip" style="flex:1;min-width:280px;">
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹15,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">92%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-good">85%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">580</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">PENDING</span><span class="fm-metric-val">1</span></div>
+      </div>
+
+      <a href="#" class="fm-link-btn">VIEW AGENT →</a>
+    </div>
+
+    <!-- Agent card 3: gemini-agent-002 -->
+    <div class="fm-panel fm-agent-card">
+      <div class="fm-agent-id">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="fm-tier-tag">LOW</span>
+          <span class="fm-tag fm-badge-attention">ATTENTION REQUIRED</span>
+        </div>
+        <span class="fm-agent-name">GeminiAgent (recovery)</span>
+        <span class="fm-agent-uid fm-mono">gemini-agent-002</span>
+      </div>
+
+      <div class="fm-ladder">
+        <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+      </div>
+
+      <div class="fm-metric-strip" style="flex:1;min-width:280px;">
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹3,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">91%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-bad">83%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">140</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">PENDING</span><span class="fm-metric-val">0</span></div>
+      </div>
+
+      <a href="#" class="fm-link-btn">VIEW AGENT →</a>
+    </div>
+  </div>
+</div>
+<!-- /MOCKUP: agents -->
+
+<!-- MOCKUP: agent-detail -->
+<div class="fm-section" id="fm-mockup-agent-detail">
+  <div class="fm-header">
+    <div class="fm-header-row">
+      <div>
+        <span class="fm-eyebrow">AGENT GOVERNANCE</span>
+        <h1 class="fm-h1">GeminiAgent</h1>
+        <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#64748B;margin-top:4px;">
+          <span class="fm-mono">gemini-agent-001</span><span>·</span><span>gemini-2.5-flash</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <span class="fm-eyebrow" style="display:block;margin-bottom:4px;">CURRENT AUTONOMY</span>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+          <span style="width:6px;height:32px;background:#86BC25;border-radius:4px;display:inline-block;"></span>
+          <span style="font-size:32px;font-weight:900;color:#0F172A;letter-spacing:-0.01em;">₹3,000</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;">
+          <span class="fm-tier-tag">LOW</span>
+          <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#b91c1c;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:2px 8px;border-radius:2px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#dc2626;display:inline-block;"></span>AUTONOMY CLAWED BACK
+          </span>
+        </div>
+        <p style="font-size:11px;color:#64748B;font-weight:500;margin:4px 0 0 0;">from previous limit of ₹15,000 <strong style="color:#b91c1c;">(−80% authority)</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="fm-content">
+    <!-- Performance band -->
+    <div class="fm-panel fm-metric-strip" style="padding:16px 0;">
+      <div style="padding:0 20px;"><span class="fm-eyebrow" style="font-size:9px">TOTAL DECISIONS</span><span class="fm-metric-val" style="font-size:22px;">320</span></div>
+      <div style="padding:0 20px;border-left:1px solid #E2E8F0;"><span class="fm-eyebrow" style="font-size:9px">ROLLING ACCURACY</span><span class="fm-metric-val" style="font-size:22px;">87%</span></div>
+      <div style="padding:0 20px;border-left:1px solid #E2E8F0;"><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-bad" style="font-size:22px;">79%</span></div>
+      <div style="padding:0 20px;border-left:1px solid #E2E8F0;background:rgba(248,250,252,0.6);"><span class="fm-eyebrow" style="font-size:9px">SAFETY THRESHOLD</span><span class="fm-metric-val" style="font-size:22px;color:#334155;">85%</span></div>
+      <div style="padding:0 20px;border-left:1px solid #E2E8F0;"><span class="fm-eyebrow" style="font-size:9px">PENDING APPROVALS</span><span class="fm-metric-val" style="font-size:22px;color:#78350f;">4</span></div>
+    </div>
+
+    <!-- Governance trajectory: AutonomyTimeline reproduction -->
+    <div class="fm-panel fm-panel-pad">
+      <div style="border-bottom:1px solid #E2E8F0;padding-bottom:12px;margin-bottom:12px;">
+        <span class="fm-eyebrow">GOVERNANCE TRAJECTORY</span>
+        <h2 class="fm-h2" style="margin-top:2px;">How autonomy changed</h2>
+        <p class="fm-sub">The agent's financial authority follows statistically validated performance.</p>
+      </div>
+
+      <svg viewBox="0 0 800 380" width="100%" height="320" style="font-family:inherit;">
+        <!-- gridlines -->
+        <g stroke="#e2e8f0" stroke-width="1">
+          <line x1="60" y1="47" x2="740" y2="47" />
+          <line x1="60" y1="140" x2="740" y2="140" />
+          <line x1="60" y1="200" x2="740" y2="200" />
+          <line x1="60" y1="260" x2="740" y2="260" />
+          <line x1="60" y1="320" x2="740" y2="320" />
+        </g>
+        <!-- axes -->
+        <line x1="60" y1="320" x2="740" y2="320" stroke="#cbd5e1" />
+        <line x1="60" y1="20" x2="60" y2="320" stroke="#cbd5e1" />
+        <line x1="740" y1="20" x2="740" y2="320" stroke="#cbd5e1" />
+
+        <!-- left axis ticks: autonomy limit -->
+        <g font-size="10" fill="#64748b">
+          <text x="52" y="323" text-anchor="end">₹0</text>
+          <text x="52" y="307" text-anchor="end">₹3k</text>
+          <text x="52" y="241" text-anchor="end">₹15k</text>
+          <text x="52" y="50" text-anchor="end">₹50k</text>
+        </g>
+        <!-- right axis ticks: percent -->
+        <g font-size="10" fill="#64748b">
+          <text x="748" y="323">50%</text>
+          <text x="748" y="263">60%</text>
+          <text x="748" y="203">70%</text>
+          <text x="748" y="143">80%</text>
+          <text x="748" y="113">85%</text>
+          <text x="748" y="83">90%</text>
+          <text x="748" y="23">100%</text>
+        </g>
+
+        <!-- safety threshold line at 85% -->
+        <line x1="60" y1="110" x2="740" y2="110" stroke="#475569" stroke-width="1" stroke-dasharray="3 3" />
+        <text x="742" y="107" font-size="9" fill="#475569" font-weight="700">Safety Threshold (85%)</text>
+
+        <!-- autonomy limit step area (green) -->
+        <polygon points="60,304 202,304 202,238 428,238 428,304 740,304 740,320 60,320"
+                 fill="#86BC25" fill-opacity="0.1" />
+        <polyline points="60,304 202,304 202,238 428,238 428,304 740,304"
+                  fill="none" stroke="#86BC25" stroke-width="2" />
+
+        <!-- vertical reference lines: promotion / drift / clawback -->
+        <line x1="202" y1="20" x2="202" y2="320" stroke="#86BC25" stroke-width="1.5" stroke-dasharray="4 2" />
+        <text x="205" y="30" font-size="9" fill="#5f8914" font-weight="700">PROMOTION (₹3k→₹15k)</text>
+
+        <line x1="315" y1="20" x2="315" y2="320" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 2" />
+        <text x="318" y="42" font-size="9" fill="#dc2626" font-weight="700">DRIFT DETECTED (Shift)</text>
+
+        <line x1="428" y1="20" x2="428" y2="320" stroke="#b91c1c" stroke-width="2" stroke-dasharray="2 2" />
+        <text x="322" y="30" font-size="9" fill="#b91c1c" font-weight="700" text-anchor="end">CLAWBACK (₹15k→₹3k)</text>
+
+        <!-- rolling accuracy line (near-black, solid) -->
+        <polyline points="60,74 88,68 117,80 145,62 173,56 202,50 230,56 258,62 287,68 315,92 343,128 372,158 400,176 428,194 457,200 485,188 513,164 542,140 570,122 598,104 627,92 655,80 683,74 712,68 740,62"
+                  fill="none" stroke="#0f172a" stroke-width="2" />
+
+        <!-- wilson lower bound line (amber, dashed) -->
+        <polyline points="60,140 88,134 117,146 145,122 173,110 202,98 230,104 258,110 287,122 315,152 343,194 372,224 400,248 428,266 457,272 485,260 513,236 542,206 570,188 598,164 627,146 655,134 683,128 712,116 740,110"
+                  fill="none" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" />
+
+        <!-- x axis labels -->
+        <g font-size="10" fill="#64748b">
+          <text x="60" y="335">Aug 1</text>
+          <text x="202" y="335" text-anchor="middle">Aug 3</text>
+          <text x="315" y="335" text-anchor="middle">Aug 5</text>
+          <text x="428" y="335" text-anchor="middle">Aug 7</text>
+          <text x="513" y="335" text-anchor="middle">Aug 9</text>
+          <text x="740" y="335" text-anchor="end">Aug 13</text>
+        </g>
+
+        <!-- legend -->
+        <g font-size="11" fill="#334155">
+          <rect x="220" y="358" width="12" height="3" fill="#86BC25" /><text x="236" y="362">Autonomy Limit (INR)</text>
+          <line x1="400" y1="360" x2="412" y2="360" stroke="#0f172a" stroke-width="2" /><text x="418" y="362">Rolling Accuracy</text>
+          <line x1="560" y1="360" x2="572" y2="360" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" /><text x="578" y="362">Wilson Lower Bound (95%)</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="fm-grid-2">
+      <!-- Why autonomy changed -->
+      <div class="fm-panel fm-panel-pad">
+        <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">GOVERNANCE DIAGNOSTICS</span>
+        <h3 class="fm-h3">Why autonomy changed</h3>
+        <div class="fm-diag-box">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-weight:800;color:#7f1d1d;font-size:12px;">TRIGGER</span>
+            <span class="fm-mono" style="font-size:10px;color:#b91c1c;font-weight:700;">WLB &lt; 85%</span>
+          </div>
+          <p style="color:#334155;font-weight:500;font-size:12px;line-height:1.5;margin:0;">
+            Wilson 95% lower bound fell below the safety threshold following a hard invoice distribution shift.
+          </p>
+        </div>
+        <div class="fm-diag-2x2">
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">THRESHOLD</span><span class="fm-metric-val">85%</span></div>
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">OBSERVED WLB</span><span class="fm-metric-val fm-bad">79%</span></div>
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">PREVIOUS AUTHORITY</span><span class="fm-metric-val">₹15,000</span></div>
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val" style="color:#b91c1c;">₹3,000</span></div>
+        </div>
+        <div style="border-top:1px solid #E2E8F0;padding-top:10px;margin-top:12px;display:flex;justify-content:space-between;font-size:11px;">
+          <span style="color:#64748B;font-weight:500;">Governance Action:</span>
+          <span style="font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.04em;">AUTOMATICALLY EXECUTED</span>
+        </div>
+      </div>
+
+      <!-- Reliability position: HorizontalThresholdGauge reproduction -->
+      <div class="fm-panel fm-panel-pad" style="display:flex;flex-direction:column;justify-content:space-between;">
+        <div>
+          <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">STATISTICAL EVIDENCE</span>
+          <h3 class="fm-h3">Reliability Position</h3>
+
+          <div style="background:#F7F8F6;border:1px solid #E2E8F0;border-radius:2px;padding:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #E2E8F0;padding-bottom:8px;margin-bottom:10px;">
+              <span class="fm-eyebrow" style="font-size:10px;">RELIABILITY ANALYSIS</span>
+              <div style="font-size:11px;font-weight:600;color:#475569;">
+                Accuracy: <strong style="color:#0F172A;">87%</strong> ·
+                Wilson LB: <strong style="color:#b91c1c;">79%</strong> ·
+                Threshold: <strong style="color:#0F172A;">85%</strong>
+              </div>
+            </div>
+            <svg viewBox="0 0 460 60" width="100%" height="60">
+              <rect x="0" y="24" width="460" height="8" rx="4" fill="#e2e8f0" />
+              <rect x="0" y="24" width="266.8" height="8" rx="4" fill="#ef4444" />
+              <!-- threshold marker at 85% -> pos 70% -->
+              <line x1="322" y1="10" x2="322" y2="38" stroke="#0f172a" stroke-width="2" />
+              <text x="322" y="8" font-size="8" font-weight="800" text-anchor="middle" fill="#334155">THRESHOLD (85%)</text>
+              <!-- WLB marker at 79% -> pos 58% -->
+              <circle cx="266.8" cy="28" r="6" fill="#dc2626" stroke="#fff" stroke-width="2" />
+              <text x="266.8" y="50" font-size="9" font-weight="800" text-anchor="middle" fill="#b91c1c">WLB 79%</text>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;" class="fm-mono">
+              <span>50%</span><span>75%</span><span>100%</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:#F7F8F6;border:1px solid #E2E8F0;padding:10px;border-radius:2px;font-size:12px;color:#475569;margin-top:14px;">
+          <strong style="color:#0F172A;display:block;margin-bottom:2px;">Wilson Score Interval (95%)</strong>
+          Lower confidence limit ensures financial authority is only granted when precision is statistically proven.
+        </div>
+      </div>
+    </div>
+
+    <!-- Governance event history -->
+    <div class="fm-panel fm-panel-pad">
+      <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">CHRONOLOGICAL AUDIT</span>
+      <h3 class="fm-h3">Governance Event History</h3>
+      <div class="fm-timeline-rail">
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#86BC25;"></span>
+          <span class="fm-timeline-time fm-mono">15:11</span>
+          <p class="fm-timeline-title">Performance returned above threshold</p>
+          <p class="fm-timeline-desc">Rolling accuracy reached 90%, Wilson LB at 81%.</p>
+        </div>
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#3b82f6;"></span>
+          <span class="fm-timeline-time fm-mono">14:10</span>
+          <p class="fm-timeline-title">Recovery phase initiated</p>
+          <p class="fm-timeline-desc">Invoice difficulty relaxed back toward baseline.</p>
+        </div>
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#dc2626;"></span>
+          <span class="fm-timeline-time fm-mono">13:22</span>
+          <p class="fm-timeline-title" style="color:#b91c1c;">Automatic clawback executed → ₹3,000</p>
+          <p class="fm-timeline-desc">Autonomy reduced from ₹15,000 to ₹3,000.</p>
+        </div>
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#f59e0b;"></span>
+          <span class="fm-timeline-time fm-mono">13:21</span>
+          <p class="fm-timeline-title">Wilson lower bound crossed threshold (79%)</p>
+          <p class="fm-timeline-desc">Performance degraded under distribution shift.</p>
+        </div>
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#94a3b8;"></span>
+          <span class="fm-timeline-time fm-mono">13:08</span>
+          <p class="fm-timeline-title">Distribution shift detected</p>
+          <p class="fm-timeline-desc">Hard invoice batch introduced into simulation stream.</p>
+        </div>
+        <div style="position:relative;">
+          <span class="fm-timeline-dot" style="background:#86BC25;"></span>
+          <span class="fm-timeline-time fm-mono">11:42</span>
+          <p class="fm-timeline-title" style="color:#5f8914;">Promotion granted → ₹15,000</p>
+          <p class="fm-timeline-desc">Sustained performance earned MEDIUM autonomy tier.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent decisions -->
+    <div class="fm-panel fm-panel-pad">
+      <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">DECISION LOG</span>
+      <h3 class="fm-h3">Recent Decisions</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="fm-invoice-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="fm-decision-badge fm-decision-approve">approve</span>
+            <span class="fm-mono" style="font-weight:600;">inv-001</span>
+            <span style="color:#64748B;">Within limit</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;color:#64748B;">
+            <span style="font-weight:600;color:#334155;">95% conf</span>
+            <span style="font-weight:700;color:#5f8914;">✓ Correct</span>
+            <span>Aug 13, 09:00</span>
+          </div>
+        </div>
+        <div class="fm-invoice-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="fm-decision-badge fm-decision-escalate">escalate</span>
+            <span class="fm-mono" style="font-weight:600;">inv-002</span>
+            <span style="color:#64748B;">Near boundary</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;color:#64748B;">
+            <span style="font-weight:600;color:#334155;">72% conf</span>
+            <span style="font-weight:700;color:#5f8914;">✓ Correct</span>
+            <span style="background:#f1f5f9;color:#475569;font-size:10px;font-weight:600;padding:2px 6px;border-radius:2px;border:1px solid #e2e8f0;">Cached</span>
+            <span>Aug 13, 09:05</span>
+          </div>
+        </div>
+        <div class="fm-invoice-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="fm-decision-badge fm-decision-approve">approve</span>
+            <span class="fm-mono" style="font-weight:600;">inv-003</span>
+            <span style="color:#64748B;">Low risk</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;color:#64748B;">
+            <span style="font-weight:600;color:#334155;">98% conf</span>
+            <span style="font-weight:700;color:#5f8914;">✓ Correct</span>
+            <span>Aug 13, 09:10</span>
+          </div>
+        </div>
+        <div class="fm-invoice-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="fm-decision-badge fm-decision-approve">approve</span>
+            <span class="fm-mono" style="font-weight:600;">inv-004</span>
+            <span style="color:#64748B;">Within limit</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;color:#64748B;">
+            <span style="font-weight:600;color:#334155;">88% conf</span>
+            <span style="font-weight:700;color:#b91c1c;">✗ Wrong</span>
+            <span>Aug 13, 09:15</span>
+          </div>
+        </div>
+        <div class="fm-invoice-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="fm-decision-badge fm-decision-reject">reject</span>
+            <span class="fm-mono" style="font-weight:600;">inv-005</span>
+            <span style="color:#64748B;">Blocked vendor</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;color:#64748B;">
+            <span style="font-weight:600;color:#334155;">99% conf</span>
+            <span style="font-weight:700;color:#5f8914;">✓ Correct</span>
+            <span style="background:#f1f5f9;color:#475569;font-size:10px;font-weight:600;padding:2px 6px;border-radius:2px;border:1px solid #e2e8f0;">Cached</span>
+            <span>Aug 13, 09:20</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /MOCKUP: agent-detail -->
+
+<!-- MOCKUP: approvals -->
+<div class="fm-section" id="fm-mockup-approvals">
+  <div class="fm-header">
+    <div class="fm-header-row">
+      <div>
+        <span class="fm-eyebrow">HUMAN-IN-THE-LOOP GOVERNANCE</span>
+        <h1 class="fm-h1">Human Approvals</h1>
+        <p class="fm-sub">Review decisions that exceed automated authority or require human judgment.</p>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;padding:10px 18px;border-radius:2px;text-align:right;">
+        <span class="fm-eyebrow" style="font-size:9px;color:#78350f;display:block;">PENDING REVIEW</span>
+        <span style="font-size:26px;font-weight:900;color:#78350f;">2</span>
+      </div>
+    </div>
+    <div style="display:flex;border-bottom:1px solid #E2E8F0;margin-top:20px;gap:22px;font-size:11px;font-weight:700;">
+      <span style="padding-bottom:10px;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;">pending</span>
+      <span style="padding-bottom:10px;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;">approved</span>
+      <span style="padding-bottom:10px;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;">rejected</span>
+      <span style="padding-bottom:10px;text-transform:uppercase;letter-spacing:0.06em;color:#5f8914;border-bottom:2px solid #86BC25;">all</span>
+    </div>
+  </div>
+
+  <div class="fm-content">
+    <!-- appr-001: pending, expanded -->
+    <div class="fm-panel fm-approval-row">
+      <div class="fm-approval-top">
+        <div class="fm-approval-info">
+          <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-002</span>
+          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:600;color:#334155;">GeminiAgent</span>
+          <span style="color:#64748B;">Near autonomy boundary</span>
+        </div>
+        <div class="fm-approval-meta">
+          <span class="fm-mono" style="color:#94a3b8;">15m ago</span>
+          <span class="fm-status-badge fm-status-pending">pending</span>
+          <div style="display:flex;gap:8px;">
+            <button class="fm-btn fm-btn-primary">APPROVE</button>
+            <button class="fm-btn fm-btn-danger">REJECT</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="fm-escalate-toggle">▲ Hide escalation context</button>
+        <div class="fm-escalate-panel">
+          <div><span class="fm-eyebrow" style="font-size:9px">CONFIDENCE</span><br><strong>81%</strong></div>
+          <div><span class="fm-eyebrow" style="font-size:9px">AGENT AUTHORITY</span><br><strong>LOW (₹3,000)</strong></div>
+          <div><span class="fm-eyebrow" style="font-size:9px">REASON CODE</span><br><strong style="color:#78350f;">escalate_boundary_amount</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- appr-002: pending -->
+    <div class="fm-panel fm-approval-row">
+      <div class="fm-approval-top">
+        <div class="fm-approval-info">
+          <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-006</span>
+          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:600;color:#334155;">GeminiAgent</span>
+          <span style="color:#64748B;">Near autonomy boundary</span>
+        </div>
+        <div class="fm-approval-meta">
+          <span class="fm-mono" style="color:#94a3b8;">15m ago</span>
+          <span class="fm-status-badge fm-status-pending">pending</span>
+          <div style="display:flex;gap:8px;">
+            <button class="fm-btn fm-btn-primary">APPROVE</button>
+            <button class="fm-btn fm-btn-danger">REJECT</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="fm-escalate-toggle">▼ Why was this escalated?</button>
+      </div>
+    </div>
+
+    <!-- appr-003: approved -->
+    <div class="fm-panel fm-approval-row">
+      <div class="fm-approval-top">
+        <div class="fm-approval-info">
+          <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-007</span>
+          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:600;color:#334155;">GeminiAgent</span>
+          <span style="color:#64748B;">Near autonomy boundary</span>
+        </div>
+        <div class="fm-approval-meta">
+          <span class="fm-mono" style="color:#94a3b8;">15m ago</span>
+          <span class="fm-status-badge fm-status-approved">approved</span>
+        </div>
+      </div>
+      <div><button class="fm-escalate-toggle">▼ Why was this escalated?</button></div>
+    </div>
+
+    <!-- appr-004: rejected -->
+    <div class="fm-panel fm-approval-row">
+      <div class="fm-approval-top">
+        <div class="fm-approval-info">
+          <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-008</span>
+          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:600;color:#334155;">GeminiAgent</span>
+          <span style="color:#64748B;">Near autonomy boundary</span>
+        </div>
+        <div class="fm-approval-meta">
+          <span class="fm-mono" style="color:#94a3b8;">15m ago</span>
+          <span class="fm-status-badge fm-status-rejected">rejected</span>
+        </div>
+      </div>
+      <div><button class="fm-escalate-toggle">▼ Why was this escalated?</button></div>
+    </div>
+  </div>
+</div>
+<!-- /MOCKUP: approvals -->
+
+<!-- MOCKUP: audit -->
+<div class="fm-section" id="fm-mockup-audit">
+  <div class="fm-header">
+    <div class="fm-header-row">
+      <div>
+        <span class="fm-eyebrow">IMMUTABLE GOVERNANCE RECORD</span>
+        <h1 class="fm-h1">Audit Trail</h1>
+        <p class="fm-sub">Every automated decision, human intervention, and autonomy change is recorded here.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:2px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f8914" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+        <span style="font-size:12px;font-weight:700;color:#5f8914;">Audit Integrity: Verified</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="fm-content" style="flex-direction:row;flex-wrap:wrap;gap:20px;">
+    <div class="fm-panel" style="flex:1;min-width:420px;overflow-x:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr><th>Invoice ID</th><th>Agent ID</th><th>Decision</th><th>Reason Code</th><th>Confidence</th><th>Correctness</th><th>Timestamp</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="fm-mono" style="font-weight:700;">inv-001</td><td class="fm-mono" style="color:#64748B;">gemini-agent-001</td><td><span class="fm-decision-badge fm-decision-approve">approve</span></td><td>approve_within_limit</td><td class="fm-mono" style="font-weight:700;">95%</td><td style="color:#5f8914;font-weight:700;">✓ Correct</td><td style="color:#64748B;">Aug 13, 09:00</td></tr>
+          <tr class="fm-row-selected"><td class="fm-mono" style="font-weight:700;">inv-002</td><td class="fm-mono" style="color:#64748B;">gemini-agent-001</td><td><span class="fm-decision-badge fm-decision-escalate">escalate</span></td><td>escalate_boundary_amount</td><td class="fm-mono" style="font-weight:700;">72%</td><td style="color:#5f8914;font-weight:700;">✓ Correct</td><td style="color:#64748B;">Aug 13, 09:05</td></tr>
+          <tr><td class="fm-mono" style="font-weight:700;">inv-003</td><td class="fm-mono" style="color:#64748B;">gemini-agent-001</td><td><span class="fm-decision-badge fm-decision-approve">approve</span></td><td>approve_low_risk</td><td class="fm-mono" style="font-weight:700;">98%</td><td style="color:#5f8914;font-weight:700;">✓ Correct</td><td style="color:#64748B;">Aug 13, 09:10</td></tr>
+          <tr><td class="fm-mono" style="font-weight:700;">inv-004</td><td class="fm-mono" style="color:#64748B;">gemini-agent-001</td><td><span class="fm-decision-badge fm-decision-approve">approve</span></td><td>approve_within_limit</td><td class="fm-mono" style="font-weight:700;">88%</td><td style="color:#b91c1c;font-weight:700;">✗ Wrong</td><td style="color:#64748B;">Aug 13, 09:15</td></tr>
+          <tr><td class="fm-mono" style="font-weight:700;">inv-005</td><td class="fm-mono" style="color:#64748B;">gemini-agent-001</td><td><span class="fm-decision-badge fm-decision-reject">reject</span></td><td>reject_blocked_vendor</td><td class="fm-mono" style="font-weight:700;">99%</td><td style="color:#5f8914;font-weight:700;">✓ Correct</td><td style="color:#64748B;">Aug 13, 09:20</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Record inspection panel -->
+    <div class="fm-panel fm-panel-pad" style="width:260px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #E2E8F0;padding-bottom:10px;margin-bottom:12px;">
+        <span class="fm-eyebrow">RECORD INSPECTION</span>
+        <button style="border:none;background:none;font-size:11px;font-weight:700;color:#94a3b8;cursor:pointer;">✕ CLOSE</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+        <div><span class="fm-eyebrow" style="font-size:9px">INVOICE ID</span><br><span class="fm-mono" style="font-weight:700;">inv-002</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">AGENT MODEL</span><br><span style="font-weight:600;color:#1e293b;">GeminiAgent (gemini-2.5-flash)</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">DECISION DETAILS</span><br><span class="fm-decision-badge fm-decision-escalate">escalate</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CONFIDENCE SCORE</span><br><span style="font-weight:700;">72%</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">REASON CODE</span><br><span class="fm-mono" style="font-weight:600;color:#78350f;">escalate_boundary_amount</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">GOVERNANCE ACTION</span><br><span style="font-weight:700;color:#5f8914;">Logged to immutable trail</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">TIMESTAMP</span><br><span class="fm-mono" style="color:#64748B;">2026-08-13T09:05:00Z</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /MOCKUP: audit -->
+
+<!-- MOCKUP: simulation -->
+<div class="fm-section" id="fm-mockup-simulation">
+  <div class="fm-header">
+    <span class="fm-eyebrow">GOVERNANCE TEST ENVIRONMENT</span>
+    <h1 class="fm-h1">Simulation</h1>
+    <p class="fm-sub">Introduce controlled distribution shifts and observe how earned autonomy responds.</p>
+  </div>
+
+  <div class="fm-content">
+    <div class="fm-panel fm-panel-pad">
+      <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">ENVIRONMENT CONTROLS</span>
+      <h2 class="fm-h2" style="border-bottom:1px solid #E2E8F0;padding-bottom:10px;margin-bottom:16px;">Simulation Setup</h2>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;">
+        <div>
+          <label class="fm-label">PHASE</label>
+          <select class="fm-select"><option>Good (Baseline)</option><option selected>Degraded (Distribution Shift)</option><option>Recovery (Performance Recovery)</option></select>
+          <p style="font-size:11px;color:#64748B;font-weight:500;margin-top:4px;">Ambiguous vendors, missing fields &amp; boundary amounts. Triggers genuine LLM drift and automated clawback.</p>
+        </div>
+        <div>
+          <label class="fm-label">AGENT</label>
+          <select class="fm-select"><option>ScriptedAgent (Deterministic)</option><option selected>GeminiAgent (Real LLM - gemini-2.5-flash)</option></select>
+        </div>
+        <div>
+          <label class="fm-label">INVOICE COUNT</label>
+          <select class="fm-select"><option>50 invoices</option><option>100 invoices</option><option selected>200 invoices</option></select>
+        </div>
+      </div>
+
+      <button class="fm-btn fm-btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;font-size:12px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+        LAUNCH SIMULATION
+      </button>
+    </div>
+
+    <!-- Live progress -->
+    <div class="fm-panel fm-panel-pad" style="background:#F7F8F6;border-left:4px solid #86BC25;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <span class="fm-eyebrow" style="color:#0F172A;">SIMULATION RUNNING</span>
+        <span class="fm-mono" style="font-size:12px;font-weight:700;color:#5f8914;">37 / 200 Invoices Processed</span>
+      </div>
+      <div class="fm-progress-track" style="margin-bottom:16px;"><div class="fm-progress-fill"></div></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+        <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><br><strong>84%</strong></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">ESCALATIONS</span><br><strong style="color:#78350f;">8</strong></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CACHE HITS</span><br><strong>14</strong></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTONOMY</span><br><strong style="color:#5f8914;">₹15,000</strong></div>
+      </div>
+    </div>
+
+    <!-- Simulation history -->
+    <div class="fm-panel fm-panel-pad">
+      <span class="fm-eyebrow" style="display:block;margin-bottom:2px;">HISTORICAL RUNS</span>
+      <h2 class="fm-h2" style="border-bottom:1px solid #E2E8F0;padding-bottom:10px;margin-bottom:16px;">Simulation History</h2>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="fm-panel fm-run-row">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="fm-tag fm-badge-healthy">good</span>
+              <span class="fm-mono" style="font-weight:700;">run-001</span>
+            </div>
+            <p style="font-size:12px;color:#64748B;font-weight:500;margin:4px 0 0 0;">200 invoices · llm</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:24px;">
+            <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><br><strong>89%</strong></div>
+            <div><span class="fm-eyebrow" style="font-size:9px">OUTCOME</span><br><strong style="color:#5f8914;">Autonomy Stable</strong></div>
+          </div>
+        </div>
+        <div class="fm-panel fm-run-row">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="fm-tag" style="background:#fee2e2;color:#b91c1c;">degraded</span>
+              <span class="fm-mono" style="font-weight:700;">run-002</span>
+            </div>
+            <p style="font-size:12px;color:#64748B;font-weight:500;margin:4px 0 0 0;">200 invoices · llm</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:24px;">
+            <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><br><strong>72%</strong></div>
+            <div><span class="fm-eyebrow" style="font-size:9px">OUTCOME</span><br><strong style="color:#b91c1c;">Clawback Triggered</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /MOCKUP: simulation -->
+
+</div>
+
+<script>
+  function fmShow(name, btn) {
+    var root = btn.closest('.fm-root');
+    var sections = root.querySelectorAll('.fm-section');
+    for (var i = 0; i < sections.length; i++) sections[i].classList.remove('fm-active');
+    root.querySelector('#fm-mockup-' + name).classList.add('fm-active');
+    var tabs = root.querySelectorAll('.fm-tab-btn');
+    for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('fm-active');
+    btn.classList.add('fm-active');
+  }
+</script>
+
+</section>
+
+<section id="progress">
+  <div class="eyebrow">Status · 27 August 2026</div>
+  <h2>Work done and work planned</h2>
+  <div class="grid3" style="margin-bottom:8px">
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Tests passing</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">338</div><div class="barmeter"><i style="width:100%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Lanes merged to main</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">3 of 4</div><div class="barmeter"><i style="width:75%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Days to submission</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">19</div><div class="barmeter"><i style="width:38%"></i></div></div>
+  </div>
+  <div class="prog">
+    <div>
+      <h3 style="margin-top:8px">Complete and merged</h3>
+      <div class="tl done">
+        <div class="it"><div class="d">SHARED CONTRACTS · v1.1 FROZEN</div><div class="t">Cross-lane type system</div><div class="m">Ten frozen dataclasses, seven enums, 18 machine-readable reason codes, the autonomy ladder and sampling-rate constants. Governed as a treaty requiring all four owners to approve any change.</div></div>
+        <div class="it"><div class="d">TRUST ENGINE · 174 TESTS</div><div class="t">The full statistical core</div><div class="m">Wilson intervals cross-validated against statsmodels, accuracy / utilization / human agreement, critical-error weighting, two-stage drift detection, composed trust score, and the complete ladder with cooldowns and automatic clawback.</div></div>
+        <div class="it"><div class="d">GOVERNANCE · 67 TESTS</div><div class="t">LangGraph coordinator, stub mode</div><div class="m">Four agent nodes and an aggregator producing a valid recommendation with per-agent opinions and dissent detection. Zero LLM calls in the stub path, and a CI test that fails the build if governance can import the database.</div></div>
+        <div class="it"><div class="d">SIMULATOR · 97 TESTS</div><div class="t">Synthetic invoice generation</div><div class="m">Generator, ground-truth labeller, baseline and shifted distributions, three-phase run with degradation injection, committed fixtures, and a CLI. Communicates with the backend over HTTP only.</div></div>
+        <div class="it"><div class="d">INFRASTRUCTURE &amp; DOCS</div><div class="t">Reproducible environment</div><div class="m">Docker Compose, Makefile, CI running lint and tests across every lane, ten architecture decision records, three point-in-time repository audits, and per-lane engineering briefs.</div></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:8px">Planned</h3>
+      <div class="tl">
+        <div class="it"><div class="d">IN PROGRESS</div><div class="t">Backend API contract</div><div class="m">Eighteen endpoints, response models mirrored from the shared contracts with a CI check for drift, committed OpenAPI schema that the frontend generates its types from.</div></div>
+        <div class="it"><div class="d">28–29 AUG</div><div class="t">Schema, and the policy engine</div><div class="m">Alembic migrations and seed data, then the policy engine as a pure module with no database or network imports — the sole enforcement boundary.</div></div>
+        <div class="it"><div class="d">31 AUG</div><div class="t">Decision ingest and audit chain</div><div class="m">Real persistence, immutable policy versioning, and the hash-chained audit log with live chain verification.</div></div>
+        <div class="it"><div class="d">1 SEPT</div><div class="t">Integration checkpoint</div><div class="m">Simulator to backend to trust to governance to dashboard, unbroken end to end. Stubs permitted anywhere; the path must connect.</div></div>
+        <div class="it"><div class="d">2–6 SEPT</div><div class="t">Governance live mode, charts, sampling</div><div class="m">Recorded Gemini responses with automatic fallback, the confidence-band and ladder charts on real data, approval workflow with RBAC, and post-hoc audit sampling end to end.</div></div>
+        <div class="it"><div class="d">9 SEPT</div><div class="t">Feature freeze</div><div class="m">Failure cases handled visibly: LLM unavailable, insufficient sample, at maximum rung, hard-ceiling clamp. Nothing new after this date.</div></div>
+        <div class="it"><div class="d">10–15 SEPT</div><div class="t">Hardening and rehearsal</div><div class="m">Security pass, documentation brought current, three timed rehearsals, technical Q&amp;A preparation, one full buffer day, submission.</div></div>
+      </div>
+    </div>
+  </div>
+  <h3>How the work is governed</h3>
+  <p>Every architectural decision is recorded as an ADR before the code lands, not as after-the-fact justification. Every merged pull request adds a line to a decision log. Three independent repository audits have been run and committed — including one that documented a coordination failure of our own and its root cause, which is in the repository permanently rather than quietly fixed.</p>
+</section>
+
+<section id="questions">
+  <div class="eyebrow">Guidance requested</div>
+  <h2>Where we would value your view</h2>
+  <p>Ordered by how much the answer would change what we build in the remaining time.</p>
+  <div class="q"><div class="qt">Is post-hoc sampled review how ground truth is actually established?</div><div class="qb">Our answer to "how do you know an auto-approved invoice was correct" is sampling a share for human review after the fact, at a rate that falls as trust rises. Does that match how audit and controls functions genuinely work, or is there a mechanism we are missing — downstream signals like payment reversals, dispute rates, something in the close process?</div></div>
+  <div class="q"><div class="qt">Would a risk function accept statistical evidence as the basis for granting autonomy?</div><div class="qb">Or does the decision have to be rule-based, with statistics only as supporting evidence? This is fundamental to whether the concept is sellable, and we would rather know now than at submission.</div></div>
+  <div class="q"><div class="qt">Is invoice approval the right demo domain?</div><div class="qb">We chose it because ground truth is cheap to simulate. Is there a domain closer to how Deloitte engages — expense audit, contract review, KYC, claims — where this would land better with a panel? The loop is domain-agnostic; only the taxonomy changes.</div></div>
+  <div class="q"><div class="qt">Per-increase approval, or periodic review?</div><div class="qb">We require a human signature on every rung change. In practice, is autonomy reviewed decision by decision, or in batch — a quarterly access review, a monthly control forum? If it is batch, our approval workflow should reflect that.</div></div>
+  <div class="q"><div class="qt">One decision category in the demo, or two?</div><div class="qb">The original proposal argued per-category trust profiles and we scoped to one. The trust engine is a pure function over a decision list, so partitioning is a grouping change rather than an architectural one. Is two categories climbing at different rates a materially stronger demo, or does one clean narrative land better?</div></div>
+  <div class="q"><div class="qt">Is a fully open-source stack a strength or a gap?</div><div class="qb">Nothing here carries a licence cost. Does a client-facing audience read that as pragmatic and portable, or would they expect enterprise-grade components in the picture?</div></div>
+  <div class="q"><div class="qt">Should we build an integration adapter at all?</div><div class="qb">The proposal promised LangChain, RPA and REST adapters. We scoped to a single endpoint, with the simulator serving as proof of the middleware pattern — it is a fully external HTTP client that never imports backend code. Is one working adapter worth the remaining time, or is the endpoint plus the architecture argument sufficient?</div></div>
+  <div class="q"><div class="qt">Is there a Deloitte point of view we should align vocabulary with?</div><div class="qb">We would rather map to existing framework language than invent terminology that already exists. Return-on-Autonomy came from the brief — what else should we be aligning to?</div></div>
+</section>
+
+<section id="review">
+  <div class="eyebrow">For the mentor</div>
+  <h2>Review notes</h2>
+  <p>A compressed statement of what this project claims, so a reaction can be recorded against specific items rather than against the whole. Notes save in this browser and copy out in one action.</p>
+
+  <div class="card" style="margin:18px 0">
+    <h3 style="margin-top:0">The project in eight claims</h3>
+    <ol style="margin:10px 0 0 18px;font-size:14px;line-height:1.7">
+      <li>Static permission ceilings, not model capability, are the binding constraint on agentic ROI.</li>
+      <li>A ceiling should be a variable repriced by evidence, not a constant set by role.</li>
+      <li>The evidence must be statistical and reproducible, never an LLM's judgement.</li>
+      <li>Sample size matters as much as accuracy — hence the Wilson lower bound rather than the raw rate.</li>
+      <li>Enforcement must be deterministic code the LLM cannot reach.</li>
+      <li>Increases require human authorisation; clawbacks do not. Asymmetric risk, asymmetric controls.</li>
+      <li>Ground truth in production comes from post-hoc sampled review, at a rate that falls as trust rises.</li>
+      <li>The existing governance market observes and documents. None of it reprices the permission itself.</li>
+    </ol>
+  </div>
+
+  <div id="rv"></div>
+  <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap">
+    <button id="rvcopy" style="font-family:'IBM Plex Sans';font-size:13px;padding:9px 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer">Copy all notes</button>
+    <button id="rvclear" style="font-family:'IBM Plex Sans';font-size:13px;padding:9px 16px;border:1px solid var(--rule-strong);background:none;color:var(--slate);cursor:pointer">Clear</button>
+    <span id="rvmsg" class="mono" style="font-size:12px;color:var(--teal)"></span>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin-top:12px">Notes stay in this browser only. Use copy to paste them into a reply.</p>
+</section>
+
+<script>
+(function(){
+  var items=[
+    ['concept','Is the core concept sound and worth building?'],
+    ['groundtruth','Post-hoc sampled review as the ground-truth mechanism — does it match practice?'],
+    ['risk','Would a risk function accept statistical evidence as the basis for granting autonomy?'],
+    ['domain','Is invoice approval the right demo domain?'],
+    ['approval','Per-increase human approval, or periodic batch review?'],
+    ['category','One decision category in the demo, or two?'],
+    ['stack','Tech stack — anything you would change or expect to see?'],
+    ['scope','Scope for the remaining time — what to add, what to cut'],
+    ['demo','The demo itself — what would you want to see on the day?'],
+    ['other','Anything else']
+  ];
+  var host=document.getElementById('rv'), K='aagp_review_v1';
+  var saved={}; try{saved=JSON.parse(localStorage.getItem(K)||'{}')}catch(e){}
+  items.forEach(function(it,i){
+    var w=document.createElement('div');
+    w.style.cssText='border-top:1px solid var(--rule);padding:14px 0';
+    if(i===items.length-1) w.style.borderBottom='1px solid var(--rule)';
+    var lab=document.createElement('label');
+    lab.style.cssText='display:block;font-size:14px;font-weight:600;margin-bottom:7px';
+    lab.textContent=String(i+1).padStart(2,'0')+'  '+it[1];
+    lab.setAttribute('for','rv_'+it[0]);
+    var ta=document.createElement('textarea');
+    ta.id='rv_'+it[0]; ta.value=saved[it[0]]||''; ta.rows=2; ta.placeholder='Your view';
+    ta.style.cssText='width:100%;font-family:inherit;font-size:13.5px;line-height:1.6;padding:9px 11px;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);resize:vertical';
+    ta.addEventListener('input',function(){
+      saved[it[0]]=ta.value;
+      try{localStorage.setItem(K,JSON.stringify(saved))}catch(e){}
+      msg('Saved');
+    });
+    w.appendChild(lab); w.appendChild(ta); host.appendChild(w);
+  });
+  function msg(t){var m=document.getElementById('rvmsg');m.textContent=t;setTimeout(function(){m.textContent=''},1800)}
+  document.getElementById('rvcopy').addEventListener('click',function(){
+    var out=items.filter(function(it){return (saved[it[0]]||'').trim()})
+      .map(function(it,i){return (i+1)+'. '+it[1]+'\n   '+saved[it[0]].trim()}).join('\n\n');
+    if(!out){msg('Nothing to copy yet');return}
+    navigator.clipboard.writeText('Review notes — Adaptive AI Governance Platform\n\n'+out)
+      .then(function(){msg('Copied')},function(){msg('Copy failed')});
+  });
+  document.getElementById('rvclear').addEventListener('click',function(){
+    if(!confirm('Clear all notes?'))return;
+    saved={}; try{localStorage.removeItem(K)}catch(e){}
+    document.querySelectorAll('#rv textarea').forEach(function(t){t.value=''});
+    msg('Cleared');
+  });
+})();
+</script>
+</main>
+</div>
+
+<script>
+(function(){
+  var Z=1.959963984540054;
+  function wilson(k,n){
+    if(n<=0) return [0,1];
+    var p=k/n, d=1+Z*Z/n, c=(p+Z*Z/(2*n))/d,
+        m=(Z/d)*Math.sqrt(p*(1-p)/n + Z*Z/(4*n*n));
+    return [Math.max(0,c-m), Math.min(1,c+m)];
+  }
+  var n=document.getElementById('n'), a=document.getElementById('acc');
+  function upd(){
+    var N=+n.value, A=+a.value/100, K=Math.round(N*A), P=N?K/N:0;
+    var w=wilson(K,N), lo=w[0]*100;
+    document.getElementById('nv').textContent=N;
+    document.getElementById('av').textContent=(P*100).toFixed(1)+'%';
+    document.getElementById('pt').textContent=(P*100).toFixed(1)+'%';
+    document.getElementById('lb').textContent=lo.toFixed(1)+'%';
+    document.getElementById('fill').style.width=(P*100)+'%';
+    document.getElementById('mark').style.left=lo+'%';
+    var lbl=document.getElementById('marklbl');
+    lbl.style.left=Math.min(92,Math.max(8,lo))+'%';
+    lbl.textContent=lo.toFixed(1)+'% floor';
+    var v=document.getElementById('verdict'), gap=(P*100-lo);
+    var msg;
+    if(N<30){
+      msg='Below <b>30 acted decisions</b> the increase gate does not open at all, whatever the accuracy. With '+N+' observations the interval spans '+gap.toFixed(1)+' points — the agent may be excellent, but we have not seen enough to say so.';
+    } else if(lo>=70 && P>=0.9){
+      msg='The bound is <b>'+lo.toFixed(1)+'%</b> and the interval has narrowed to '+gap.toFixed(1)+' points. This is the shape of a record that supports a rung increase — provided the cooldown has elapsed, no drift is active, and no recent critical errors have occurred.';
+    } else if(P<0.9){
+      msg='Accuracy itself is the constraint here, not the sample size. The bound sits at <b>'+lo.toFixed(1)+'%</b>; more evidence will tighten the interval but will not lift a genuinely weak record above the threshold.';
+    } else {
+      msg='The bound is <b>'+lo.toFixed(1)+'%</b>, still '+gap.toFixed(1)+' points below the observed rate. Evidence is accumulating but the gap is what keeps the ceiling where it is.';
+    }
+    v.innerHTML=msg;
+  }
+  n.addEventListener('input',upd); a.addEventListener('input',upd); upd();
+
+  document.querySelectorAll('.tabs button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.tabs button').forEach(function(x){x.classList.remove('on')});
+      document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');
+      document.getElementById(b.dataset.t).classList.add('on');
+    });
+  });
+
+  var secs=[].slice.call(document.querySelectorAll('section'));
+  var links=[].slice.call(document.querySelectorAll('nav a'));
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){l.classList.toggle('on', l.getAttribute('href')==='#'+e.target.id)});
+      }
+    });
+  },{rootMargin:'-20% 0px -70% 0px'});
+  secs.forEach(function(s){io.observe(s)});
+})();
+</script>
+</body>
+</html>
