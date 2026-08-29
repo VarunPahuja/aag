@@ -42,6 +42,23 @@ _SUPPORTED_KEYS = frozenset(
     {"type", "enum", "description", "format", "nullable", "minimum", "maximum"}
 )
 
+# Claude and OpenAI take strict JSON Schema, which is a wider dialect than Gemini's —
+# it keeps the length and range constraints Gemini's subset has nowhere to put.
+_STRICT_KEYS = frozenset(
+    {
+        "type",
+        "enum",
+        "description",
+        "format",
+        "minimum",
+        "maximum",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+    }
+)
+
 
 class OpinionParseError(ValueError):
     """Raised when a model response cannot be turned into a valid opinion.
@@ -232,6 +249,56 @@ def gemini_response_schema() -> dict:
         # whole point of declaring an order rather than letting the API pick one.
         "propertyOrdering": list(FIELD_ORDER),
     }
+
+
+def strict_json_schema() -> dict:
+    """The same contract in the strict-JSON-Schema dialect Claude and OpenAI both take.
+
+    Anthropic wants it under `output_config={"format": {"type": "json_schema", ...}}`;
+    OpenAI wants it under `response_format={"type": "json_schema", ...}` with
+    `strict: true`. Both impose the same two rules, and both differ from Gemini:
+
+    - **`additionalProperties: false` is required**, not forbidden. It is the mechanism
+      behind `extra="forbid"`, and Gemini's OpenAPI subset has no place to put it.
+    - **Every property must appear in `required`.** Pydantic omits `concerns` because it
+      has a default, but a strict schema has no notion of an optional field — so the
+      model is asked for all four and returns an empty list when it has no concerns.
+      That is the same contract `OpinionResponse` already validates, stated differently.
+
+    `$defs` are inlined here too. Neither provider resolves a `$ref` pointing at a
+    definitions block that constrained decoding never receives.
+    """
+    source = OpinionResponse.model_json_schema()
+    defs = source.get("$defs", {})
+
+    properties = {
+        name: _to_strict_subset(spec, defs) for name, spec in source["properties"].items()
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        # Every field, not source["required"] — see the docstring.
+        "required": list(FIELD_ORDER),
+        "additionalProperties": False,
+    }
+
+
+def _to_strict_subset(spec: dict, defs: dict) -> dict:
+    """Inline `$ref`s and drop the Pydantic bookkeeping neither provider reads."""
+    if "$ref" in spec:
+        ref_name = spec["$ref"].rsplit("/", 1)[-1]
+        if ref_name not in defs:
+            raise KeyError(f"cannot inline unknown schema reference {spec['$ref']!r}")
+        spec = {**defs[ref_name], **{k: v for k, v in spec.items() if k != "$ref"}}
+
+    resolved = {
+        key: value
+        for key, value in spec.items()
+        if key in _STRICT_KEYS
+    }
+    if "items" in spec:
+        resolved["items"] = _to_strict_subset(spec["items"], defs)
+    return resolved
 
 
 def _to_openapi_subset(spec: dict, defs: dict) -> dict:

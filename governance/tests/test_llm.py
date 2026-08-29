@@ -20,11 +20,11 @@ from shared.enums import OpinionVerdict
 from governance.agents.base import AGENT_NAMES
 from governance.agents.llm_backed import opine_via_model, supports_mode
 from governance.llm.errors import (
-    GeminiAuthError,
-    GeminiRateLimitError,
-    GeminiResponseError,
-    GeminiTransportError,
     GovernanceLLMError,
+    LLMAuthError,
+    LLMRateLimitError,
+    LLMResponseError,
+    LLMTransportError,
     RecordingMissError,
 )
 from governance.llm.gemini import GeminiClient, GeminiConfig
@@ -32,6 +32,7 @@ from governance.llm.recording import (
     Recording,
     RecordingStore,
     build_recording,
+    cache_key_for,
     prompt_fingerprint,
 )
 from governance.modes import CACHED, LIVE, STUB
@@ -153,7 +154,7 @@ def test_a_missing_key_fails_before_any_request_is_made():
         raise AssertionError("no request should be sent without a key")
 
     prompt = build_prompt("risk", make_evaluation())
-    with pytest.raises(GeminiAuthError, match="GEMINI_API_KEY is empty"):
+    with pytest.raises(LLMAuthError, match="GEMINI_API_KEY is empty"):
         GeminiClient(config=_config(api_key="")).generate(
             prompt, client=_client_returning(handler)
         )
@@ -162,12 +163,12 @@ def test_a_missing_key_fails_before_any_request_is_made():
 @pytest.mark.parametrize(
     ("status", "expected", "retryable"),
     [
-        (429, GeminiRateLimitError, True),
-        (401, GeminiAuthError, False),
-        (403, GeminiAuthError, False),
-        (500, GeminiTransportError, True),
-        (503, GeminiTransportError, True),
-        (400, GeminiResponseError, False),
+        (429, LLMRateLimitError, True),
+        (401, LLMAuthError, False),
+        (403, LLMAuthError, False),
+        (500, LLMTransportError, True),
+        (503, LLMTransportError, True),
+        (400, LLMResponseError, False),
     ],
 )
 def test_http_status_maps_to_the_right_error_and_retryability(
@@ -189,7 +190,7 @@ def test_http_status_maps_to_the_right_error_and_retryability(
 
 def test_a_rate_limit_carries_retry_after_when_the_server_sends_one():
     prompt = build_prompt("risk", make_evaluation())
-    with pytest.raises(GeminiRateLimitError) as caught:
+    with pytest.raises(LLMRateLimitError) as caught:
         GeminiClient(config=_config()).generate(
             prompt,
             client=_client_returning(
@@ -204,7 +205,7 @@ def test_a_timeout_is_a_retryable_transport_error():
         raise httpx.ReadTimeout("too slow", request=request)
 
     prompt = build_prompt("risk", make_evaluation())
-    with pytest.raises(GeminiTransportError) as caught:
+    with pytest.raises(LLMTransportError) as caught:
         GeminiClient(config=_config()).generate(prompt, client=_client_returning(handler))
     assert caught.value.retryable is True
 
@@ -214,7 +215,7 @@ def test_a_safety_block_says_it_was_blocked_rather_than_empty():
     blocked = {"candidates": [], "promptFeedback": {"blockReason": "SAFETY"}}
     prompt = build_prompt("risk", make_evaluation())
 
-    with pytest.raises(GeminiResponseError, match="SAFETY"):
+    with pytest.raises(LLMResponseError, match="SAFETY"):
         GeminiClient(config=_config()).generate(
             prompt, client=_client_returning(lambda _: httpx.Response(200, json=blocked))
         )
@@ -266,8 +267,13 @@ def test_the_pacer_spaces_calls_by_the_configured_interval():
 # --------------------------------------------------------------- recordings
 
 
-def _recording_for(prompt, text: str = VALID_RESPONSE) -> Recording:
-    return build_recording(prompt, text, model="gemini-2.5-flash")
+SLUG = "gemini-2-5-flash"
+
+
+def _recording_for(prompt, text: str = VALID_RESPONSE, slug: str = SLUG) -> Recording:
+    return build_recording(
+        prompt, text, "gemini-2.5-flash", provider="gemini", model_slug=slug
+    )
 
 
 def test_a_recording_round_trips_through_disk(tmp_path: Path):
@@ -275,7 +281,7 @@ def test_a_recording_round_trips_through_disk(tmp_path: Path):
     prompt = build_prompt("risk", make_evaluation())
 
     store.save(_recording_for(prompt))
-    loaded = store.load(prompt.cache_key)
+    loaded = store.load(cache_key_for(prompt, SLUG))
 
     assert loaded.response_text == VALID_RESPONSE
     assert loaded.agent_name == "risk"
@@ -289,8 +295,8 @@ def test_a_missing_recording_raises_rather_than_falling_back(tmp_path: Path):
     prompt = build_prompt("risk", make_evaluation())
 
     with pytest.raises(RecordingMissError) as caught:
-        store.load(prompt.cache_key)
-    assert caught.value.cache_key == prompt.cache_key
+        store.load(cache_key_for(prompt, SLUG))
+    assert caught.value.cache_key == cache_key_for(prompt, SLUG)
     assert "governance.record" in str(caught.value)
 
 
@@ -301,8 +307,8 @@ def test_a_miss_names_the_sibling_recordings_for_that_agent(tmp_path: Path):
 
     other = build_prompt("risk", make_evaluation(total_decisions=10))
     with pytest.raises(RecordingMissError) as caught:
-        store.load(other.cache_key)
-    assert recorded.cache_key in str(caught.value)
+        store.load(cache_key_for(other, SLUG))
+    assert cache_key_for(recorded, SLUG) in str(caught.value)
 
 
 def test_a_cache_key_that_could_escape_the_directory_is_rejected(tmp_path: Path):
@@ -314,11 +320,11 @@ def test_a_cache_key_that_could_escape_the_directory_is_rejected(tmp_path: Path)
 
 def test_a_truncated_recording_file_names_its_missing_fields(tmp_path: Path):
     store = RecordingStore(directory=tmp_path)
-    (tmp_path / "risk.v1.abc123.json").write_text(
-        json.dumps({"cache_key": "risk.v1.abc123"}), encoding="utf-8"
+    (tmp_path / "risk.v1.gemini-2-5-flash.abc123.json").write_text(
+        json.dumps({"cache_key": "risk.v1.gemini-2-5-flash.abc123"}), encoding="utf-8"
     )
     with pytest.raises(ValueError, match="missing field"):
-        store.load("risk.v1.abc123")
+        store.load("risk.v1.gemini-2-5-flash.abc123")
 
 
 def test_editing_a_prompt_changes_the_key_rather_than_replaying_a_stale_answer(
@@ -329,10 +335,10 @@ def test_editing_a_prompt_changes_the_key_rather_than_replaying_a_stale_answer(
     first = build_prompt("risk", make_evaluation(total_decisions=200))
     second = build_prompt("risk", make_evaluation(total_decisions=10))
 
-    assert first.cache_key != second.cache_key
+    assert cache_key_for(first, SLUG) != cache_key_for(second, SLUG)
     store.save(_recording_for(first))
-    assert store.has(first.cache_key)
-    assert not store.has(second.cache_key)
+    assert store.has(cache_key_for(first, SLUG))
+    assert not store.has(cache_key_for(second, SLUG))
 
 
 # --------------------------------------------------------------- cached mode
@@ -343,7 +349,7 @@ def test_cached_mode_returns_a_validated_opinion(tmp_path: Path):
     store = RecordingStore(directory=tmp_path)
     store.save(_recording_for(build_prompt("risk", evaluation)))
 
-    opinion = opine_via_model("risk", evaluation, CACHED, store=store)
+    opinion = opine_via_model("risk", evaluation, CACHED, store=store, model_slug=SLUG)
 
     assert isinstance(opinion, AgentOpinion)
     assert opinion.agent_name == "risk"
@@ -359,7 +365,7 @@ def test_a_recording_still_has_to_pass_validation(tmp_path: Path):
     store.save(_recording_for(prompt, text=json.dumps({"verdict": "CONCUR"})))
 
     with pytest.raises(OpinionParseError):
-        opine_via_model("risk", evaluation, CACHED, store=store)
+        opine_via_model("risk", evaluation, CACHED, store=store, model_slug=SLUG)
 
 
 def test_a_recording_cannot_grant_authority_the_schema_does_not_have(
@@ -381,7 +387,7 @@ def test_a_recording_cannot_grant_authority_the_schema_does_not_have(
     store.save(_recording_for(prompt, text=hostile))
 
     with pytest.raises(OpinionParseError):
-        opine_via_model("risk", evaluation, CACHED, store=store)
+        opine_via_model("risk", evaluation, CACHED, store=store, model_slug=SLUG)
 
 
 @pytest.mark.parametrize("mode", [STUB, LIVE, "nonsense"])
@@ -403,5 +409,5 @@ def test_every_agent_can_be_served_from_a_recording(tmp_path: Path):
         store.save(_recording_for(build_prompt(name, evaluation)))
 
     for name in AGENT_NAMES:
-        opinion = opine_via_model(name, evaluation, CACHED, store=store)
+        opinion = opine_via_model(name, evaluation, CACHED, store=store, model_slug=SLUG)
         assert opinion.agent_name == name
