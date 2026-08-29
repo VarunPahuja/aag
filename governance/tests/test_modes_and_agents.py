@@ -11,6 +11,7 @@ from shared.enums import Direction, OpinionVerdict
 from governance.agents import AGENT_MODULES
 from governance.agents.compliance import opine as compliance_opine
 from governance.coordinator import recommend
+from governance.llm.errors import RecordingMissError
 from governance.modes import CACHED, DEFAULT_MODE, LIVE, STUB, resolve_mode
 
 
@@ -41,12 +42,31 @@ def test_unknown_mode_raises_rather_than_silently_stubbing(monkeypatch):
         resolve_mode()
 
 
-@pytest.mark.parametrize("mode", [CACHED, LIVE])
-def test_unimplemented_modes_fail_loudly(healthy_increase, mode):
+def test_live_mode_still_fails_loudly(healthy_increase):
     """Serving stub opinions for an unimplemented mode would make a broken mode look
-    exactly like a working one. Due 30 Aug and 3 Sept respectively."""
-    with pytest.raises(NotImplementedError, match=mode):
-        recommend(healthy_increase, mode=mode)
+    exactly like a working one. Live is due 3 Sept."""
+    with pytest.raises(NotImplementedError, match=LIVE):
+        recommend(healthy_increase, mode=LIVE)
+
+
+def test_cached_mode_without_a_recording_raises_rather_than_stubbing(healthy_increase):
+    """Cached is implemented, so this is no longer NotImplementedError — but an
+    unrecorded evaluation must still fail loudly rather than quietly serving the
+    hand-written stub reasoning, which would look identical in the output."""
+    with pytest.raises(RecordingMissError) as caught:
+        recommend(healthy_increase, mode=CACHED)
+    assert "governance.record" in str(caught.value)
+
+
+@pytest.mark.parametrize("name", sorted(AGENT_MODULES))
+def test_an_agent_module_called_directly_with_cached_says_where_cached_lives(
+    name, healthy_increase
+):
+    """The routing is in the coordinator. Reaching an agent module with `cached` means
+    something bypassed it, and the message has to say so rather than implying the mode
+    is unbuilt."""
+    with pytest.raises(NotImplementedError, match="llm_backed"):
+        AGENT_MODULES[name].opine(healthy_increase, CACHED)
 
 
 @pytest.mark.parametrize("name", sorted(AGENT_MODULES))
