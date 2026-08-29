@@ -29,7 +29,8 @@ from shared.contracts import AgentOpinion, Recommendation, TrustEvaluation
 from shared.enums import Direction, OpinionVerdict, RecommendationStatus
 
 from governance.agents import AGENT_MODULES, AGENT_NAMES
-from governance.modes import resolve_mode
+from governance.agents.llm_backed import opine_via_model
+from governance.modes import CACHED, resolve_mode
 from governance.state import GovernanceState
 
 
@@ -39,12 +40,21 @@ def _agent_node(agent_name: str):
     The node returns a *partial* state update — just its own opinion, as a
     single-element list. The `operator.add` reducer on `GovernanceState.opinions`
     concatenates the four instead of letting the last one win (see state.py).
+
+    Mode routing happens here rather than inside each agent. Four copies of the same
+    `if mode == CACHED` branch would be four chances for one agent to drift out of step
+    with the others — and an agent still reasoning from hand-written stub text while the
+    other three read model responses is not a difference anyone would spot in the output.
     """
 
     module = AGENT_MODULES[agent_name]
 
     def node(state: GovernanceState) -> dict:
-        opinion = module.opine(state["evaluation"], state["mode"])
+        mode = state["mode"]
+        if mode == CACHED:
+            opinion = opine_via_model(agent_name, state["evaluation"], mode)
+        else:
+            opinion = module.opine(state["evaluation"], mode)
         return {"opinions": [opinion]}
 
     node.__name__ = f"{agent_name}_node"

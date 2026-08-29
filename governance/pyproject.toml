@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "Agentic Governance — LLM agents that reason over trust evidence and recommend autonomy changes"
 requires-python = ">=3.11"
 # pydantic validates every LLM response before it reaches the coordinator
-# (governance/prompts/schema.py). langgraph already pulls it in, but this lane depends
-# on it directly and says so rather than relying on someone else's transitive pin.
-dependencies = ["langgraph>=1.0", "pydantic>=2.0"]
+# (governance/prompts/schema.py). httpx is the Gemini client's transport
+# (governance/llm/gemini.py) and its MockTransport is what lets the client be tested
+# without a network. langgraph already pulls both in, but this lane depends on them
+# directly and says so rather than relying on someone else's transitive pin.
+dependencies = ["langgraph>=1.0", "pydantic>=2.0", "httpx>=0.27"]
 
 [dependency-groups]
 dev = [

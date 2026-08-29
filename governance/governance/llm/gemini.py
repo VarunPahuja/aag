@@ -1,0 +1,277 @@
+"""The Gemini HTTP client.
+
+Raw HTTP against the REST endpoint rather than the `google-genai` SDK. Three reasons,
+in order of how much they matter here:
+
+1. **The request is the design.** `response_schema` plus `response_mime_type` is the
+   constrained-decoding claim this lane makes; having it visible in a dict a reader can
+   point at is worth more in a viva than a method call that hides it.
+2. **One fewer dependency.** `httpx` is already present via langgraph.
+3. **The SDK's retry and safety defaults are its own.** This lane needs to decide what
+   a rate limit means, because the answer feeds live mode's fallback rule.
+
+**The key is sent as a header, never in the URL.** Query strings end up in proxy logs,
+shell history, and error messages; `x-goog-api-key` does not.
+
+Nothing here validates a response. `generate()` returns the model's text and stops, so
+this module can be tested without Pydantic and the parser without a network.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+import time
+from dataclasses import dataclass, field
+
+import httpx
+
+from governance.llm.errors import (
+    GeminiAuthError,
+    GeminiRateLimitError,
+    GeminiResponseError,
+    GeminiTransportError,
+)
+from governance.prompts.loader import Prompt
+from governance.prompts.schema import gemini_response_schema
+
+API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
+
+# 2.5 Flash: the cheapest model that follows a response schema reliably. Free tier only
+# (docs/lanes/vc.md forbids a paid API), and free-tier quotas were cut sharply in Dec
+# 2025 — verify against your own key rather than trusting a published number.
+DEFAULT_MODEL = "gemini-2.5-flash"
+
+# Roughly ten requests per minute on the free tier, so six seconds between calls. This
+# is a self-imposed floor, not a reaction to a 429: four agents per evaluation means a
+# naive loop over five scenarios would burst twenty requests and spend most of its time
+# backing off from errors it created.
+DEFAULT_MIN_INTERVAL_S = 6.0
+
+# Governance opinions should be reproducible enough that a recording is representative.
+# Not zero: a temperature of 0 on a reasoning task tends to produce the same terse
+# argument every time, and the panel's value comes from four agents differing.
+DEFAULT_TEMPERATURE = 0.2
+
+DEFAULT_TIMEOUT_S = 30.0
+
+
+class _Pacer:
+    """Spaces requests by at least `min_interval` seconds.
+
+    Deliberately a floor on the gap between calls rather than a token bucket. A bucket
+    permits a burst, and a burst is exactly what the free tier punishes: the first four
+    agents would go out instantly and the fifth would 429. Thread-safe because a future
+    parallel recording run would otherwise pace nothing at all.
+    """
+
+    def __init__(self, min_interval: float) -> None:
+        self._min_interval = min_interval
+        self._lock = threading.Lock()
+        self._last_call: float | None = None
+
+    def wait(self) -> float:
+        """Block until the next call is allowed. Returns the seconds actually slept."""
+        with self._lock:
+            now = time.monotonic()
+            if self._last_call is None:
+                self._last_call = now
+                return 0.0
+            elapsed = now - self._last_call
+            delay = max(0.0, self._min_interval - elapsed)
+            if delay > 0:
+                time.sleep(delay)
+            self._last_call = time.monotonic()
+            return delay
+
+
+@dataclass(frozen=True, slots=True)
+class GeminiConfig:
+    """Everything the client needs, resolved once so nothing reads the environment later.
+
+    `api_key` is read from `GEMINI_API_KEY` and may be empty. An empty key is not an
+    error at construction time — stub and cached modes must work end to end with the
+    variable unset (docs/lanes/vc.md), so the failure belongs at the moment a live call
+    is actually attempted, not at import.
+    """
+
+    api_key: str = ""
+    model: str = DEFAULT_MODEL
+    temperature: float = DEFAULT_TEMPERATURE
+    timeout_s: float = DEFAULT_TIMEOUT_S
+    min_interval_s: float = DEFAULT_MIN_INTERVAL_S
+
+    @classmethod
+    def from_env(cls, **overrides: object) -> GeminiConfig:
+        """Build from the environment. Never raises on a missing key."""
+        base: dict[str, object] = {
+            "api_key": os.environ.get("GEMINI_API_KEY", "").strip(),
+            "model": os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+        }
+        base.update(overrides)
+        return cls(**base)  # type: ignore[arg-type]
+
+    @property
+    def has_key(self) -> bool:
+        return bool(self.api_key)
+
+    @property
+    def endpoint(self) -> str:
+        return f"{API_ROOT}/models/{self.model}:generateContent"
+
+
+@dataclass
+class GeminiClient:
+    """One client, one model, one pacer.
+
+    Holds no conversation state: each `generate()` is independent, because a governance
+    agent's opinion must depend only on the evidence in front of it. Two evaluations in
+    the same process must not be able to influence each other.
+    """
+
+    config: GeminiConfig = field(default_factory=GeminiConfig.from_env)
+    _pacer: _Pacer = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._pacer = _Pacer(self.config.min_interval_s)
+
+    def build_payload(self, prompt: Prompt) -> dict:
+        """The exact JSON body sent to the API.
+
+        Separate from `generate()` so a test can assert on the request shape without a
+        network, and so the recording script can log precisely what produced a response.
+
+        `responseSchema` is Gemini's OpenAPI-3.0 subset, not the Pydantic JSON Schema —
+        see `gemini_response_schema()` for why the two differ. Sending it alongside
+        `responseMimeType` is what makes malformed JSON structurally impossible rather
+        than merely discouraged, which is why `parse_opinion()` still runs afterwards:
+        constrained decoding guarantees shape, never sense.
+        """
+        return {
+            "systemInstruction": {"parts": [{"text": prompt.system}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt.user}]}],
+            "generationConfig": {
+                "temperature": self.config.temperature,
+                "responseMimeType": "application/json",
+                "responseSchema": gemini_response_schema(),
+            },
+        }
+
+    def generate(self, prompt: Prompt, *, client: httpx.Client | None = None) -> str:
+        """Send one prompt, return the model's raw text.
+
+        Paces itself first, so callers cannot accidentally burst. Raises a
+        `GovernanceLLMError` subclass on every failure path; the caller decides what to
+        do with `retryable`.
+
+        `client` is injectable so tests can pass a transport rather than monkey-patching
+        a module global.
+        """
+        if not self.config.has_key:
+            raise GeminiAuthError(
+                "GEMINI_API_KEY is empty. Live calls need a key from Google AI Studio; "
+                "put it in .env (which is gitignored) and never in a committed file. "
+                "Stub and cached modes do not need one."
+            )
+
+        self._pacer.wait()
+        payload = self.build_payload(prompt)
+        headers = {
+            "x-goog-api-key": self.config.api_key,
+            "content-type": "application/json",
+        }
+
+        owns_client = client is None
+        http = client or httpx.Client(timeout=self.config.timeout_s)
+        try:
+            response = http.post(self.config.endpoint, json=payload, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise GeminiTransportError(
+                f"Gemini call timed out after {self.config.timeout_s}s: {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise GeminiTransportError(f"Gemini call failed to complete: {exc}") from exc
+        finally:
+            if owns_client:
+                http.close()
+
+        _raise_for_status(response)
+        return _extract_text(response)
+
+
+def _raise_for_status(response: httpx.Response) -> None:
+    """Turn an HTTP status into the exception whose `retryable` flag is correct."""
+    status = response.status_code
+    if status < 400:
+        return
+
+    detail = _error_message(response)
+
+    if status == 429:
+        raise GeminiRateLimitError(
+            f"Gemini rate limit hit (429): {detail}. The free tier allows roughly "
+            f"{int(60 / DEFAULT_MIN_INTERVAL_S)} requests per minute.",
+            retry_after=_retry_after(response),
+        )
+    if status in (401, 403):
+        raise GeminiAuthError(
+            f"Gemini rejected the API key ({status}): {detail}. Check GEMINI_API_KEY in "
+            f".env and that the key is entitled to {response.url.path.rsplit('/', 1)[-1]}."
+        )
+    if status >= 500:
+        raise GeminiTransportError(f"Gemini server error ({status}): {detail}")
+    raise GeminiResponseError(f"Gemini rejected the request ({status}): {detail}")
+
+
+def _error_message(response: httpx.Response) -> str:
+    """Pull the API's own message out, falling back to the body it actually sent."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text[:300].strip() or "<empty body>"
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return error["message"]
+    return str(payload)[:300]
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    raw = response.headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _extract_text(response: httpx.Response) -> str:
+    """Dig the text out of the candidates envelope.
+
+    Every failure here is a `GeminiResponseError` carrying the reason the API gave. A
+    safety block returns HTTP 200 with no candidate text, which would otherwise surface
+    much later as an empty-response parse failure with nothing explaining why.
+    """
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise GeminiResponseError(f"Gemini returned a non-JSON body: {exc}") from exc
+
+    candidates = payload.get("candidates") or []
+    if not candidates:
+        blocked = (payload.get("promptFeedback") or {}).get("blockReason")
+        raise GeminiResponseError(
+            f"Gemini returned no candidates (blockReason={blocked!r}). The prompt was "
+            f"filtered rather than answered."
+        )
+
+    candidate = candidates[0]
+    parts = (candidate.get("content") or {}).get("parts") or []
+    text = "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise GeminiResponseError(
+            f"Gemini returned an empty candidate "
+            f"(finishReason={candidate.get('finishReason')!r})."
+        )
+    return text

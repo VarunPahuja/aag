@@ -32,20 +32,30 @@ class GovernanceAgent(Protocol):
 
 
 def require_stub_mode(mode: str, agent_name: str) -> None:
-    """Guard for the modes this skeleton does not implement yet.
+    """Guard the hand-written reasoning path in each agent module.
+
+    An agent module's `opine()` produces stub reasoning and only stub reasoning. Cached
+    mode is served by `governance.agents.llm_backed.opine_via_model`, routed in the
+    coordinator's node wrapper, so reaching this function with `cached` means something
+    called an agent module directly and bypassed that routing.
 
     Raising is deliberate. Quietly serving stub opinions when the caller asked for
-    `cached` or `live` would make an unimplemented mode indistinguishable from a
-    working one — the failure would surface as "the reasoning never changes," in front
-    of whoever noticed first. Prompts and cached replay land 30 Aug, live mode 3 Sept
-    (docs/DEADLINES.md).
+    `cached` or `live` would make the wrong path indistinguishable from the right one —
+    the failure would surface as "the reasoning never changes," in front of whoever
+    noticed first. Live mode is due 3 Sept (docs/DEADLINES.md).
     """
     if mode == STUB:
         return
-    if mode in (CACHED, LIVE):
+    if mode == CACHED:
         raise NotImplementedError(
-            f"{agent_name} agent has no {mode} implementation yet — "
-            f"{CACHED} is due 30 Aug, {LIVE} 3 Sept (docs/DEADLINES.md). Use {STUB!r}."
+            f"{agent_name}.opine() serves {STUB!r} only. {CACHED!r} is served by "
+            f"governance.agents.llm_backed.opine_via_model, which the coordinator routes "
+            f"to — call recommend() rather than an agent module directly."
+        )
+    if mode == LIVE:
+        raise NotImplementedError(
+            f"{agent_name} agent has no {LIVE} implementation yet — due 3 Sept "
+            f"(docs/DEADLINES.md). Use {STUB!r} or {CACHED!r}."
         )
     raise ValueError(f"unknown governance mode {mode!r}")
 
