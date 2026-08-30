@@ -1,10 +1,11 @@
 """One exception hierarchy for everything that can go wrong reaching a model.
 
-The distinction that matters to a caller is **retryable** versus **not**, because live
-mode's fallback rule (due 3 Sept) is written in those terms: a transport failure or a
-rate limit is worth retrying and then falling back to cached; an auth failure is a
-misconfiguration that retrying will never fix, and burning the retry budget on it only
-delays a clear error message.
+Provider-neutral on purpose. Three providers raise three different SDK exception
+families, and the caller should not have to know which one it got — the distinction
+that matters is **retryable or not**, because live mode's fallback rule (due 3 Sept) is
+written in those terms. A transport failure or a rate limit is worth retrying and then
+falling back to cached; an auth failure is a misconfiguration that retrying will never
+fix, and burning the retry budget on it only delays a clear error message.
 
 `OpinionParseError` deliberately does not live here. A malformed response is a
 *validation* failure, not a transport one, and it belongs beside the schema that
@@ -22,8 +23,12 @@ class GovernanceLLMError(RuntimeError):
     #: behaviour by declaring it instead of by being added to a tuple somewhere.
     retryable: bool = False
 
+    #: Which provider raised it. Set by the client so an error message in a mixed-model
+    #: panel says which of the three failed.
+    provider: str = "unknown"
 
-class GeminiTransportError(GovernanceLLMError):
+
+class LLMTransportError(GovernanceLLMError):
     """The request did not complete: connection refused, timeout, 5xx.
 
     Retryable. The model may be fine and the network may not be.
@@ -32,12 +37,12 @@ class GeminiTransportError(GovernanceLLMError):
     retryable = True
 
 
-class GeminiRateLimitError(GovernanceLLMError):
-    """HTTP 429. The free tier's quota has been exceeded.
+class LLMRateLimitError(GovernanceLLMError):
+    """Quota exceeded — HTTP 429 or the provider's equivalent.
 
-    Retryable, but only with a delay — this is the error a naive recording loop hits
-    at roughly ten requests per minute, and retrying it immediately makes it worse.
-    `retry_after` carries the server's own advice when it sends any.
+    Retryable, but only with a delay. This is the error a naive recording loop hits on
+    Gemini's free tier at roughly ten requests per minute, and retrying it immediately
+    makes it worse. `retry_after` carries the server's own advice when it sends any.
     """
 
     retryable = True
@@ -47,22 +52,33 @@ class GeminiRateLimitError(GovernanceLLMError):
         self.retry_after = retry_after
 
 
-class GeminiAuthError(GovernanceLLMError):
-    """HTTP 401/403. The key is missing, wrong, or not entitled to this model.
+class LLMAuthError(GovernanceLLMError):
+    """The key is missing, wrong, or not entitled to this model.
 
-    **Not** retryable. A missing `GEMINI_API_KEY` is the common case and the message
-    says so, because the alternative is a developer watching three silent retries and
+    **Not** retryable. A missing key is the common case and the message names the
+    variable, because the alternative is a developer watching three silent retries and
     concluding the API is down.
     """
 
     retryable = False
 
 
-class GeminiResponseError(GovernanceLLMError):
+class LLMResponseError(GovernanceLLMError):
     """The call succeeded but the envelope held no usable text.
 
-    A safety block or an empty candidate list lands here. Not retryable: the same
-    prompt will be blocked the same way, and pretending otherwise hides the reason.
+    A safety block, a refusal, or an empty candidate list lands here. Not retryable: the
+    same prompt will be blocked the same way, and pretending otherwise hides the reason.
+    """
+
+    retryable = False
+
+
+class ProviderUnavailableError(GovernanceLLMError):
+    """A provider was selected whose optional SDK is not installed.
+
+    Not retryable, and separate from an auth error because the fix is different: this
+    one is `pip install`, not a key. Gemini needs no extra, which is why it is the
+    default.
     """
 
     retryable = False

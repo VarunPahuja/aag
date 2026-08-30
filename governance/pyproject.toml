@@ -10,6 +10,15 @@ requires-python = ">=3.11"
 # directly and says so rather than relying on someone else's transitive pin.
 dependencies = ["langgraph>=1.0", "pydantic>=2.0", "httpx>=0.27"]
 
+# Optional providers. Gemini is the default and needs no extra — it is the only one with
+# a free tier, and docs/lanes/vc.md forbids introducing a paid service, so nothing here
+# may become a hard dependency. The project runs end to end with none of these installed
+# and every key blank (ADR-0012).
+[project.optional-dependencies]
+claude = ["anthropic>=0.40"]
+openai = ["openai>=1.40"]
+all-providers = ["anthropic>=0.40", "openai>=1.40"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

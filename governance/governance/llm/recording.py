@@ -1,4 +1,4 @@
-"""Recorded Gemini responses, and the rules for replaying one.
+"""Recorded model responses, and the rules for replaying one.
 
 Cached mode is the demo default, not live. A recorded response cannot rate-limit, time
 out, or get filtered in front of a panel, and killing the wifi mid-presentation is a
@@ -31,18 +31,18 @@ DEFAULT_RECORDING_DIR = Path(__file__).resolve().parents[2] / "recordings"
 
 SCHEMA_VERSION = "1"
 
-# A cache key is "<agent>.<version>.<hash>" and all three parts are generated, but this
-# builds a filesystem path, so it is validated rather than trusted. Anything outside
-# this alphabet cannot become a path separator or a parent-directory hop.
+# A cache key is "<agent>.<version>.<model>.<hash>" and every part is generated, but
+# this builds a filesystem path, so it is validated rather than trusted. Anything
+# outside this alphabet cannot become a path separator or a parent-directory hop.
 _SAFE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 @dataclass(frozen=True, slots=True)
 class Recording:
-    """One real Gemini response, plus enough context to know what produced it.
+    """One real model response, plus enough context to know what produced it.
 
     `prompt_sha` is the fingerprint of the exact prompt text sent. The cache key already
-    covers agent, prompt version and evidence, so a mismatch here means something
+    covers agent, prompt version, model and evidence, so a mismatch here means something
     changed that the key was supposed to capture and did not — it is a tripwire on the
     keying scheme itself, not a second lookup mechanism.
     """
@@ -51,6 +51,7 @@ class Recording:
     agent_name: str
     prompt_version: str
     evidence_hash: str
+    provider: str
     model: str
     response_text: str
     prompt_sha: str
@@ -64,6 +65,7 @@ class Recording:
             "agent_name": self.agent_name,
             "prompt_version": self.prompt_version,
             "evidence_hash": self.evidence_hash,
+            "provider": self.provider,
             "model": self.model,
             "prompt_sha": self.prompt_sha,
             "recorded_at": self.recorded_at,
@@ -78,6 +80,7 @@ class Recording:
                 "agent_name",
                 "prompt_version",
                 "evidence_hash",
+                "provider",
                 "model",
                 "prompt_sha",
                 "recorded_at",
@@ -92,12 +95,27 @@ class Recording:
             agent_name=payload["agent_name"],
             prompt_version=payload["prompt_version"],
             evidence_hash=payload["evidence_hash"],
+            provider=payload["provider"],
             model=payload["model"],
             response_text=payload["response_text"],
             prompt_sha=payload["prompt_sha"],
             recorded_at=payload["recorded_at"],
             schema_version=payload.get("schema_version", SCHEMA_VERSION),
         )
+
+
+def cache_key_for(prompt: Prompt, model_slug: str) -> str:
+    """The key one recording is stored under: agent, prompt version, model, evidence.
+
+    **The model belongs in the key, and leaving it out was a bug.** `Prompt.cache_key`
+    identifies the *question* — agent, prompt version, evidence — and two providers
+    asked the same question give different answers. Keyed without the model, a panel
+    switched from Gemini to Claude would replay Gemini's recordings and look perfectly
+    healthy doing it: same evidence, same agent, plausible reasoning, wrong model. That
+    is precisely the class of silent failure the keying scheme exists to prevent.
+    """
+    agent, version, evidence_hash = prompt.cache_key.split(".", 2)
+    return f"{agent}.{version}.{model_slug}.{evidence_hash}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,19 +174,28 @@ class RecordingStore:
         if not siblings:
             return f"Nothing is recorded for the {agent!r} agent yet."
         return (
-            f"Recorded for {agent!r}: {', '.join(siblings)}. A key differing only in its "
-            f"final segment means the evidence changed; differing in the middle segment "
-            f"means the prompt was revised."
+            f"Recorded for {agent!r}: {', '.join(siblings)}. Keys are "
+            f"agent.promptversion.model.evidence — a difference in the last segment "
+            f"means the evidence changed, in the third means a different provider or "
+            f"model, and in the second means the prompt was revised."
         )
 
 
-def build_recording(prompt: Prompt, response_text: str, model: str) -> Recording:
-    """Assemble a `Recording` from the prompt that produced it."""
+def build_recording(
+    prompt: Prompt,
+    response_text: str,
+    model: str,
+    *,
+    provider: str,
+    model_slug: str,
+) -> Recording:
+    """Assemble a `Recording` from the prompt and the client that produced it."""
     return Recording(
-        cache_key=prompt.cache_key,
+        cache_key=cache_key_for(prompt, model_slug),
         agent_name=prompt.agent_name,
         prompt_version=prompt.version,
         evidence_hash=prompt.evidence_hash,
+        provider=provider,
         model=model,
         response_text=response_text,
         prompt_sha=prompt_fingerprint(prompt),

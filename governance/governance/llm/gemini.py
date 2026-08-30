@@ -20,17 +20,22 @@ this module can be tested without Pydantic and the parser without a network.
 from __future__ import annotations
 
 import os
-import threading
-import time
 from dataclasses import dataclass, field
 
 import httpx
 
+from governance.llm.base import (
+    DEFAULT_MIN_INTERVAL_S,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TIMEOUT_S,
+    Pacer,
+    model_slug,
+)
 from governance.llm.errors import (
-    GeminiAuthError,
-    GeminiRateLimitError,
-    GeminiResponseError,
-    GeminiTransportError,
+    LLMAuthError,
+    LLMRateLimitError,
+    LLMResponseError,
+    LLMTransportError,
 )
 from governance.prompts.loader import Prompt
 from governance.prompts.schema import gemini_response_schema
@@ -42,47 +47,7 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 # 2025 — verify against your own key rather than trusting a published number.
 DEFAULT_MODEL = "gemini-2.5-flash"
 
-# Roughly ten requests per minute on the free tier, so six seconds between calls. This
-# is a self-imposed floor, not a reaction to a 429: four agents per evaluation means a
-# naive loop over five scenarios would burst twenty requests and spend most of its time
-# backing off from errors it created.
-DEFAULT_MIN_INTERVAL_S = 6.0
-
-# Governance opinions should be reproducible enough that a recording is representative.
-# Not zero: a temperature of 0 on a reasoning task tends to produce the same terse
-# argument every time, and the panel's value comes from four agents differing.
-DEFAULT_TEMPERATURE = 0.2
-
-DEFAULT_TIMEOUT_S = 30.0
-
-
-class _Pacer:
-    """Spaces requests by at least `min_interval` seconds.
-
-    Deliberately a floor on the gap between calls rather than a token bucket. A bucket
-    permits a burst, and a burst is exactly what the free tier punishes: the first four
-    agents would go out instantly and the fifth would 429. Thread-safe because a future
-    parallel recording run would otherwise pace nothing at all.
-    """
-
-    def __init__(self, min_interval: float) -> None:
-        self._min_interval = min_interval
-        self._lock = threading.Lock()
-        self._last_call: float | None = None
-
-    def wait(self) -> float:
-        """Block until the next call is allowed. Returns the seconds actually slept."""
-        with self._lock:
-            now = time.monotonic()
-            if self._last_call is None:
-                self._last_call = now
-                return 0.0
-            elapsed = now - self._last_call
-            delay = max(0.0, self._min_interval - elapsed)
-            if delay > 0:
-                time.sleep(delay)
-            self._last_call = time.monotonic()
-            return delay
+PROVIDER = "gemini"
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,10 +95,23 @@ class GeminiClient:
     """
 
     config: GeminiConfig = field(default_factory=GeminiConfig.from_env)
-    _pacer: _Pacer = field(init=False, repr=False)
+    provider: str = PROVIDER
+    _pacer: Pacer = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._pacer = _Pacer(self.config.min_interval_s)
+        self._pacer = Pacer(self.config.min_interval_s)
+
+    @property
+    def model(self) -> str:
+        return self.config.model
+
+    @property
+    def has_key(self) -> bool:
+        return self.config.has_key
+
+    @property
+    def slug(self) -> str:
+        return model_slug(self.provider, self.config.model)
 
     def build_payload(self, prompt: Prompt) -> dict:
         """The exact JSON body sent to the API.
@@ -168,7 +146,7 @@ class GeminiClient:
         a module global.
         """
         if not self.config.has_key:
-            raise GeminiAuthError(
+            raise LLMAuthError(
                 "GEMINI_API_KEY is empty. Live calls need a key from Google AI Studio; "
                 "put it in .env (which is gitignored) and never in a committed file. "
                 "Stub and cached modes do not need one."
@@ -186,11 +164,11 @@ class GeminiClient:
         try:
             response = http.post(self.config.endpoint, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
-            raise GeminiTransportError(
+            raise LLMTransportError(
                 f"Gemini call timed out after {self.config.timeout_s}s: {exc}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise GeminiTransportError(f"Gemini call failed to complete: {exc}") from exc
+            raise LLMTransportError(f"Gemini call failed to complete: {exc}") from exc
         finally:
             if owns_client:
                 http.close()
@@ -208,19 +186,19 @@ def _raise_for_status(response: httpx.Response) -> None:
     detail = _error_message(response)
 
     if status == 429:
-        raise GeminiRateLimitError(
+        raise LLMRateLimitError(
             f"Gemini rate limit hit (429): {detail}. The free tier allows roughly "
             f"{int(60 / DEFAULT_MIN_INTERVAL_S)} requests per minute.",
             retry_after=_retry_after(response),
         )
     if status in (401, 403):
-        raise GeminiAuthError(
+        raise LLMAuthError(
             f"Gemini rejected the API key ({status}): {detail}. Check GEMINI_API_KEY in "
             f".env and that the key is entitled to {response.url.path.rsplit('/', 1)[-1]}."
         )
     if status >= 500:
-        raise GeminiTransportError(f"Gemini server error ({status}): {detail}")
-    raise GeminiResponseError(f"Gemini rejected the request ({status}): {detail}")
+        raise LLMTransportError(f"Gemini server error ({status}): {detail}")
+    raise LLMResponseError(f"Gemini rejected the request ({status}): {detail}")
 
 
 def _error_message(response: httpx.Response) -> str:
@@ -249,19 +227,19 @@ def _retry_after(response: httpx.Response) -> float | None:
 def _extract_text(response: httpx.Response) -> str:
     """Dig the text out of the candidates envelope.
 
-    Every failure here is a `GeminiResponseError` carrying the reason the API gave. A
+    Every failure here is a `LLMResponseError` carrying the reason the API gave. A
     safety block returns HTTP 200 with no candidate text, which would otherwise surface
     much later as an empty-response parse failure with nothing explaining why.
     """
     try:
         payload = response.json()
     except ValueError as exc:
-        raise GeminiResponseError(f"Gemini returned a non-JSON body: {exc}") from exc
+        raise LLMResponseError(f"Gemini returned a non-JSON body: {exc}") from exc
 
     candidates = payload.get("candidates") or []
     if not candidates:
         blocked = (payload.get("promptFeedback") or {}).get("blockReason")
-        raise GeminiResponseError(
+        raise LLMResponseError(
             f"Gemini returned no candidates (blockReason={blocked!r}). The prompt was "
             f"filtered rather than answered."
         )
@@ -270,7 +248,7 @@ def _extract_text(response: httpx.Response) -> str:
     parts = (candidate.get("content") or {}).get("parts") or []
     text = "".join(part.get("text", "") for part in parts).strip()
     if not text:
-        raise GeminiResponseError(
+        raise LLMResponseError(
             f"Gemini returned an empty candidate "
             f"(finishReason={candidate.get('finishReason')!r})."
         )
