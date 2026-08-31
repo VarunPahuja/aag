@@ -6,6 +6,28 @@ ADR.
 
 ---
 
+**2026-08-31 — Varun P.** — Branch cleanup, own branches only (`vp/*`,
+`docs/*`, `chore/*`, `shared/*`; `uk/*`/`vc/*`/`ad/*` left untouched, not this
+lane's to clean up). Deleted, local and remote, 12 branches verified merged
+by diffing each branch's touched files against the exact merge/squash commit
+that closed its PR (ancestry alone misses squash merges): `shared/v1-1-
+recommendation-and-audit-sample`, `chore/infra-baseline`, `docs/reset-and-
+reschedule`, `origin/docs/system-explained-merge`, `origin/chore/rename-and-
+docs`, `origin/docs/resurrect-pr5`, `origin/docs/delta-audit-27aug`,
+`vp/openapi-contract`, `docs/mentor-briefing`, `docs/landscape-research`,
+`docs/audit-and-risk-fix`, `vp/schema-and-policy-engine` (PR #18, merged
+today). Reset `vp/backend` onto `origin/main` instead of deleting it — it had
+never diverged past the 17 Aug scaffold commit still shared with `uk/trust`/
+`vc/governance`/`ad/simulator-frontend`, so the fix was to stop it pointing at
+dead history, not to remove the branch. **Why:** all 18 PRs to date are
+merged and nothing else is open in scope; an accurate branch list matters
+more once `main` is close to demo-ready. **Affects:** branch list only, no
+source changes; `git branch -d` (never `-D`) and `--force-with-lease` (never
+`--force`) throughout, so anything genuinely unmerged would have been
+refused rather than lost.
+
+---
+
 **2026-08-31 — Varun P. (via `vp/schema-and-policy-engine`)** — Wrote the
 Policy Engine as a pure module (`backend/app/policy/`): `evaluate_decision`
 (may the agent act, or must it escalate — missing/invalid policy version
