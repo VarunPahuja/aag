@@ -30,7 +30,16 @@ from governance.prompts.loader import Prompt
 # Free-tier Gemini is roughly ten requests per minute, and it is the tightest limit of
 # the three, so it sets the shared default. Each provider may raise it.
 DEFAULT_MIN_INTERVAL_S = 6.0
-DEFAULT_TIMEOUT_S = 30.0
+
+# Measured, not guessed: three identical gemini-3.6-flash calls on 30 Aug 2026 returned
+# in 9.9s, 15.6s and 33.3s. Latency on this model is wide enough that a 30s timeout sat
+# inside the spread and failed roughly half the time — a recording run would have died
+# partway through with quota already spent. 120s is well past the observed tail.
+#
+# This is not patience for its own sake. A timeout here aborts one *recording*, which is
+# cheap to retry; live mode's own deadline is what protects the demo, and it is a
+# separate number set against the panel's tolerance, not against Gemini's tail latency.
+DEFAULT_TIMEOUT_S = 120.0
 
 # Governance opinions should be reproducible enough that a recording is representative.
 # Not zero: at temperature 0 a reasoning task tends to produce the same terse argument

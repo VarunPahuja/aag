@@ -42,10 +42,16 @@ from governance.prompts.schema import gemini_response_schema
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 
-# 2.5 Flash: the cheapest model that follows a response schema reliably. Free tier only
+# Flash: the cheapest model that follows a response schema reliably. Free tier only
 # (docs/lanes/vc.md forbids a paid API), and free-tier quotas were cut sharply in Dec
 # 2025 — verify against your own key rather than trusting a published number.
-DEFAULT_MODEL = "gemini-2.5-flash"
+#
+# 3.6, not 2.5: as of 30 Aug 2026 the API answers a 2.5-flash request with a 404 reading
+# "no longer available to new users". A retired default is a 404 on every call, so this
+# is checked by a live probe, not by a test — nothing in CI touches the network. If this
+# 404s again, run one call by hand before a recording run and read the model the error
+# names; the retirement notice is the only place that number is published.
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 PROVIDER = "gemini"
 
