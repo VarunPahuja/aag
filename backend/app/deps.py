@@ -1,19 +1,22 @@
-"""Shared FastAPI dependencies: identity, role checks, and the DB-session stub.
+"""Shared FastAPI dependencies: identity, role checks, and the DB session.
 
-No real auth or database exists yet (docs/DEADLINES.md: persistence lands
-Fri 28 Aug - Mon 31 Aug). What's here is deliberately the *shape* these will
-have once real: a header-based stub identity today, a real JWT later behind
-the same `current_user` signature; a `get_db_session` stub that nothing
-calls yet, so the day a real session exists, every route that will need one
-already has the right parameter.
+No real auth yet — a header-based stub identity today, a real JWT later
+behind the same `current_user` signature. Persistence is real as of this
+branch (docs/lanes/vp.md, decision-ingest): `get_session` opens one
+`Session` per request, committing on a clean return and rolling back on any
+exception, so every route that writes gets an all-or-nothing transaction for
+free just by depending on it.
 """
 
 from __future__ import annotations
 
-from collections.abc import Generator
+import os
+from collections.abc import Callable, Generator
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.schemas.envelope import ErrorBody
 from app.schemas.user import CurrentUser, Role
@@ -86,18 +89,58 @@ def require_role(*allowed: Role):
     return _check
 
 
-def get_db_session() -> Generator[None, None, None]:
-    """Placeholder for the SQLAlchemy session dependency persistence will add.
+DEFAULT_DATABASE_URL = "postgresql://aagp:aagp_dev_password@localhost:5432/aagp"
 
-    Nothing in this branch calls it — this branch ships the contract, not
-    persistence (docs/DEADLINES.md: Fri 28 Aug / Mon 31 Aug). It exists now,
-    unused, so the parameter shape (`db: Annotated[Session, Depends(get_db_session)]`)
-    is already the one every route will actually take, rather than being
-    retrofitted later. Calling it before persistence lands is a programming
-    error, not a runtime path any current endpoint can reach.
+_engine = None
+_session_maker: sessionmaker | None = None
+
+
+def _default_session_maker() -> sessionmaker:
+    """The process-wide engine/sessionmaker, built lazily on first real use —
+    reading `DATABASE_URL` at that point, not at import time, so the normal
+    "set the env var, then start the process" deployment model just works.
+    Tests never reach this: `client` (`backend/tests/conftest.py`) replaces
+    `get_session` entirely via `app.dependency_overrides` before any request
+    is made, so there's no staleness risk from `DATABASE_URL` changing
+    between tests in the same run.
     """
-    raise NotImplementedError(
-        "No database session yet — persistence lands Fri 28 Aug / Mon 31 Aug "
-        "per docs/lanes/vp.md. This stub exists for its shape, not to be called."
-    )
-    yield  # pragma: no cover - unreachable; makes this a generator function
+    global _engine, _session_maker
+    if _session_maker is None:
+        database_url = os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+        _engine = create_engine(database_url)
+        _session_maker = sessionmaker(bind=_engine)
+    return _session_maker
+
+
+def session_dependency_factory(
+    session_maker: Callable[[], Session],
+) -> Callable[[], Generator[Session, None, None]]:
+    """Build a FastAPI dependency that yields one `Session` per request,
+    committing on a clean return and rolling back on any exception raised
+    while handling it — the one place every write endpoint gets its
+    "everything in this request, or nothing" guarantee from
+    (docs/lanes/vp.md: decision ingest is one transaction).
+
+    Shared between `get_session` below and `backend/tests/conftest.py`'s
+    per-test override (pointed at a throwaway test database instead of
+    `DATABASE_URL`) so both get identical commit/rollback semantics rather
+    than two implementations that could quietly drift apart.
+    """
+
+    def _get_session() -> Generator[Session, None, None]:
+        session = session_maker()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    return _get_session
+
+
+get_session = session_dependency_factory(lambda: _default_session_maker()())
+
+DbSessionDep = Annotated[Session, Depends(get_session)]

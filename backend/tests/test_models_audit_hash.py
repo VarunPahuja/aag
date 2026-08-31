@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import hashlib
 
+from sqlalchemy.orm import Session
+
 from app.models.audit_hash import GENESIS_HASH, canonical_json, compute_hash
+from app.models.audit_log import AuditLogEntry
 
 
 def test_canonical_json_sorts_keys():
@@ -77,3 +80,39 @@ def test_matches_the_fixture_data_hand_rolled_algorithm():
         compute_hash(GENESIS_HASH, payload)
         == hashlib.sha256((GENESIS_HASH + canonical_json(payload)).encode("utf-8")).hexdigest()
     )
+
+
+def test_tampering_with_a_persisted_row_is_detected(db_engine):
+    """The chain's tamper-evidence claimed everywhere else in this codebase
+    as a docstring assertion, actually exercised here: mutate one persisted
+    `audit_log` row's payload directly (bypassing the ORM session — and
+    therefore `app/models/guards.py`'s append-only `before_flush` guard,
+    which only protects the ORM session path, not raw SQL — exactly the
+    threat model this chain exists to catch), then recompute the chain from
+    what's stored and confirm the mismatch is caught, not just theoretically
+    catchable.
+    """
+    with Session(db_engine) as session:
+        entries = session.query(AuditLogEntry).order_by(AuditLogEntry.ts).all()
+        assert len(entries) >= 2
+
+        target = entries[0]
+        session.execute(
+            AuditLogEntry.__table__.update()
+            .where(AuditLogEntry.id == target.id)
+            .values(payload={"tampered": True})
+        )
+        session.commit()
+
+    with Session(db_engine) as verify:
+        rows = verify.query(AuditLogEntry).order_by(AuditLogEntry.ts).all()
+        prev_hash = GENESIS_HASH
+        mismatch_found = False
+        for row in rows:
+            expected = compute_hash(prev_hash, row.payload)
+            if row.hash != expected:
+                mismatch_found = True
+                break
+            prev_hash = row.hash
+
+        assert mismatch_found, "tampering with a persisted row's payload must break the chain"

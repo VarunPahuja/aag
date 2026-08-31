@@ -1531,7 +1531,7 @@
   "paths": {
     "/api/v1/agents": {
       "get": {
-        "description": "List every governed agent.\n\nOnce implemented: a `SELECT` over `agents`, ordered by `id`, paginated\nwith `LIMIT`/`OFFSET`. No filtering by state yet \u2014 add `?state=` if the\ndashboard needs it before persistence lands.",
+        "description": "List every governed agent, ordered by id.",
         "operationId": "list_agents_api_v1_agents_get",
         "parameters": [
           {
@@ -1608,7 +1608,7 @@
     },
     "/api/v1/agents/{agent_id}": {
       "get": {
-        "description": "Fetch one agent by id, including its current `AgentContext`.\n\nOnce implemented: a `SELECT ... WHERE id = :agent_id`, 404 if no row.",
+        "description": "Fetch one agent by id, including its current `AgentContext`.",
         "operationId": "get_agent_api_v1_agents__agent_id__get",
         "parameters": [
           {
@@ -2191,7 +2191,7 @@
     },
     "/api/v1/decisions": {
       "get": {
-        "description": "List decisions, newest first.\n\nOnce implemented: `SELECT ... ORDER BY decided_at DESC`, with\n`?agent_id=` / `?action=` filters \u2014 not needed yet, add when the\ndashboard's decisions table asks for them.",
+        "description": "List decisions, newest first.",
         "operationId": "list_decisions_api_v1_decisions_get",
         "parameters": [
           {
@@ -2266,7 +2266,7 @@
         ]
       },
       "post": {
-        "description": "Ingest one decision from the simulator (or, eventually, a real agent).\n\nOnce implemented: validates the agent exists and the invoice hasn't\nalready been decided, assigns the next `sequence` number for the agent,\nwrites a `DecisionRecord`-shaped row, and appends a hash-chained\n`audit_log` entry in the same transaction (docs/lanes/vp.md). This stub\nechoes back a `DecisionRecordOut` built from the request, with a minted\nid and `decided_at`, but does not persist it \u2014 call it twice with the\nsame body and you get two different ids back.",
+        "description": "Ingest one decision from the simulator (or, eventually, a real agent).\n\nValidates the agent exists and has a policy version on record, evaluates\nthe invoice against that policy with the real Policy Engine\n(`app.policy.engine.evaluate_decision`), and \u2014 in one transaction \u2014\npersists the invoice (if new), the decision (referencing the exact\npolicy version in force), and a hash-chained `audit_log` entry\n(docs/lanes/vp.md). `within_limit` is recorded on the decision row\nverbatim from the Policy Engine's own output; the Policy Engine's reason\ncode is recorded on the audit entry, never recomputed later.",
         "operationId": "create_decision_api_v1_decisions_post",
         "parameters": [
           {
@@ -2326,7 +2326,7 @@
     },
     "/api/v1/decisions/{decision_id}": {
       "get": {
-        "description": "Fetch one decision by id.\n\nOnce implemented: `SELECT ... WHERE id = :decision_id`, 404 if no row.",
+        "description": "Fetch one decision by id.",
         "operationId": "get_decision_api_v1_decisions__decision_id__get",
         "parameters": [
           {
