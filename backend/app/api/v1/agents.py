@@ -1,21 +1,26 @@
 """Agent resource — identity, current standing, policy history, trust evidence.
 
-Every route here returns canned data from `app/fixtures/`. Real
-implementations land with persistence (docs/DEADLINES.md: Fri 28 Aug /
-Mon 31 Aug) — each docstring says what that will look like.
+`list_agents`/`get_agent` read the real `agents` table — this branch wires
+decision ingest plus agent read (docs/lanes/vp.md, decision-ingest branch).
+Everything below them (`policy-versions`, `trust`, `trust/history`) is still
+fixture-backed: out of scope here, wired alongside trust/governance/
+recommendations in the next branch.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.api.v1.pagination import PageParam, PageSizeParam, paginate
-from app.deps import CurrentUserDep
+from app.deps import CurrentUserDep, DbSessionDep
 from app.errors import NOT_FOUND_RESPONSE, not_found
 from app.fixtures.agents import AGENTS
 from app.fixtures.policy_versions import POLICY_VERSIONS
 from app.fixtures.trust import TRUST_CURRENT, TRUST_HISTORY
-from app.schemas.agent import AgentOut, PolicyVersionOut
+from app.models import Agent, Decision, PolicyVersion
+from app.schemas.agent import AgentContextOut, AgentOut, PolicyVersionOut
 from app.schemas.envelope import Page
 from app.schemas.trust import TrustEvaluationOut
 
@@ -23,32 +28,91 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 def _get_agent_or_404(agent_id: str) -> AgentOut:
+    """Still fixture-backed — only the three fixture-only routes below use
+    this; `list_agents`/`get_agent` have their own DB-backed lookup."""
     agent = AGENTS.get(agent_id)
     if agent is None:
         raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
     return agent
 
 
+def _agent_context(db: Session, agent: Agent) -> AgentContextOut:
+    """Real, derived from the tables that exist — `docs/lanes/vp.md`'s
+    `agents` schema has no `AgentContext` columns of its own.
+    `current_limit`/`state` are the agent row's own fields; the two decision
+    counts are computed relative to whichever policy version is currently in
+    force: `decisions_since_last_change` is every decision recorded at or
+    after that version's `effective_from`; `decisions_since_clawback` is the
+    same count, but only when that version was itself a clawback (a lower
+    rung than the one before it) — `None` otherwise, meaning "no clawback
+    recovery is currently pending."
+    """
+    versions = (
+        db.execute(
+            select(PolicyVersion)
+            .where(PolicyVersion.agent_id == agent.id)
+            .order_by(PolicyVersion.effective_from.desc())
+            .limit(2)
+        )
+        .scalars()
+        .all()
+    )
+    if not versions:
+        return AgentContextOut(
+            current_limit=agent.current_limit,
+            decisions_since_last_change=0,
+            decisions_since_clawback=None,
+            state=agent.state,
+        )
+
+    current = versions[0]
+    since_change = (
+        db.execute(
+            select(func.count())
+            .select_from(Decision)
+            .where(Decision.agent_id == agent.id, Decision.decided_at >= current.effective_from)
+        ).scalar()
+        or 0
+    )
+
+    is_clawback = len(versions) > 1 and current.rung < versions[1].rung
+    since_clawback = since_change if is_clawback else None
+
+    return AgentContextOut(
+        current_limit=agent.current_limit,
+        decisions_since_last_change=since_change,
+        decisions_since_clawback=since_clawback,
+        state=agent.state,
+    )
+
+
+def _agent_out(db: Session, agent: Agent) -> AgentOut:
+    return AgentOut(
+        id=agent.id,
+        name=agent.name,
+        current_limit=agent.current_limit,
+        current_rung=agent.current_rung,
+        state=agent.state,
+        context=_agent_context(db, agent),
+    )
+
+
 @router.get("", response_model=Page[AgentOut])
 def list_agents(
-    user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
+    db: DbSessionDep, user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
 ) -> Page[AgentOut]:
-    """List every governed agent.
-
-    Once implemented: a `SELECT` over `agents`, ordered by `id`, paginated
-    with `LIMIT`/`OFFSET`. No filtering by state yet — add `?state=` if the
-    dashboard needs it before persistence lands.
-    """
-    return paginate(list(AGENTS.values()), page, page_size)
+    """List every governed agent, ordered by id."""
+    agents = db.execute(select(Agent).order_by(Agent.id)).scalars().all()
+    return paginate([_agent_out(db, agent) for agent in agents], page, page_size)
 
 
 @router.get("/{agent_id}", response_model=AgentOut, responses=NOT_FOUND_RESPONSE)
-def get_agent(agent_id: str, user: CurrentUserDep) -> AgentOut:
-    """Fetch one agent by id, including its current `AgentContext`.
-
-    Once implemented: a `SELECT ... WHERE id = :agent_id`, 404 if no row.
-    """
-    return _get_agent_or_404(agent_id)
+def get_agent(agent_id: str, user: CurrentUserDep, db: DbSessionDep) -> AgentOut:
+    """Fetch one agent by id, including its current `AgentContext`."""
+    agent = db.get(Agent, agent_id)
+    if agent is None:
+        raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
+    return _agent_out(db, agent)
 
 
 @router.get(

@@ -8,65 +8,211 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, status
+from shared.enums import Action
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.api.v1.pagination import PageParam, PageSizeParam, paginate
-from app.deps import CurrentUserDep
-from app.errors import NOT_FOUND_RESPONSE, not_found
-from app.fixtures.decisions import DECISIONS, DECISIONS_BY_ID
+from app.deps import CurrentUserDep, DbSessionDep
+from app.errors import NOT_FOUND_RESPONSE, ApiError, not_found
+from app.models import Agent, Decision, Invoice
+from app.models.audit_log import append_entry
+from app.models.policy_versions import current_policy_version_for
+from app.policy.engine import evaluate_decision
+from app.policy.types import Invoice as PolicyInvoice
+from app.policy.types import PolicyVersion as PolicyVersionView
 from app.schemas.decision import DecisionCreate, DecisionRecordOut
 from app.schemas.envelope import Page
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
 
-@router.post("", response_model=DecisionRecordOut, status_code=status.HTTP_201_CREATED)
-def create_decision(body: DecisionCreate, user: CurrentUserDep) -> DecisionRecordOut:
-    """Ingest one decision from the simulator (or, eventually, a real agent).
-
-    Once implemented: validates the agent exists and the invoice hasn't
-    already been decided, assigns the next `sequence` number for the agent,
-    writes a `DecisionRecord`-shaped row, and appends a hash-chained
-    `audit_log` entry in the same transaction (docs/lanes/vp.md). This stub
-    echoes back a `DecisionRecordOut` built from the request, with a minted
-    id and `decided_at`, but does not persist it — call it twice with the
-    same body and you get two different ids back.
-    """
+def _decision_out(decision: Decision, invoice: Invoice) -> DecisionRecordOut:
+    """`amount`/`ground_truth` live on `invoices`, not `decisions`
+    (`docs/lanes/vp.md`'s schema normalises them there) — assembling the
+    response is always a join of the two, never one row alone."""
     return DecisionRecordOut(
-        decision_id=f"dec-{uuid.uuid4().hex[:12]}",
-        sequence=len(DECISIONS) + 1,
+        decision_id=decision.id,
+        sequence=decision.sequence,
+        invoice_id=decision.invoice_id,
+        amount=invoice.amount,
+        action=decision.action,
+        ground_truth=invoice.ground_truth_action,
+        agent_id=decision.agent_id,
+        decided_at=decision.decided_at,
+        recommended_action=decision.recommended_action,
+        human_ruling=decision.human_ruling,
+    )
+
+
+def _create_decision(db: Session, body: DecisionCreate) -> Decision:
+    """The one transaction: validate the agent and its current policy
+    version exist, evaluate the invoice against the real Policy Engine,
+    persist the invoice (if new) and the decision, and append a
+    hash-chained `audit_log` entry — all against the same `Session`,
+    committed or rolled back together by `app.deps.get_session`.
+
+    Fails closed at every point that cannot safely resolve to a persisted
+    row: an unknown agent, or an agent with no policy version on record at
+    all, raises before anything is written, rather than guessing. A
+    *known but internally inconsistent* policy version still persists —
+    that is exactly what `evaluate_decision`'s own fail-closed escalation
+    (`POLICY_VERSION_INVALID`) is for, and the row it produces is real
+    evidence, not an error.
+    """
+    if body.ground_truth is Action.ESCALATE:
+        # shared.contracts.DecisionRecord's own docstring: ground truth is
+        # always APPROVE or REJECT — ESCALATE is only ever an agent action,
+        # never a ground truth. invoices.ground_truth_action's CHECK
+        # constraint (app/models/invoices.py) enforces the same invariant at
+        # the database level; reject here with a clear 422 instead of
+        # letting that constraint turn this into a 500.
+        raise ApiError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="invalid_ground_truth",
+            message="ground_truth must be APPROVE or REJECT — ESCALATE is only ever an agent action.",
+            detail={"ground_truth": body.ground_truth.value},
+        )
+
+    agent = db.get(Agent, body.agent_id)
+    if agent is None:
+        raise not_found(
+            "agent_not_found", f"No agent {body.agent_id!r}.", {"agent_id": body.agent_id}
+        )
+
+    policy_version = current_policy_version_for(db, agent.id)
+    if policy_version is None:
+        # Fail closed at the persistence boundary too: decisions.policy_version_id
+        # is NOT NULL, so there is no row to reference — this can't be
+        # recorded as an escalation the way an *invalid* version can be (see
+        # the docstring above). A clean, explicit error beats a NOT NULL
+        # constraint violation turning into a 500.
+        raise ApiError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="no_policy_version_on_record",
+            message=f"Agent {agent.id!r} has no policy version on record; cannot ingest a decision.",
+            detail={"agent_id": agent.id},
+        )
+
+    decided_at = datetime.now(UTC)
+
+    invoice = db.get(Invoice, body.invoice_id)
+    if invoice is None:
+        # DecisionCreate mirrors shared.contracts.DecisionRecord field-for-
+        # field, which carries no vendor/category — invoices.vendor/category
+        # are NOT NULL and have no source in this request body. Placeholder
+        # values for a first-time invoice_id; an existing invoice's own
+        # fields are never overwritten on a repeat post (an invoice is a
+        # fact recorded once — app/models/invoices.py's own docstring).
+        # Flagged as a real contract gap in this branch's report, not
+        # silently resolved.
+        invoice = Invoice(
+            id=body.invoice_id,
+            amount=body.amount,
+            vendor="unknown",
+            category="unspecified",
+            submitted_at=decided_at,
+            ground_truth_action=body.ground_truth,
+        )
+        db.add(invoice)
+
+    outcome = evaluate_decision(
+        PolicyInvoice(invoice_id=body.invoice_id, amount=body.amount),
+        PolicyVersionView(
+            agent_id=agent.id,
+            limit=policy_version.limit,
+            rung=policy_version.rung,
+            agent_state=agent.state,
+            version_id=policy_version.id,
+        ),
+    )
+
+    next_sequence = (
+        db.execute(
+            select(func.max(Decision.sequence)).where(Decision.agent_id == agent.id)
+        ).scalar()
+        or 0
+    ) + 1
+
+    decision = Decision(
+        id=f"dec-{uuid.uuid4().hex[:12]}",
+        sequence=next_sequence,
         invoice_id=body.invoice_id,
-        amount=body.amount,
+        agent_id=agent.id,
         action=body.action,
-        ground_truth=body.ground_truth,
-        agent_id=body.agent_id,
-        decided_at=datetime.now(UTC),
         recommended_action=None,
         human_ruling=None,
+        policy_version_id=policy_version.id,
+        within_limit=outcome.within_limit,
+        decided_at=decided_at,
     )
+    db.add(decision)
+
+    append_entry(
+        db,
+        id=f"log-{uuid.uuid4().hex[:12]}",
+        ts=decided_at,
+        actor=agent.id,
+        actor_type="agent",
+        event_type="decision.recorded",
+        entity_type="decision",
+        entity_id=decision.id,
+        payload={
+            "invoice_id": body.invoice_id,
+            "amount": body.amount,
+            "action": body.action.value,
+            "ground_truth": body.ground_truth.value,
+            "allowed": outcome.allowed,
+            "within_limit": outcome.within_limit,
+            "reason_code": outcome.reason_code,
+            "reason": body.reason,
+        },
+    )
+
+    return decision
+
+
+@router.post("", response_model=DecisionRecordOut, status_code=status.HTTP_201_CREATED)
+def create_decision(
+    body: DecisionCreate, user: CurrentUserDep, db: DbSessionDep
+) -> DecisionRecordOut:
+    """Ingest one decision from the simulator (or, eventually, a real agent).
+
+    Validates the agent exists and has a policy version on record, evaluates
+    the invoice against that policy with the real Policy Engine
+    (`app.policy.engine.evaluate_decision`), and — in one transaction —
+    persists the invoice (if new), the decision (referencing the exact
+    policy version in force), and a hash-chained `audit_log` entry
+    (docs/lanes/vp.md). `within_limit` is recorded on the decision row
+    verbatim from the Policy Engine's own output; the Policy Engine's reason
+    code is recorded on the audit entry, never recomputed later.
+    """
+    decision = _create_decision(db, body)
+    invoice = db.get(Invoice, decision.invoice_id)
+    return _decision_out(decision, invoice)
 
 
 @router.get("", response_model=Page[DecisionRecordOut])
 def list_decisions(
-    user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
+    db: DbSessionDep, user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
 ) -> Page[DecisionRecordOut]:
-    """List decisions, newest first.
-
-    Once implemented: `SELECT ... ORDER BY decided_at DESC`, with
-    `?agent_id=` / `?action=` filters — not needed yet, add when the
-    dashboard's decisions table asks for them.
-    """
-    return paginate(list(reversed(DECISIONS)), page, page_size)
+    """List decisions, newest first."""
+    rows = db.execute(
+        select(Decision, Invoice)
+        .join(Invoice, Decision.invoice_id == Invoice.id)
+        .order_by(Decision.decided_at.desc())
+    ).all()
+    items = [_decision_out(decision, invoice) for decision, invoice in rows]
+    return paginate(items, page, page_size)
 
 
 @router.get("/{decision_id}", response_model=DecisionRecordOut, responses=NOT_FOUND_RESPONSE)
-def get_decision(decision_id: str, user: CurrentUserDep) -> DecisionRecordOut:
-    """Fetch one decision by id.
-
-    Once implemented: `SELECT ... WHERE id = :decision_id`, 404 if no row.
-    """
-    decision = DECISIONS_BY_ID.get(decision_id)
+def get_decision(decision_id: str, user: CurrentUserDep, db: DbSessionDep) -> DecisionRecordOut:
+    """Fetch one decision by id."""
+    decision = db.get(Decision, decision_id)
     if decision is None:
         raise not_found(
             "decision_not_found", f"No decision {decision_id!r}.", {"decision_id": decision_id}
         )
-    return decision
+    invoice = db.get(Invoice, decision.invoice_id)
+    return _decision_out(decision, invoice)

@@ -47,6 +47,23 @@ class PolicyVersion(Base):
     )
 
 
+def current_policy_version_for(session: Session, agent_id: str) -> PolicyVersion | None:
+    """The policy version currently in force for `agent_id` — the one with
+    the latest `effective_from`. `None` if the agent has no policy version on
+    record at all: shouldn't happen for a properly onboarded agent (every
+    agent gets an initial version via `apply_policy_version` at creation —
+    see `app/seed.py`), but the decision-ingest path must not assume it."""
+    return (
+        session.execute(
+            select(PolicyVersion)
+            .where(PolicyVersion.agent_id == agent_id)
+            .order_by(PolicyVersion.effective_from.desc())
+        )
+        .scalars()
+        .first()
+    )
+
+
 def apply_policy_version(
     session: Session,
     agent: Agent,
