@@ -25,7 +25,12 @@ from __future__ import annotations
 
 from shared.contracts import AgentOpinion, TrustEvaluation
 
-from governance.llm.recording import RecordingStore, cache_key_for
+from governance.llm.errors import RecordingStaleError
+from governance.llm.recording import (
+    RecordingStore,
+    cache_key_for,
+    prompt_fingerprint,
+)
 from governance.llm.registry import build_client
 from governance.modes import CACHED, LIVE, STUB
 from governance.prompts.loader import build_prompt
@@ -58,7 +63,31 @@ def opine_via_model(
 
     prompt = build_prompt(agent_name, evaluation)
     slug = model_slug if model_slug is not None else build_client(agent_name).slug
-    recording = (store or RecordingStore()).load(cache_key_for(prompt, slug))
+    cache_key = cache_key_for(prompt, slug)
+    recording = (store or RecordingStore()).load(cache_key)
+
+    # `Recording.prompt_sha` calls itself a tripwire on the keying scheme. It was stored
+    # and never compared, which made it a note rather than a check.
+    #
+    # The key covers agent, prompt version, model and evidence — not the prompt *text*.
+    # Edit `shared.v1.md` or an agent brief without bumping to v2 and the key still
+    # resolves, so cached mode replays reasoning produced by wording that is no longer
+    # in the repo, and every visible signal looks correct.
+    #
+    # This matters more than it reads: the free tier is 20 requests a day, so a full
+    # re-record costs longer than a day of wall-clock. That is exactly the pressure
+    # under which someone tweaks a prompt and does not re-record.
+    found = prompt_fingerprint(prompt)
+    if recording.prompt_sha != found:
+        raise RecordingStaleError(
+            f"recording {cache_key!r} was made from different prompt text "
+            f"(recorded {recording.prompt_sha}, current {found}). A prompt file was "
+            f"edited without bumping its version. Bump the version and re-record, or "
+            f"revert the edit — note the free tier allows 20 requests per day.",
+            cache_key=cache_key,
+            expected=recording.prompt_sha,
+            found=found,
+        )
     return parse_opinion(recording.response_text, agent_name)
 
 
