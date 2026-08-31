@@ -119,6 +119,26 @@ def _critical_error() -> list[DecisionRecord]:
     return decisions
 
 
+def _contested_increase() -> list[DecisionRecord]:
+    """Mediocre but not failing, over a sample large enough to clear every gate.
+
+    The point of this scenario is the *width* of the interval, not its position. Errors
+    are spread evenly rather than clustered so the drift test stays silent — the only
+    thing wrong with this record is that it is imprecise, and imprecision is exactly
+    what a threshold check cannot see and a reasoning panel can.
+    """
+    decisions: list[DecisionRecord] = []
+    for index in range(110):
+        # Every sixth decision is a non-critical error. Even spacing keeps the recent
+        # window and the baseline at the same rate, so `drift.detected` stays False and
+        # the increase is not blocked before an agent gets to argue about it.
+        if index % 6 == 5:
+            decisions.append(_noncritical(index))
+        else:
+            decisions.append(_correct(index))
+    return decisions
+
+
 def _at_ceiling() -> list[DecisionRecord]:
     """Excellent record on an agent already at the top rung — nowhere left to go."""
     decisions = [_correct(i, amount=9500) for i in range(240)]
@@ -140,7 +160,11 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario(
         name="thin_sample",
-        description="10/10 = 100%, Wilson lower bound 72.2%. Performance should object.",
+        description=(
+            "10/10 = 100%, Wilson lower bound 72.2%. The engine already holds, so an "
+            "objection could not change the outcome — recorded, the panel concurs and "
+            "abstains. Contrast with contested_increase."
+        ),
         decisions=_thin,
         context=AgentContext(
             current_limit=500,
@@ -167,6 +191,24 @@ SCENARIOS: tuple[Scenario, ...] = (
         context=AgentContext(
             current_limit=2500,
             decisions_since_last_change=150,
+            decisions_since_clawback=None,
+            state=AgentState.ACTIVE,
+        ),
+    ),
+    Scenario(
+        name="contested_increase",
+        description=(
+            "~85% over 110, a wide interval on a proposed increase. The one scenario "
+            "where dissent can actually bite: every other INCREASE here is unanimous."
+        ),
+        decisions=_contested_increase,
+        context=AgentContext(
+            current_limit=1000,
+            # At or above COOLDOWN_BETWEEN_INCREASES, and consistent with the history
+            # length — an agent that has never had its limit changed has been at this
+            # rung for its whole record. Inventing a larger number to clear the cooldown
+            # would render evidence that contradicts itself.
+            decisions_since_last_change=110,
             decisions_since_clawback=None,
             state=AgentState.ACTIVE,
         ),
