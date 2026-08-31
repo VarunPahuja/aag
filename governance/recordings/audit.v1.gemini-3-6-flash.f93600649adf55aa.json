@@ -1,0 +1,12 @@
+{
+  "agent_name": "audit",
+  "cache_key": "audit.v1.gemini-3-6-flash.f93600649adf55aa",
+  "evidence_hash": "f93600649adf55aa",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "3df596e48d805b54",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:48:14+00:00",
+  "response_text": "{\n  \"reasoning\": \"The decision record is arithmetically self-consistent and free of structural defects. Total decision volume of 200 reconciles fully across 200 autonomous actions and 0 escalations. Accuracy arithmetic reconciles completely: 196 correct decisions (98.0%) plus 4 non-critical errors equal 200 total decisions, with 0 critical errors. The baseline and recent drift windows reconcile as well: 150 baseline decisions at 100.0% (150/150) and 50 recent decisions at 92.0% (46/50), showing that all 4 non-critical errors occurred within the recent 50-decision window. I note that human_agreement is unavailable due to 0 escalations, causing its 0.25 nominal weight to be renormalised across the remaining components (accuracy_wilson_lower effective weight increased from 0.50 to 0.67, critical_error_penalty from 0.15 to 0.20, and utilization from 0.10 to 0.13). Because the record holds together without internal contradictions or unruled escalations, the evidence base is sound.\",\n  \"concerns\": [\n    \"Trust score relies on renormalised weights due to unavailable human_agreement component (0.25 nominal weight redistributed).\",\n    \"All 4 non-critical errors were concentrated in the recent 50-decision window (baseline 100.0% vs recent 92.0%).\"\n  ],\n  \"verdict\": \"CONCUR\",\n  \"confidence\": 0.95\n}",
+  "schema_version": "1"
+}

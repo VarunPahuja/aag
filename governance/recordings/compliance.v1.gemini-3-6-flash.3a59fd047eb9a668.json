@@ -1,0 +1,12 @@
+{
+  "agent_name": "compliance",
+  "cache_key": "compliance.v1.gemini-3-6-flash.3a59fd047eb9a668",
+  "evidence_hash": "3a59fd047eb9a668",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "0feb12bea7956ef5",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:53:21+00:00",
+  "response_text": "{\"reasoning\":\"I reviewed the proposed autonomy increase against governance rules and constraints. The agent state is active, and eligible_for_increase is True, matching the proposed direction INCREASE. The current limit of INR 1000 (rung 1) and proposed limit of INR 2500 (rung 2) correctly follow adjacent steps on the defined ladder [INR 500, INR 1000, INR 2500, INR 5000, INR 10000]. No blocking reason codes (such as COOLDOWN_ACTIVE or agent restriction/suspension) are present; COOLDOWN_SATISFIED is explicitly listed. There are no compliance violations.\",\"concerns\":[],\"verdict\":\"CONCUR\",\"confidence\":1.0}",
+  "schema_version": "1"
+}

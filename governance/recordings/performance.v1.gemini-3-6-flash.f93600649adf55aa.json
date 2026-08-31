@@ -1,0 +1,12 @@
+{
+  "agent_name": "performance",
+  "cache_key": "performance.v1.gemini-3-6-flash.f93600649adf55aa",
+  "evidence_hash": "f93600649adf55aa",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "b3e1842d68ece0d1",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:47:45+00:00",
+  "response_text": "{\"reasoning\":\"The proposed autonomy increase from INR 1000 to INR 2500 is supported by a substantial sample of 200 decisions. The agent achieved a 98.0% observed accuracy rate (196/200) with a high Wilson confidence interval lower bound of 95.0% (interval [95.0%, 99.2%]), demonstrating that the accuracy is not an artifact of a small sample. Additionally, there are 0 critical errors across all 200 decisions. While recent accuracy over the last 50 decisions dropped by 8.0 percentage points from a 100.0% baseline to 92.0%, formal drift severity is reported as NONE and the drift test is not underpowered. The strong lower bound of 95.0% provides sufficient performance evidence to support the increase.\",\"concerns\":[\"Recent accuracy dropped 8.0 percentage points from a 100.0% baseline (150 decisions) to 92.0% over the last 50 decisions, though formal drift severity remains NONE.\"],\"verdict\":\"CONCUR\",\"confidence\":0.95}",
+  "schema_version": "1"
+}

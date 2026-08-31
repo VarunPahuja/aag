@@ -1,0 +1,12 @@
+{
+  "agent_name": "compliance",
+  "cache_key": "compliance.v1.gemini-3-6-flash.f93600649adf55aa",
+  "evidence_hash": "f93600649adf55aa",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "04efeb2e5e07cc86",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:47:58+00:00",
+  "response_text": "{\n  \"reasoning\": \"I checked the proposal against all compliance rules. 1) Ladder progression: The transition from INR 1000 (rung 1) to INR 2500 (rung 2) strictly follows the next rung in the defined ladder array [500, 1000, 2500, 5000, 10000]. 2) Agent state: The agent state is active, satisfying the requirement that only active agents receive increased authority. 3) Eligibility and Direction: The trust engine proposed INCREASE with eligible_for_increase set to True, showing no internal contradiction. 4) Blocking codes: COOLDOWN_SATISFIED is present, and no active cooldown, clawback recovery, or restriction codes exist to block the increase. 5) Ceiling: The proposed limit of INR 2500 is below the maximum ceiling of INR 10000. No compliance rules were violated.\",\n  \"concerns\": [],\n  \"verdict\": \"CONCUR\",\n  \"confidence\": 1.0\n}",
+  "schema_version": "1"
+}
