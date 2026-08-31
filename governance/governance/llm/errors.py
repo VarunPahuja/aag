@@ -2,7 +2,7 @@
 
 Provider-neutral on purpose. Three providers raise three different SDK exception
 families, and the caller should not have to know which one it got — the distinction
-that matters is **retryable or not**, because live mode's fallback rule (due 3 Sept) is
+that matters is **retryable or not**, because live mode's fallback rule is
 written in those terms. A transport failure or a rate limit is worth retrying and then
 falling back to cached; an auth failure is a misconfiguration that retrying will never
 fix, and burning the retry budget on it only delays a clear error message.

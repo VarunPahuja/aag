@@ -141,7 +141,13 @@ class GeminiClient:
             },
         }
 
-    def generate(self, prompt: Prompt, *, client: httpx.Client | None = None) -> str:
+    def generate(
+        self,
+        prompt: Prompt,
+        *,
+        client: httpx.Client | None = None,
+        timeout_s: float | None = None,
+    ) -> str:
         """Send one prompt, return the model's raw text.
 
         Paces itself first, so callers cannot accidentally burst. Raises a
@@ -165,14 +171,17 @@ class GeminiClient:
             "content-type": "application/json",
         }
 
+        # Per call, not per client. Live mode needs a far shorter deadline than a
+        # recording run, and giving it a client of its own would give it a `Pacer` of its
+        # own — two pacers on one provider send at twice the rate the key allows.
+        deadline = self.config.timeout_s if timeout_s is None else timeout_s
+
         owns_client = client is None
-        http = client or httpx.Client(timeout=self.config.timeout_s)
+        http = client or httpx.Client(timeout=deadline)
         try:
             response = http.post(self.config.endpoint, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
-            raise LLMTransportError(
-                f"Gemini call timed out after {self.config.timeout_s}s: {exc}"
-            ) from exc
+            raise LLMTransportError(f"Gemini call timed out after {deadline}s: {exc}") from exc
         except httpx.HTTPError as exc:
             raise LLMTransportError(f"Gemini call failed to complete: {exc}") from exc
         finally:

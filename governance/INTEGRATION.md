@@ -51,8 +51,8 @@ cached  evaluate=0.2ms  recommend=7.4ms  serialise=0.0ms  -> HOLD 1000 dissent=T
 ```
 
 **Cached mode does no network I/O** — it reads recorded model responses off disk. 7.4ms
-is safe to call inside a request handler. Live mode is a different story and is not
-open yet (due 3 Sept).
+is safe to call inside a request handler. Live mode is open now, but it makes real API
+calls — see below.
 
 ## Which mode
 
@@ -62,7 +62,7 @@ open yet (due 3 Sept).
 |---|---|---|
 | `stub` | Hand-written reasoning, no model | nothing |
 | `cached` | Replays real recorded Gemini responses | recordings on disk |
-| `live` | Calls the API | **not open until 3 Sept** |
+| `live` | Calls the API, falls back to the recording on any failure | a key, and recordings as the safety net |
 
 Default is `stub`, deliberately: an unset environment must never reach for a fixture
 directory that may not exist, and must never be one typo away from a live API call. An
@@ -71,6 +71,28 @@ quietly ran in stub mode would look exactly like a working demo.
 
 **For the checkpoint, `stub` is enough** and needs nothing from me. Use `cached` when you
 want real model reasoning in the response.
+
+### Live mode, if you use it
+
+`live` calls the provider and **falls back to the recording for the same evidence** on
+any failure — network down, rate limited, timed out, unparseable response. The deadline
+is 25s per agent, deliberately much shorter than the recording timeout: nobody watching
+a demo waits two minutes to learn the network is down.
+
+Two things to know before you wire it to a request path:
+
+- **It is not free and not fast.** Four agents, four API calls, paced 6s apart on the
+  free tier. Budget tens of seconds, not milliseconds. `cached` is the mode for a
+  request handler; `live` is for showing the thing actually works.
+- **A fallback is visible in the output, deliberately.** `governance_mode` comes back as
+  `"live+cached"` rather than `"live"`, and the rationale names which agents fell back.
+  If you store or display `governance_mode`, expect that value — it is not a bug. A
+  recommendation that claimed to be `live` when recordings answered would be exactly the
+  kind of quietly-wrong result this lane exists to prevent.
+
+If every agent's live call fails **and** there is no recording for that evidence, it
+raises `RecordingMissError` naming both failures. Live mode's guarantee holds only where
+a recording exists, which for the demo scenarios it does.
 
 ⚠️ **One caveat on `cached` today.** Only `healthy_increase`, `thin_sample` and
 `contested_increase` are fully recorded (15 of 24 calls). The Gemini free tier turns out
@@ -161,7 +183,6 @@ a one-line change plus a test, and it makes your handler a single `except`.
 
 ## Not built yet
 
-- **Live mode** — due 3 Sept, with timeout and fallback-to-cached.
 - **Per-vendor and time-clustered anomaly detection** in the audit agent. Needs
   `DecisionRecord` history, which `TrustEvaluation` doesn't carry. Widening that input is
   a cross-lane contract change, so it needs an ADR before any code. Flagging it because

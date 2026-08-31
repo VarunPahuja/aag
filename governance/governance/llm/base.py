@@ -41,6 +41,20 @@ DEFAULT_MIN_INTERVAL_S = 6.0
 # separate number set against the panel's tolerance, not against Gemini's tail latency.
 DEFAULT_TIMEOUT_S = 120.0
 
+# Live mode's deadline, and deliberately a different number from the one above.
+#
+# The recording timeout is set against Gemini's tail latency: a recording is worth
+# waiting for because the alternative is spending another day's quota. This one is set
+# against a panel's patience. Nobody watching a demo waits two minutes to find out the
+# network is down, and live mode's whole promise is that a valid recommendation still
+# comes out — quickly enough to be worth having.
+#
+# 25s sits just under the slowest call measured on 30 Aug (33.3s), which is intentional:
+# a call in that tail will fall back to its recording rather than stall the panel, and
+# the recording is a real response to the same evidence. Losing the tail is cheaper than
+# losing the room.
+LIVE_TIMEOUT_S = 25.0
+
 # Governance opinions should be reproducible enough that a recording is representative.
 # Not zero: at temperature 0 a reasoning task tends to produce the same terse argument
 # every time, and the panel's value comes from four agents actually differing.
@@ -73,7 +87,7 @@ class LLMClient(Protocol):
     provider: str
     model: str
 
-    def generate(self, prompt: Prompt) -> str: ...
+    def generate(self, prompt: Prompt, *, timeout_s: float | None = None) -> str: ...
 
     @property
     def has_key(self) -> bool: ...

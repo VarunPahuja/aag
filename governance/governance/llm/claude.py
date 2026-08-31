@@ -115,7 +115,13 @@ class ClaudeClient:
             },
         }
 
-    def generate(self, prompt: Prompt, *, client: object | None = None) -> str:
+    def generate(
+        self,
+        prompt: Prompt,
+        *,
+        client: object | None = None,
+        timeout_s: float | None = None,
+    ) -> str:
         """Send one prompt, return Claude's raw text.
 
         `client` is injectable so tests can pass a stub without the SDK installed.
@@ -130,8 +136,15 @@ class ClaudeClient:
         sdk = client if client is not None else self._build_client()
         self._pacer.wait()
 
+        # Per call, so live mode's deadline does not require a second client for the
+        # same provider — and therefore a second Pacer, which would let two agents send
+        # at twice the rate the key allows.
+        request = self.build_request(prompt)
+        if timeout_s is not None:
+            request["timeout"] = timeout_s
+
         try:
-            response = sdk.messages.create(**self.build_request(prompt))
+            response = sdk.messages.create(**request)
         except Exception as exc:
             raise _translate(exc) from exc
 

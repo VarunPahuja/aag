@@ -36,4 +36,13 @@ class GovernanceState(TypedDict, total=False):
     # Reducer, not plain assignment — see the module docstring.
     opinions: Annotated[list[AgentOpinion], operator.add]
 
+    # Names of agents whose live call failed and were served from their recording
+    # instead. Same reducer and the same reason: four nodes each contribute at most one
+    # name, and plain assignment would keep only the last.
+    #
+    # This exists so the recommendation can say `live+cached` rather than `live`. A
+    # recommendation that claimed to be live when a recording answered would be the
+    # precise failure this lane exists to prevent — a demo that looks healthy and isn't.
+    fell_back: Annotated[list[str], operator.add]
+
     recommendation: Recommendation
