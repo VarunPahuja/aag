@@ -6,6 +6,66 @@ ADR.
 
 ---
 
+**2026-08-31 — Varun P. (via `vp/schema-and-policy-engine`)** — Wrote the
+Policy Engine as a pure module (`backend/app/policy/`): `evaluate_decision`
+(may the agent act, or must it escalate — missing/invalid policy version
+fails closed, `SUSPENDED`/`RESTRICTED` escalate regardless of amount, an
+amount exactly at the limit is allowed — inclusive ceiling, documented and
+tested deliberately) and `clamp_recommendation` (the hard ceiling: a
+proposed limit never rises above what the trust engine's evidence supports,
+and the fact of clamping is always recorded, never silent). 35 tests,
+including Hypothesis property tests (never allows above the limit; allowed
+implies within-limit; deterministic under arbitrary input) and an
+`ast`-based import-boundary test
+that fails the build if the module gains a database, network, LLM, file I/O,
+`os.environ`, or wall-clock dependency (ADR-0014, enforcing ADR-0003 in code
+rather than by convention). Policy Engine reason codes live in
+`backend/app/policy/reason_codes.py`, not `shared/reason_codes.py` — that
+file's own scope is trust-evaluation reasoning, has no codes for "why did
+this one decision get allowed or escalated," and `shared/` is frozen for
+this branch; see ADR-0014 for the full argument and the promotion path if
+the other three owners want these moved into `shared/` later. **Why:** Sat
+29 Aug deliverable (docs/DEADLINES.md) — "the single most important module
+in the project," per this lane's own brief. **Affects:** `backend/app/
+policy/` and its tests only; does not touch `shared/`, and the Policy Engine
+package itself imports nothing from `backend/app/models/` (verified by the
+same import-boundary test).
+
+**2026-08-31 — Varun P. (via `vp/schema-and-policy-engine`)** — Wrote the
+persistence layer: SQLAlchemy models for every table in docs/lanes/vp.md's
+schema (`backend/app/models/`), one Alembic migration
+(`backend/alembic/versions/0001_initial_schema.py`, verified to apply
+cleanly to an empty database and downgrade back to empty — against SQLite,
+since no Postgres service exists in CI or is guaranteed on every
+contributor's machine; see ADR-0013), and a deterministic seed script
+(`backend/app/seed.py`, `make db-reset`) telling the same three-agent story
+`app/fixtures/` already tells, using the *same* ids so a later switch from
+fixture-stubbed responses to real persistence changes nothing the frontend
+sees. `agents.current_limit`/`current_rung` is protected two ways: a
+`CheckConstraint` generated from `shared.constants.AUTONOMY_LADDER`
+(`ck_agents_rung_matches_limit`, rejects any pair not on the real ladder) and
+a `before_flush` session hook (`app/models/guards.py`) that refuses to flush
+an agent whose limit changed without a paired `policy_versions` row in the
+same transaction — `apply_policy_version()` is the one sanctioned way to
+change both together. The same hook makes `policy_versions` and `audit_log`
+append-only (raises on any UPDATE or DELETE attempt) rather than relying on
+nobody writing one. The hash-chain helper (`app/models/audit_hash.py`:
+`sha256(prev_hash + canonical_json(payload))`) reuses the exact algorithm
+`app/fixtures/audit.py` had already hand-rolled, with its own test suite
+proving determinism and tamper-evidence independent of any caller — ingest
+wiring (appending an entry on every mutating request) is separate work.
+Wrote ADR-0013 for JSONB over normalised storage on the two evidence-snapshot
+columns (`trust_evaluations.payload`, `recommendations.agent_opinions`).
+**Why:** Fri 28 Aug deliverable (docs/DEADLINES.md: "`make db-reset` produces
+a seeded DB"), already slipped into this weekend. **Affects:** `backend/
+app/models/`, `backend/alembic/`, `backend/app/seed.py`, `backend/
+pyproject.toml` (added `sqlalchemy`, `alembic`, `psycopg2-binary`,
+`hypothesis`). Does not touch `shared/`, and does not wire any API endpoint
+to the database — the stubs in `backend/app/api/v1/` are untouched; that is
+Mon 31 Aug / Thu 3 Sept work.
+
+---
+
 **2026-08-27 — Varun P. (via `vp/openapi-contract`)** — Published the complete
 backend HTTP contract: `backend/app/main.py`, all eighteen endpoints stubbed
 against internally-consistent fixtures (three agents — one mid-ladder and
