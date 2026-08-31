@@ -222,6 +222,7 @@ def upgrade() -> None:
         ),
         sa.Column("clamped", sa.Boolean(), nullable=False),
         sa.Column("clamped_from", sa.Integer(), nullable=True),
+        sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["agent_id"],
             ["agents.id"],

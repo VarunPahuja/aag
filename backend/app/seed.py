@@ -664,6 +664,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             status=RecommendationStatus.PENDING,
             clamped=True,
             clamped_from=limit_of(4),
+            generated_at=_NOW,
         )
     )
 
@@ -714,6 +715,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             status=RecommendationStatus.APPROVED,
             clamped=False,
             clamped_from=None,
+            generated_at=_NOW - timedelta(days=2),
         )
     )
 
@@ -734,6 +736,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             status=RecommendationStatus.APPROVED,
             clamped=False,
             clamped_from=None,
+            generated_at=_ago(days=10),
         )
     )
     session.commit()
