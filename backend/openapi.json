@@ -1771,9 +1771,88 @@
         ]
       }
     },
+    "/api/v1/agents/{agent_id}/recommendations": {
+      "post": {
+        "description": "Generate a fresh governance recommendation for `agent_id`: recompute\nits `TrustEvaluation` from persisted decisions, run the governance panel\nover it (`GOVERNANCE_MODE`, default `stub`), clamp the panel's proposal to\nwhat the evidence actually supports, and persist trust evaluation,\nrecommendation, and audit entry \u2014 all in this one request's transaction\n(`app.deps.get_session`; see `app/services/governance.py`).",
+        "operationId": "create_recommendation_api_v1_agents__agent_id__recommendations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Role"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No resource with that id."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A downstream dependency (e.g. governance) could not serve this request."
+          }
+        },
+        "summary": "Create Recommendation",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/api/v1/agents/{agent_id}/trust": {
       "get": {
-        "description": "The agent's most recent `TrustEvaluation`.\n\nOnce implemented: calls `trust_engine.evaluate(decisions, context)` with\nthe agent's full decision history and current `AgentContext`, persists\nthe result with a minted `id`, and returns it \u2014 or, if evaluation is\ncached, the most recent persisted row.",
+        "description": "Evaluate `agent_id`'s real persisted decision history with the real\ntrust engine, persist the result, and return it. An agent with zero\ndecisions still gets a valid `TrustEvaluation` back \u2014 `trust_engine.evaluate`\nis designed to handle an empty history, not to be called only once one\nexists (see `app/services/trust.py`).",
         "operationId": "get_current_trust_api_v1_agents__agent_id__trust_get",
         "parameters": [
           {
@@ -1842,7 +1921,7 @@
     },
     "/api/v1/agents/{agent_id}/trust/history": {
       "get": {
-        "description": "Every `TrustEvaluation` ever computed for this agent, newest first \u2014\nwhat the dashboard's trust-over-time chart is built from.\n\nOnce implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY\nevaluated_at DESC`.",
+        "description": "Every `TrustEvaluation` ever persisted for this agent, newest first \u2014\nwhat the dashboard's trust-over-time chart is built from.",
         "operationId": "list_trust_history_api_v1_agents__agent_id__trust_history_get",
         "parameters": [
           {
@@ -2417,7 +2496,7 @@
     },
     "/api/v1/recommendations": {
       "get": {
-        "description": "List recommendations, newest first.\n\nOnce implemented: `SELECT ... ORDER BY generated_at DESC`, with a\n`?status=PENDING` filter for the approvals queue view.",
+        "description": "List recommendations, newest first.",
         "operationId": "list_recommendations_api_v1_recommendations_get",
         "parameters": [
           {

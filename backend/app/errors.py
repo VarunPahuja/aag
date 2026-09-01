@@ -27,6 +27,12 @@ FORBIDDEN_RESPONSE = {
 CONFLICT_RESPONSE = {
     409: {"model": ErrorBody, "description": "The resource is not in a state this action applies to."}
 }
+SERVICE_UNAVAILABLE_RESPONSE = {
+    503: {
+        "model": ErrorBody,
+        "description": "A downstream dependency (e.g. governance) could not serve this request.",
+    }
+}
 
 
 class ApiError(Exception):
@@ -42,6 +48,10 @@ class ApiError(Exception):
 
 def not_found(code: str, message: str, detail: object | None = None) -> ApiError:
     return ApiError(status.HTTP_404_NOT_FOUND, code, message, detail)
+
+
+def service_unavailable(code: str, message: str, detail: object | None = None) -> ApiError:
+    return ApiError(status.HTTP_503_SERVICE_UNAVAILABLE, code, message, detail)
 
 
 def register_exception_handlers(app: FastAPI) -> None:

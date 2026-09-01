@@ -11,6 +11,16 @@ fact of clamping is never allowed to go unrecorded. `generated_at` mirrors
 `shared.contracts.Recommendation.generated_at` and `RecommendationOut`
 (`app/schemas/governance.py`) — PR #17 flagged that `openapi.json` declared
 it while the table had no such column.
+
+`governance_mode` mirrors `shared.contracts.Recommendation.governance_mode`
+the same way — `RecommendationOut` (and `governance/INTEGRATION.md`) requires
+it, and no column carried it until `vp/trust-governance-wiring` wired
+`POST /agents/{id}/recommendations` and found the same kind of gap PR #17/#18
+found for `generated_at`. `has_dissent`/`confidence`/`proposed_rung` are
+deliberately NOT columns — they are derived from `agent_opinions` at read
+time (`app/services/governance.py:recommendation_out`), the same reasoning
+ADR-0013 gives for not normalising `trust_evaluations.payload`: redundant
+storage can silently disagree with the evidence it was derived from.
 """
 
 from __future__ import annotations
@@ -40,6 +50,7 @@ class Recommendation(Base):
     status: Mapped[RecommendationStatus] = mapped_column(
         enum_column(RecommendationStatus), nullable=False
     )
+    governance_mode: Mapped[str] = mapped_column(String, nullable=False)
     clamped: Mapped[bool] = mapped_column(Boolean, nullable=False)
     clamped_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
