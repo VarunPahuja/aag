@@ -6,6 +6,78 @@ ADR.
 
 ---
 
+**2026-09-01 — Varun C. (PR #21 into `vc/swappable-providers`, landed on `main`
+via PR #23)** — Governance cached mode now replays real Gemini responses, and
+live mode is open. Fifteen recordings committed, keyed
+`agent.version.model.evidence`: `healthy_increase`, `thin_sample` and
+`contested_increase` complete, three of four agents on `active_drift`;
+`critical_error` and `at_ceiling` unrecorded. Live mode calls the provider with
+a 25s per-agent deadline and falls back **to the recording, never to stub
+text**, labelling the result `live+cached` and naming the fallen-back agents in
+the rationale. The retry decision reads each error's `retryable` flag rather
+than matching exception types. Three defects that only the live API could
+expose, found by one probe call before the recording run: the default model
+`gemini-2.5-flash` returns 404 for recently-created keys (now
+`gemini-3-6-flash`); the 30s recording timeout sat inside the model's own
+latency spread (9.9s/15.6s/33.3s observed, now 120s); and `record.py` documented
+a `.env` file that nothing in the lane ever read. Added
+`RecordingStaleError` — `Recording.prompt_sha` had described itself as a
+tripwire since it was written and nothing compared it, so editing a prompt in
+place replayed recordings of the older wording while looking perfectly healthy.
+Added a `contested_increase` scenario because the conservatism ratchet had no
+scenario in which it could fire against the real model: the 27 Aug
+`has_dissent=True` figure was a stub artifact. **Why:** the 30 Aug and 3 Sept
+deliverables, plus the discovery that the Gemini free tier is 20 requests per
+**day**, not the ~10 per minute this lane had assumed — which makes a full
+re-record cost more than a working day and turns silent staleness from a
+nuisance into the likely failure. **Affects:** `governance/` only; no contract,
+no `shared/`, no other lane. Cached and live both still advisory — no writes, no
+policy mutation, `status` always `PENDING`. Also adds `governance/INTEGRATION.md`
+for VP: `RecommendationOut.model_validate(recommendation)` validates with zero
+adaptation, verified, and the full chain runs in 7.4ms with no network. Two
+things still needed from the backend lane — how `governance` gets installed into
+its environment, and when `recommendations.py` stops serving fixtures.
+
+---
+
+**2026-08-30 — Varun C. (PR #16)** — LLM provider is a per-agent setting
+(`GOVERNANCE_PROVIDER`, overridable per agent with
+`GOVERNANCE_PROVIDER_<AGENT>`). Claude and OpenAI clients are optional extras
+with lazy imports and SDK exceptions mapped by class name, so the test suite
+runs with neither package installed. `build_client()` is cached **per
+provider**, not per agent, so two agents on one provider share a client and
+therefore share a pacer — a rate limit belongs to the key, not the agent.
+Structured output needed three schema dialects, not one: Gemini takes an
+OpenAPI-3.0 subset with no `$ref`, while Claude and OpenAI take strict JSON
+Schema requiring every field in `required`. **Why:** a panel that asks "is this
+Gemini-specific?" should get a demonstration rather than an assurance.
+**Affects:** `governance/` only. **Open:** ADR-0012 is still *Proposed* and asks
+the team to rule on whether optional paid providers violate the lane brief's "do
+not introduce any paid service"; the strict-reading rollback (drop the two
+clients, keep the seam and the registry) is written up in the ADR. #16 merged on
+CI, so that ruling is now retroactive and still owed.
+
+---
+
+**2026-08-29 — Varun C. (PR #15)** — Gemini client, recording store, and cached
+mode end to end: a recorded response is looked up by cache key and validated
+through the same `parse_opinion()` a live response would face. Raw HTTP rather
+than the `google-genai` SDK, so the `responseSchema`/`responseMimeType` pair
+that backs this lane's constrained-decoding claim is visible in a dict rather
+than hidden behind a method; the key travels in an `x-goog-api-key` header,
+never the URL, because query strings reach proxy logs. The client paces on a
+**floor between calls** rather than a token bucket — a bucket permits exactly
+the burst the free tier punishes. Every failure path raises: a missing recording
+raises rather than falling back to stub text, and an unparseable response is
+refused rather than saved. **Why:** the demo default is cached mode, and a
+governance path that degrades quietly produces a demo that looks healthy and
+isn't — which is the failure this whole lane exists to prevent. **Affects:**
+`governance/` only. `scenarios.py` imports `trust_engine.evaluate()` at dev time
+to build recording inputs; it is the lane's only trust import and is not on any
+runtime path.
+
+---
+
 **2026-08-31 — Varun P.** — Branch cleanup, own branches only (`vp/*`,
 `docs/*`, `chore/*`, `shared/*`; `uk/*`/`vc/*`/`ad/*` left untouched, not this
 lane's to clean up). Deleted, local and remote, 12 branches verified merged
