@@ -390,15 +390,18 @@ def test_a_recording_cannot_grant_authority_the_schema_does_not_have(
         opine_via_model("risk", evaluation, CACHED, store=store, model_slug=SLUG)
 
 
-@pytest.mark.parametrize("mode", [STUB, LIVE, "nonsense"])
-def test_opine_via_model_serves_cached_only(mode):
-    with pytest.raises(ValueError, match="handles 'cached' only"):
+@pytest.mark.parametrize("mode", [STUB, "nonsense"])
+def test_opine_via_model_refuses_modes_it_does_not_serve(mode):
+    """Stub reasoning lives in the agent modules; an unknown mode is a typo.
+
+    LIVE is no longer in this list — it is served here as of the 3 Sept deliverable.
+    """
+    with pytest.raises(ValueError, match="handles 'cached' and 'live' only"):
         opine_via_model("risk", make_evaluation(), mode)
 
 
-def test_supported_modes_are_stub_and_cached():
-    assert supports_mode(STUB) and supports_mode(CACHED)
-    assert not supports_mode(LIVE)
+def test_all_three_modes_are_supported():
+    assert supports_mode(STUB) and supports_mode(CACHED) and supports_mode(LIVE)
 
 
 def test_every_agent_can_be_served_from_a_recording(tmp_path: Path):

@@ -42,11 +42,20 @@ def test_unknown_mode_raises_rather_than_silently_stubbing(monkeypatch):
         resolve_mode()
 
 
-def test_live_mode_still_fails_loudly(healthy_increase):
-    """Serving stub opinions for an unimplemented mode would make a broken mode look
-    exactly like a working one. Live is due 3 Sept."""
-    with pytest.raises(NotImplementedError, match=LIVE):
+def test_live_mode_with_no_key_and_no_recording_raises(healthy_increase):
+    """Live is built now, but it cannot invent a result.
+
+    With no key the live call fails immediately, and with nothing recorded for this
+    evidence there is nothing to fall back to. Serving stub text here would make a
+    completely broken live mode look exactly like a working one — so it raises, and the
+    message names both halves so the reader knows which to fix.
+    """
+    with pytest.raises(RecordingMissError) as caught:
         recommend(healthy_increase, mode=LIVE)
+
+    message = str(caught.value)
+    assert "live call failed" in message
+    assert "no recording to fall back to" in message
 
 
 def test_cached_mode_without_a_recording_raises_rather_than_stubbing(healthy_increase):

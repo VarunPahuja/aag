@@ -1,0 +1,12 @@
+{
+  "agent_name": "compliance",
+  "cache_key": "compliance.v1.gemini-3-6-flash.03418affc372aa28",
+  "evidence_hash": "03418affc372aa28",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "448bb497eb101df0",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:02:54+00:00",
+  "response_text": "{\"reasoning\":\"I evaluated the proposal against system governance rules. The current limit is INR 500 (rung 0 of 4) and the proposed limit is INR 500 (rung 0), which correctly match rung 0 on the ladder [INR 500, INR 1000, INR 2500, INR 5000, INR 10000]. The engine proposes direction HOLD with eligible_for_increase set to False, which is fully consistent. The presence of reason code INSUFFICIENT_SAMPLE supports holding the current autonomy rung. No governance rules or ladder constraints are violated.\",\"concerns\":[],\"verdict\":\"CONCUR\",\"confidence\":1.0}",
+  "schema_version": "1"
+}

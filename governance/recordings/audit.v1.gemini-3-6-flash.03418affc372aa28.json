@@ -1,0 +1,12 @@
+{
+  "agent_name": "audit",
+  "cache_key": "audit.v1.gemini-3-6-flash.03418affc372aa28",
+  "evidence_hash": "03418affc372aa28",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "7ac7c2824fd42e25",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:03:09+00:00",
+  "response_text": "{\n  \"reasoning\": \"The evidence arithmetic reconciles cleanly: 10 total decisions consist of 10 acted decisions and 0 escalated decisions. Zero critical and zero non-critical errors align with the reported 10/10 (100.0%) accuracy. There are no unruled escalations or clustered critical error patterns. I verified the trust score composition: because `human_agreement` is UNAVAILABLE (0 trials), its nominal weight of 0.25 was redistributed, raising `accuracy_wilson_lower` effective weight to 0.67, `critical_error_penalty` to 0.20, and `autonomy_utilization` to 0.13. The record is self-consistent with no internal contradictions, supporting the proposed HOLD.\",\n  \"concerns\": [\n    \"Trust score is renormalised over 3 of 4 components because human_agreement is UNAVAILABLE (0 trials).\"\n  ],\n  \"verdict\": \"CONCUR\",\n  \"confidence\": 0.95\n}",
+  "schema_version": "1"
+}

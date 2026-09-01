@@ -42,20 +42,15 @@ def require_stub_mode(mode: str, agent_name: str) -> None:
     Raising is deliberate. Quietly serving stub opinions when the caller asked for
     `cached` or `live` would make the wrong path indistinguishable from the right one —
     the failure would surface as "the reasoning never changes," in front of whoever
-    noticed first. Live mode is due 3 Sept (docs/DEADLINES.md).
+    noticed first. Both model-backed modes are routed the same way.
     """
     if mode == STUB:
         return
-    if mode == CACHED:
+    if mode in (CACHED, LIVE):
         raise NotImplementedError(
-            f"{agent_name}.opine() serves {STUB!r} only. {CACHED!r} is served by "
-            f"governance.agents.llm_backed.opine_via_model, which the coordinator routes "
-            f"to — call recommend() rather than an agent module directly."
-        )
-    if mode == LIVE:
-        raise NotImplementedError(
-            f"{agent_name} agent has no {LIVE} implementation yet — due 3 Sept "
-            f"(docs/DEADLINES.md). Use {STUB!r} or {CACHED!r}."
+            f"{agent_name}.opine() serves {STUB!r} only. {mode!r} is served by "
+            f"governance.agents.llm_backed, which the coordinator routes to — call "
+            f"recommend() rather than an agent module directly."
         )
     raise ValueError(f"unknown governance mode {mode!r}")
 

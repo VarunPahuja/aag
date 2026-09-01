@@ -1,0 +1,12 @@
+{
+  "agent_name": "risk",
+  "cache_key": "risk.v1.gemini-3-6-flash.f93600649adf55aa",
+  "evidence_hash": "f93600649adf55aa",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "2716745e409a4234",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:47:33+00:00",
+  "response_text": "{\"reasoning\":\"The proposed limit change increases the agent's maximum single-decision exposure from INR 1,000 to INR 2,500, a 2.5x multiplier in exposure per error. The agent's record shows 0 critical errors across 200 autonomous decisions (critical error rate of 0.0000), meaning no unapproved funds have left the company under its authority. There are 4 non-critical errors. Notably, the agent has escalated 0 out of 200 decisions (100.0% utilization), meaning it does not currently exercise escalation restraint. Because there are zero critical errors in both the lifetime record and the recent window, there is no evidence of unmitigated risk, supporting the increase to INR 2,500.\",\"concerns\":[\"Maximum single-decision exposure increases 2.5x from INR 1,000 to INR 2,500.\",\"Zero escalations across 200 decisions (100% utilization) means the agent operates without exercising human escalation.\"],\"verdict\":\"CONCUR\",\"confidence\":0.95}",
+  "schema_version": "1"
+}
