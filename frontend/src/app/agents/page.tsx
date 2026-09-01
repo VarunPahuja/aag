@@ -1,20 +1,27 @@
 "use client";
 /**
  * Page 1: /agents — Governed AI Workforce Overview
- * Deloitte White Enterprise Editorial Product Structure
+ * v1.1 contracts: five-rung ladder, AgentState, trust_score, reason_codes
  */
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { agentsApi } from "@/lib/api-client";
 import { AutonomyLadder } from "@/components/domain/AutonomyLadder";
-import type { Agent, AutonomyTier } from "@/types/api";
+import { describeReasonCodes } from "@/types/api";
+import type { AgentSummary, AgentState, DriftSeverity } from "@/types/api";
 
-const TIER_TAG_CLASS: Record<AutonomyTier, string> = {
-  low:    "tier-low",
-  medium: "tier-medium",
-  high:   "tier-high",
+const STATE_CLASS: Record<AgentState, string> = {
+  probation:  "state-badge state-probation",
+  active:     "state-badge state-active",
+  restricted: "state-badge state-restricted",
+  suspended:  "state-badge state-suspended",
 };
+
+function fmtLimit(val: number): string {
+  if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
+  return `₹${val}`;
+}
 
 export default function AgentsPage() {
   const { data: agents = [], isLoading, isError } = useQuery({
@@ -22,9 +29,9 @@ export default function AgentsPage() {
     queryFn: agentsApi.list,
   });
 
-  const totalAuthority = agents.reduce((acc, a) => acc + Number(a.current_limit), 0);
+  const totalAuthority = agents.reduce((acc, a) => acc + a.current_limit, 0);
   const activeCount = agents.length;
-  const attentionCount = agents.filter(a => (a.wilson_lower_bound ?? 1) < 0.85).length;
+  const attentionCount = agents.filter(a => a.state === "restricted" || a.state === "suspended" || a.drift_severity !== "NONE").length;
 
   return (
     <div>
@@ -77,87 +84,90 @@ export default function AgentsPage() {
           </div>
         )}
 
-        {!isLoading && agents.map((agent: Agent) => {
-          const wlb = agent.wilson_lower_bound ?? 0;
-          const isHealthy = wlb >= 0.85;
-
-          return (
-            <div
-              key={agent.agent_id}
-              className="editorial-panel p-6 hover:border-slate-300 transition-colors"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                {/* Left Agent identity */}
-                <div className="space-y-1.5 min-w-[220px]">
-                  <div className="flex items-center gap-2">
-                    <span className={`tier-tag ${TIER_TAG_CLASS[agent.tier]}`}>
-                      {agent.tier.toUpperCase()}
+        {!isLoading && agents.map((agent: AgentSummary) => (
+          <div
+            key={agent.agent_id}
+            className="editorial-panel p-6 hover:border-slate-300 transition-colors"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              {/* Left Agent identity */}
+              <div className="space-y-1.5 min-w-[220px]">
+                <div className="flex items-center gap-2">
+                  <span className={`rung-tag rung-${agent.current_rung}`}>
+                    RUNG {agent.current_rung}
+                  </span>
+                  <span className={STATE_CLASS[agent.state]}>
+                    {agent.state.toUpperCase()}
+                  </span>
+                  {agent.drift_severity !== "NONE" && (
+                    <span className={`state-badge drift-${agent.drift_severity.toLowerCase()}`}>
+                      DRIFT: {agent.drift_severity}
                     </span>
-                    <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-[2px] ${
-                      isHealthy ? "bg-green-100 text-[#5f8914]" : "bg-amber-100 text-amber-900"
-                    }`}>
-                      {isHealthy ? "HEALTHY" : "ATTENTION REQUIRED"}
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                    {agent.name}
-                  </h2>
-                  <p className="text-xs font-mono text-slate-400">{agent.agent_id}</p>
+                  )}
                 </div>
+                <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                  {agent.name}
+                </h2>
+                <p className="text-xs font-mono text-slate-400">{agent.agent_id}</p>
+                {agent.reason_codes.length > 0 && (
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
+                    {describeReasonCodes(agent.reason_codes)}
+                  </p>
+                )}
+              </div>
 
-                {/* Autonomy Ladder Visual */}
-                <div className="border-l border-slate-200 pl-6 hidden xl:block">
-                  <AutonomyLadder currentTier={agent.tier} compact />
+              {/* Autonomy Ladder Visual */}
+              <div className="border-l border-slate-200 pl-6 hidden xl:block">
+                <AutonomyLadder currentRung={agent.current_rung} compact />
+              </div>
+
+              {/* Editorial Metric Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 border-t lg:border-t-0 lg:border-l border-slate-200 pt-4 lg:pt-0 lg:pl-6">
+                <div>
+                  <span className="eyebrow-label block text-[9px]">CURRENT AUTHORITY</span>
+                  <span className="text-base font-black text-slate-900">
+                    {fmtLimit(agent.current_limit)}
+                  </span>
                 </div>
-
-                {/* Editorial Metric Strip */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 border-t lg:border-t-0 lg:border-l border-slate-200 pt-4 lg:pt-0 lg:pl-6">
-                  <div>
-                    <span className="eyebrow-label block text-[9px]">CURRENT AUTHORITY</span>
-                    <span className="text-base font-black text-slate-900">
-                      ₹{Number(agent.current_limit).toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="eyebrow-label block text-[9px]">ACCURACY</span>
-                    <span className="text-base font-black text-slate-900">
-                      {agent.rolling_accuracy != null ? `${Math.round(agent.rolling_accuracy * 100)}%` : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="eyebrow-label block text-[9px]">WILSON LOWER BOUND</span>
-                    <span className={`text-base font-black ${isHealthy ? "text-[#5f8914]" : "text-amber-800"}`}>
-                      {agent.wilson_lower_bound != null ? `${Math.round(agent.wilson_lower_bound * 100)}%` : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="eyebrow-label block text-[9px]">DECISIONS</span>
-                    <span className="text-base font-black text-slate-900">
-                      {agent.total_decisions.toLocaleString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="eyebrow-label block text-[9px]">PENDING</span>
-                    <span className="text-base font-black text-slate-900">
-                      {agent.pending_approvals}
-                    </span>
-                  </div>
+                <div>
+                  <span className="eyebrow-label block text-[9px]">TRUST SCORE</span>
+                  <span className="text-base font-black text-slate-900">
+                    {agent.trust_score.toFixed(1)}
+                  </span>
                 </div>
-
-                {/* View Agent Action Link */}
-                <div className="flex items-center justify-end">
-                  <Link
-                    href={`/agents/${agent.agent_id}`}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-bold transition-colors"
-                  >
-                    <span>VIEW AGENT</span>
-                    <span>→</span>
-                  </Link>
+                <div>
+                  <span className="eyebrow-label block text-[9px]">ACCURACY</span>
+                  <span className="text-base font-black text-slate-900">
+                    {agent.rolling_accuracy != null ? `${Math.round(agent.rolling_accuracy * 100)}%` : "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="eyebrow-label block text-[9px]">DECISIONS</span>
+                  <span className="text-base font-black text-slate-900">
+                    {agent.total_decisions.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="eyebrow-label block text-[9px]">DIRECTION</span>
+                  <span className={`state-badge direction-${agent.direction.toLowerCase()}`}>
+                    {agent.direction}
+                  </span>
                 </div>
               </div>
+
+              {/* View Agent Action Link */}
+              <div className="flex items-center justify-end">
+                <Link
+                  href={`/agents/${agent.agent_id}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-bold transition-colors"
+                >
+                  <span>VIEW AGENT</span>
+                  <span>→</span>
+                </Link>
+              </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

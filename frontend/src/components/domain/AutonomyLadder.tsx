@@ -2,41 +2,46 @@
 /**
  * src/components/domain/AutonomyLadder.tsx
  * -----------------------------------------
- * Governance Autonomy Ladder Component showing progressive authority levels.
- * Levels: ₹50,000 (HIGH), ₹15,000 (MEDIUM), ₹3,000 (LOW).
+ * Five-rung autonomy ladder visualization.
+ * Rungs: ₹500 → ₹1,000 → ₹2,500 → ₹5,000 → ₹10,000
  */
 
-import type { AutonomyTier } from "@/types/api";
+import { AUTONOMY_LADDER } from "@/types/api";
 
 interface Props {
-  currentTier: AutonomyTier;
+  currentRung: number; // 0–4
   compact?: boolean;
 }
 
-const TIER_STEPS = [
-  { tier: "high" as AutonomyTier,   amount: "₹50,000", label: "HIGH AUTHORITY" },
-  { tier: "medium" as AutonomyTier, amount: "₹15,000", label: "MEDIUM AUTHORITY" },
-  { tier: "low" as AutonomyTier,    amount: "₹3,000",  label: "LOW AUTHORITY" },
-];
+const RUNG_LABELS = ["FLOOR", "RUNG 1", "RUNG 2", "RUNG 3", "MAX"];
 
-export function AutonomyLadder({ currentTier, compact = false }: Props) {
+function fmtLimit(val: number): string {
+  if (val >= 1000) return `₹${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
+  return `₹${val}`;
+}
+
+export function AutonomyLadder({ currentRung, compact = false }: Props) {
   return (
-    <div className={`flex flex-col gap-1.5 ${compact ? "w-44" : "w-52"}`}>
+    <div className={`flex flex-col gap-1.5 ${compact ? "w-44" : "w-56"}`}>
       <span className="eyebrow-label text-[9px] mb-0.5">AUTONOMY LADDER</span>
-      {TIER_STEPS.map(step => {
-        const isActive = step.tier === currentTier;
+      {[...AUTONOMY_LADDER].reverse().map((limit, revIdx) => {
+        const rung = AUTONOMY_LADDER.length - 1 - revIdx;
+        const isActive = rung === currentRung;
+        const isPast = rung < currentRung;
         return (
           <div
-            key={step.tier}
+            key={rung}
             className={`flex items-center justify-between px-3 py-1.5 rounded-[2px] border text-xs transition-all ${
               isActive
-                ? "bg-[#86BC25]/15 border-[#86BC25] text-[#5f8914] font-bold shadow-sm"
-                : "bg-slate-50 border-slate-200 text-slate-400 font-medium"
+                ? `rung-tag rung-${rung} font-bold shadow-sm`
+                : isPast
+                ? "bg-slate-50 border-slate-200 text-slate-500 font-medium"
+                : "bg-white border-slate-200 text-slate-300 font-medium"
             }`}
           >
-            <span className="font-mono font-bold">{step.amount}</span>
+            <span className="font-mono font-bold">{fmtLimit(limit)}</span>
             <span className="text-[9px] tracking-wider uppercase font-extrabold">
-              {step.tier}
+              {isActive ? "● " : ""}{RUNG_LABELS[rung]}
             </span>
           </div>
         );

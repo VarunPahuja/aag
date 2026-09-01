@@ -1,25 +1,22 @@
 /**
  * src/lib/api-client.ts
  * ----------------------
- * Typed fetch-based API client.
+ * Typed fetch-based API client — v1.1 contract-aligned.
  *
  * DESIGN:
  *  - JWT token read from localStorage (prototype-acceptable tradeoff, documented)
  *  - All requests go to NEXT_PUBLIC_API_BASE_URL (env var)
- *  - Money amounts travel as strings — never parsed to float
  *  - MSW intercepts all fetch calls in dev when NEXT_PUBLIC_MSW_ENABLED=true
  */
 
 import type {
-  Agent,
-  AgentDecisionRecord,
+  AgentSummary,
   AutonomyEvent,
-  HumanApproval,
-  Invoice,
+  DecisionRecord,
+  TrustEvaluation,
+  Recommendation,
+  AuditSample,
   PaginatedResponse,
-  SimulationRunConfig,
-  SimulationRunResult,
-  SubmitInvoiceResponse,
 } from "@/types/api";
 
 const API_BASE =
@@ -70,35 +67,41 @@ async function apiFetch<T>(
 // ---------------------------------------------------------------------------
 
 export const agentsApi = {
-  list: (): Promise<Agent[]> => apiFetch("/agents"),
+  list: (): Promise<AgentSummary[]> => apiFetch("/agents"),
 
-  get: (agentId: string): Promise<Agent> =>
+  get: (agentId: string): Promise<AgentSummary> =>
     apiFetch(`/agents/${agentId}`),
 
   getDecisions: (
     agentId: string,
     page = 1,
     pageSize = 50
-  ): Promise<PaginatedResponse<AgentDecisionRecord>> =>
+  ): Promise<PaginatedResponse<DecisionRecord>> =>
     apiFetch(`/agents/${agentId}/decisions?page=${page}&page_size=${pageSize}`),
 
   getAutonomyHistory: (agentId: string): Promise<AutonomyEvent[]> =>
     apiFetch(`/agents/${agentId}/autonomy-history`),
+
+  getTrustEvaluation: (agentId: string): Promise<TrustEvaluation> =>
+    apiFetch(`/agents/${agentId}/trust-evaluation`),
 };
 
 // ---------------------------------------------------------------------------
-// Approvals
+// Recommendations (governance opinions + human authorization)
 // ---------------------------------------------------------------------------
 
-export const approvalsApi = {
-  list: (status = "pending"): Promise<HumanApproval[]> =>
-    apiFetch(`/approvals?status=${status}`),
+export const recommendationsApi = {
+  list: (status?: string): Promise<Recommendation[]> =>
+    apiFetch(`/recommendations${status ? `?status=${status}` : ""}`),
+
+  get: (recId: string): Promise<Recommendation> =>
+    apiFetch(`/recommendations/${recId}`),
 
   resolve: (
-    approvalId: string,
-    resolution: { status: "approved" | "rejected"; resolution_note?: string }
-  ): Promise<HumanApproval> =>
-    apiFetch(`/approvals/${approvalId}/resolve`, {
+    recId: string,
+    resolution: { status: "APPROVED" | "REJECTED"; reason: string }
+  ): Promise<Recommendation> =>
+    apiFetch(`/recommendations/${recId}/resolve`, {
       method: "POST",
       body: JSON.stringify(resolution),
     }),
@@ -111,12 +114,12 @@ export const approvalsApi = {
 export const auditApi = {
   list: (params?: {
     agent_id?: string;
-    decision?: string;
+    action?: string;
     from_date?: string;
     to_date?: string;
     page?: number;
     page_size?: number;
-  }): Promise<PaginatedResponse<AgentDecisionRecord>> => {
+  }): Promise<PaginatedResponse<DecisionRecord>> => {
     const qs = new URLSearchParams(
       Object.fromEntries(
         Object.entries(params ?? {})
@@ -129,21 +132,12 @@ export const auditApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Invoices
+// Audit samples
 // ---------------------------------------------------------------------------
 
-export const invoicesApi = {
-  get: (invoiceId: string): Promise<Invoice> =>
-    apiFetch(`/invoices/${invoiceId}`),
-
-  submit: (
-    invoice: Invoice,
-    agentId: string
-  ): Promise<SubmitInvoiceResponse> =>
-    apiFetch("/invoices", {
-      method: "POST",
-      body: JSON.stringify({ invoice, agent_id: agentId }),
-    }),
+export const auditSamplesApi = {
+  list: (agentId?: string): Promise<AuditSample[]> =>
+    apiFetch(`/audit-samples${agentId ? `?agent_id=${agentId}` : ""}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -151,15 +145,12 @@ export const invoicesApi = {
 // ---------------------------------------------------------------------------
 
 export const simulationApi = {
-  start: (config: Partial<SimulationRunConfig>): Promise<SimulationRunResult> =>
+  start: (config: Record<string, unknown>): Promise<{ run_id: string; status: string }> =>
     apiFetch("/simulation/runs", {
       method: "POST",
       body: JSON.stringify(config),
     }),
 
-  getRun: (runId: string): Promise<SimulationRunResult> =>
-    apiFetch(`/simulation/runs/${runId}`),
-
-  listRuns: (): Promise<SimulationRunResult[]> =>
+  listRuns: (): Promise<unknown[]> =>
     apiFetch("/simulation/runs"),
 };

@@ -1,24 +1,28 @@
 "use client";
 /**
  * Page 4: /audit — Immutable Governance Record Table & Detail Drawer
- * Deloitte White Enterprise Audit & Regulatory Product
+ * v1.1 contracts: DecisionRecord, removed false "Verified" badge.
+ *
+ * The audit log IS hash-chained in the backend, but the hash/prev_hash fields
+ * are not yet exposed via the API. Until they are, we show an honest
+ * "awaiting backend fields" indicator rather than a false assurance.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { auditApi } from "@/lib/api-client";
-import { IconCheckCircle } from "@/components/ui/Icons";
-import type { AgentDecisionRecord, AgentDecision } from "@/types/api";
+import { IconShieldAlert } from "@/components/ui/Icons";
+import type { DecisionRecord, Action } from "@/types/api";
 
-const DECISION_BADGE: Record<AgentDecision, string> = {
-  approve:  "bg-green-100 text-[#5f8914] border-green-200",
-  reject:   "bg-red-100 text-red-700 border-red-200",
-  escalate: "bg-amber-100 text-amber-900 border-amber-200",
+const ACTION_BADGE: Record<Action, string> = {
+  APPROVE:  "bg-green-100 text-[#5f8914] border-green-200",
+  REJECT:   "bg-red-100 text-red-700 border-red-200",
+  ESCALATE: "bg-amber-100 text-amber-900 border-amber-200",
 };
 
 export default function AuditPage() {
   const [page, setPage] = useState(1);
-  const [selectedRecord, setSelectedRecord] = useState<AgentDecisionRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<DecisionRecord | null>(null);
   const PAGE_SIZE = 25;
 
   const { data, isLoading } = useQuery({
@@ -42,9 +46,10 @@ export default function AuditPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-[2px]">
-            <IconCheckCircle className="w-4 h-4 text-[#5f8914]" />
-            <span className="text-xs font-bold text-[#5f8914]">Audit Integrity: Verified</span>
+          {/* Honest integrity indicator — NOT verified until backend exposes hash fields */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-[2px]">
+            <IconShieldAlert className="w-4 h-4 text-amber-700" />
+            <span className="text-xs font-bold text-amber-800">Hash verification: awaiting backend fields</span>
           </div>
         </div>
       </div>
@@ -63,19 +68,19 @@ export default function AuditPage() {
                   <tr>
                     <th>Invoice ID</th>
                     <th>Agent ID</th>
-                    <th>Decision</th>
-                    <th>Reason Code</th>
-                    <th>Confidence</th>
-                    <th>Correctness</th>
+                    <th>Action</th>
+                    <th>Amount</th>
+                    <th>Correct</th>
+                    <th>Critical</th>
                     <th>Timestamp</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data?.items.map(record => {
-                    const isSelected = selectedRecord?.record_id === record.record_id;
+                    const isSelected = selectedRecord?.decision_id === record.decision_id;
                     return (
                       <tr
-                        key={record.record_id}
+                        key={record.decision_id}
                         onClick={() => setSelectedRecord(record)}
                         className={`cursor-pointer transition-colors ${
                           isSelected ? "bg-slate-100 font-semibold" : "hover:bg-slate-50"
@@ -90,18 +95,13 @@ export default function AuditPage() {
                           <span className="text-xs font-mono text-slate-500">{record.agent_id}</span>
                         </td>
                         <td>
-                          <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] border ${DECISION_BADGE[record.decision]}`}>
-                            {record.decision}
+                          <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] border ${ACTION_BADGE[record.action]}`}>
+                            {record.action}
                           </span>
                         </td>
                         <td>
-                          <span className="text-xs text-slate-700 font-medium">
-                            {record.reason}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="text-xs font-mono font-bold text-slate-900">
-                            {record.confidence != null ? `${Math.round(record.confidence * 100)}%` : "—"}
+                          <span className="text-xs font-bold text-slate-900">
+                            ₹{record.amount.toLocaleString("en-IN")}
                           </span>
                         </td>
                         <td>
@@ -114,11 +114,20 @@ export default function AuditPage() {
                           )}
                         </td>
                         <td>
+                          {record.is_critical_error ? (
+                            <span className="text-[10px] font-extrabold text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200">CRITICAL</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td>
                           <span className="text-xs text-slate-500 font-medium">
-                            {new Date(record.decided_at).toLocaleString("en-IN", {
-                              month: "short", day: "numeric",
-                              hour: "2-digit", minute: "2-digit", hour12: false
-                            })}
+                            {record.decided_at
+                              ? new Date(record.decided_at).toLocaleString("en-IN", {
+                                  month: "short", day: "numeric",
+                                  hour: "2-digit", minute: "2-digit", hour12: false
+                                })
+                              : "—"}
                           </span>
                         </td>
                       </tr>
@@ -169,36 +178,59 @@ export default function AuditPage() {
 
               <div className="space-y-3 text-xs font-sans">
                 <div>
+                  <span className="eyebrow-label block text-[9px]">DECISION ID</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedRecord.decision_id}</span>
+                </div>
+                <div>
                   <span className="eyebrow-label block text-[9px]">INVOICE ID</span>
                   <span className="font-mono font-bold text-slate-900">{selectedRecord.invoice_id}</span>
                 </div>
                 <div>
-                  <span className="eyebrow-label block text-[9px]">AGENT MODEL</span>
-                  <span className="font-semibold text-slate-800">GeminiAgent (gemini-2.5-flash)</span>
+                  <span className="eyebrow-label block text-[9px]">AGENT</span>
+                  <span className="font-semibold text-slate-800">{selectedRecord.agent_id}</span>
                 </div>
                 <div>
-                  <span className="eyebrow-label block text-[9px]">DECISION DETAILS</span>
-                  <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] border ${DECISION_BADGE[selectedRecord.decision]}`}>
-                    {selectedRecord.decision}
+                  <span className="eyebrow-label block text-[9px]">AMOUNT</span>
+                  <span className="font-bold text-slate-900">₹{selectedRecord.amount.toLocaleString("en-IN")}</span>
+                </div>
+                <div>
+                  <span className="eyebrow-label block text-[9px]">ACTION</span>
+                  <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] border ${ACTION_BADGE[selectedRecord.action]}`}>
+                    {selectedRecord.action}
                   </span>
                 </div>
                 <div>
-                  <span className="eyebrow-label block text-[9px]">CONFIDENCE SCORE</span>
-                  <span className="font-bold text-slate-900">
-                    {selectedRecord.confidence != null ? `${Math.round(selectedRecord.confidence * 100)}%` : "N/A"}
+                  <span className="eyebrow-label block text-[9px]">GROUND TRUTH</span>
+                  <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] border ${ACTION_BADGE[selectedRecord.ground_truth]}`}>
+                    {selectedRecord.ground_truth}
                   </span>
                 </div>
-                <div>
-                  <span className="eyebrow-label block text-[9px]">REASON CODE</span>
-                  <span className="font-mono font-semibold text-amber-900">{selectedRecord.reason}</span>
-                </div>
-                <div>
-                  <span className="eyebrow-label block text-[9px]">GOVERNANCE ACTION</span>
-                  <span className="font-bold text-[#5f8914]">Logged to immutable trail</span>
-                </div>
+                {selectedRecord.is_escalated && (
+                  <>
+                    <div>
+                      <span className="eyebrow-label block text-[9px]">RECOMMENDED ACTION</span>
+                      <span className="font-bold text-slate-900">{selectedRecord.recommended_action ?? "—"}</span>
+                    </div>
+                    <div>
+                      <span className="eyebrow-label block text-[9px]">HUMAN RULING</span>
+                      <span className="font-bold text-slate-900">{selectedRecord.human_ruling ?? "—"}</span>
+                    </div>
+                  </>
+                )}
+                {selectedRecord.is_critical_error && (
+                  <div className="bg-red-50 border border-red-200 p-2 rounded-[2px]">
+                    <span className="text-[10px] font-extrabold text-red-700">
+                      ⚠ CRITICAL ERROR — agent approved an invoice that should have been rejected
+                    </span>
+                  </div>
+                )}
                 <div>
                   <span className="eyebrow-label block text-[9px]">TIMESTAMP</span>
                   <span className="font-mono text-slate-500">{selectedRecord.decided_at}</span>
+                </div>
+                <div className="border-t border-slate-200 pt-3">
+                  <span className="eyebrow-label block text-[9px]">HASH VERIFICATION</span>
+                  <span className="text-[11px] text-amber-700 font-medium">Not yet available — awaiting backend hash fields</span>
                 </div>
               </div>
             </div>
