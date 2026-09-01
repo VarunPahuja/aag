@@ -22,10 +22,8 @@ exactly the way a future decision-ingest endpoint will.
 
 from __future__ import annotations
 
-import dataclasses
 import os
 from datetime import UTC, datetime, timedelta
-from enum import Enum
 
 from shared.constants import limit_of
 from shared.contracts import (
@@ -76,6 +74,7 @@ from app.policy.engine import evaluate_decision
 from app.policy.types import Invoice as PolicyInvoice
 from app.policy.types import PolicyVersion as PolicyVersionView
 from app.schemas.user import Role
+from app.services.trust import jsonable as _jsonable
 
 DEFAULT_DATABASE_URL = "postgresql://aagp:aagp_dev_password@localhost:5432/aagp"
 
@@ -87,24 +86,6 @@ _NOW = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
 
 def _ago(**kwargs) -> datetime:
     return _NOW - timedelta(**kwargs)
-
-
-def _jsonable(value):
-    """Recursively turn dataclasses/Enums/datetimes into plain JSON-safe
-    values — the same shapes `dataclasses.asdict()` produces, except Enum
-    members become their `.value` and datetimes become ISO-8601 strings,
-    which plain `asdict()` does not do on its own."""
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return {f.name: _jsonable(getattr(value, f.name)) for f in dataclasses.fields(value)}
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _jsonable(v) for k, v in value.items()}
-    return value
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -662,6 +643,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             ),
             agent_opinions=_jsonable(agent01_opinions),
             status=RecommendationStatus.PENDING,
+            governance_mode="stub",
             clamped=True,
             clamped_from=limit_of(4),
             generated_at=_NOW,
@@ -713,6 +695,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             ),
             agent_opinions=_jsonable(agent03_opinions),
             status=RecommendationStatus.APPROVED,
+            governance_mode="stub",
             clamped=False,
             clamped_from=None,
             generated_at=_NOW - timedelta(days=2),
@@ -734,6 +717,7 @@ def _seed_recommendations_and_approvals(session: Session) -> None:
             rationale="Evidence cleared all six increase gates; proposed rung 1 -> 2.",
             agent_opinions=[],
             status=RecommendationStatus.APPROVED,
+            governance_mode="stub",
             clamped=False,
             clamped_from=None,
             generated_at=_ago(days=10),

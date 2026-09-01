@@ -1,89 +1,51 @@
-"""Agent resource — identity, current standing, policy history, trust evidence.
+"""Agent resource — identity, current standing, policy history, trust
+evidence, and the governance recommendations generated from it.
 
-`list_agents`/`get_agent` read the real `agents` table — this branch wires
-decision ingest plus agent read (docs/lanes/vp.md, decision-ingest branch).
-Everything below them (`policy-versions`, `trust`, `trust/history`) is still
-fixture-backed: out of scope here, wired alongside trust/governance/
-recommendations in the next branch.
+`list_agents`/`get_agent`/`trust`/`trust/history`/`recommendations` read and
+write the real tables (docs/lanes/vp.md; decision-ingest, then
+vp/trust-governance-wiring). Only `policy-versions` remains fixture-backed —
+out of scope here.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter
-from sqlalchemy import func, select
+import dataclasses
+
+from fastapi import APIRouter, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.pagination import PageParam, PageSizeParam, paginate
 from app.deps import CurrentUserDep, DbSessionDep
-from app.errors import NOT_FOUND_RESPONSE, not_found
+from app.errors import NOT_FOUND_RESPONSE, SERVICE_UNAVAILABLE_RESPONSE, not_found
 from app.fixtures.agents import AGENTS
 from app.fixtures.policy_versions import POLICY_VERSIONS
-from app.fixtures.trust import TRUST_CURRENT, TRUST_HISTORY
-from app.models import Agent, Decision, PolicyVersion
-from app.schemas.agent import AgentContextOut, AgentOut, PolicyVersionOut
+from app.models import Agent
+from app.models import TrustEvaluation as TrustEvaluationRow
+from app.schemas.agent import AgentOut, PolicyVersionOut
 from app.schemas.envelope import Page
+from app.schemas.governance import RecommendationOut
 from app.schemas.trust import TrustEvaluationOut
+from app.services.governance import generate_recommendation
+from app.services.trust import agent_context, compute_and_persist_trust_evaluation
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 def _get_agent_or_404(agent_id: str) -> AgentOut:
-    """Still fixture-backed — only the three fixture-only routes below use
-    this; `list_agents`/`get_agent` have their own DB-backed lookup."""
+    """Still fixture-backed — only `list_policy_versions` below uses this;
+    every other route has its own DB-backed lookup."""
     agent = AGENTS.get(agent_id)
     if agent is None:
         raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
     return agent
 
 
-def _agent_context(db: Session, agent: Agent) -> AgentContextOut:
-    """Real, derived from the tables that exist — `docs/lanes/vp.md`'s
-    `agents` schema has no `AgentContext` columns of its own.
-    `current_limit`/`state` are the agent row's own fields; the two decision
-    counts are computed relative to whichever policy version is currently in
-    force: `decisions_since_last_change` is every decision recorded at or
-    after that version's `effective_from`; `decisions_since_clawback` is the
-    same count, but only when that version was itself a clawback (a lower
-    rung than the one before it) — `None` otherwise, meaning "no clawback
-    recovery is currently pending."
-    """
-    versions = (
-        db.execute(
-            select(PolicyVersion)
-            .where(PolicyVersion.agent_id == agent.id)
-            .order_by(PolicyVersion.effective_from.desc())
-            .limit(2)
-        )
-        .scalars()
-        .all()
-    )
-    if not versions:
-        return AgentContextOut(
-            current_limit=agent.current_limit,
-            decisions_since_last_change=0,
-            decisions_since_clawback=None,
-            state=agent.state,
-        )
-
-    current = versions[0]
-    since_change = (
-        db.execute(
-            select(func.count())
-            .select_from(Decision)
-            .where(Decision.agent_id == agent.id, Decision.decided_at >= current.effective_from)
-        ).scalar()
-        or 0
-    )
-
-    is_clawback = len(versions) > 1 and current.rung < versions[1].rung
-    since_clawback = since_change if is_clawback else None
-
-    return AgentContextOut(
-        current_limit=agent.current_limit,
-        decisions_since_last_change=since_change,
-        decisions_since_clawback=since_clawback,
-        state=agent.state,
-    )
+def _get_agent_row_or_404(db: Session, agent_id: str) -> Agent:
+    agent = db.get(Agent, agent_id)
+    if agent is None:
+        raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
+    return agent
 
 
 def _agent_out(db: Session, agent: Agent) -> AgentOut:
@@ -93,7 +55,7 @@ def _agent_out(db: Session, agent: Agent) -> AgentOut:
         current_limit=agent.current_limit,
         current_rung=agent.current_rung,
         state=agent.state,
-        context=_agent_context(db, agent),
+        context=agent_context(db, agent),
     )
 
 
@@ -109,10 +71,7 @@ def list_agents(
 @router.get("/{agent_id}", response_model=AgentOut, responses=NOT_FOUND_RESPONSE)
 def get_agent(agent_id: str, user: CurrentUserDep, db: DbSessionDep) -> AgentOut:
     """Fetch one agent by id, including its current `AgentContext`."""
-    agent = db.get(Agent, agent_id)
-    if agent is None:
-        raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
-    return _agent_out(db, agent)
+    return _agent_out(db, _get_agent_row_or_404(db, agent_id))
 
 
 @router.get(
@@ -133,37 +92,52 @@ def list_policy_versions(
 
 
 @router.get("/{agent_id}/trust", response_model=TrustEvaluationOut, responses=NOT_FOUND_RESPONSE)
-def get_current_trust(agent_id: str, user: CurrentUserDep) -> TrustEvaluationOut:
-    """The agent's most recent `TrustEvaluation`.
-
-    Once implemented: calls `trust_engine.evaluate(decisions, context)` with
-    the agent's full decision history and current `AgentContext`, persists
-    the result with a minted `id`, and returns it — or, if evaluation is
-    cached, the most recent persisted row.
+def get_current_trust(agent_id: str, user: CurrentUserDep, db: DbSessionDep) -> TrustEvaluationOut:
+    """Evaluate `agent_id`'s real persisted decision history with the real
+    trust engine, persist the result, and return it. An agent with zero
+    decisions still gets a valid `TrustEvaluation` back — `trust_engine.evaluate`
+    is designed to handle an empty history, not to be called only once one
+    exists (see `app/services/trust.py`).
     """
-    _get_agent_or_404(agent_id)
-    evaluation = TRUST_CURRENT.get(agent_id)
-    if evaluation is None:
-        raise not_found(
-            "trust_evaluation_not_found",
-            f"No trust evaluation exists yet for agent {agent_id!r}.",
-            {"agent_id": agent_id},
-        )
-    return evaluation
+    agent = _get_agent_row_or_404(db, agent_id)
+    evaluation, row_id = compute_and_persist_trust_evaluation(db, agent)
+    return TrustEvaluationOut(id=row_id, **dataclasses.asdict(evaluation))
 
 
 @router.get(
     "/{agent_id}/trust/history", response_model=Page[TrustEvaluationOut], responses=NOT_FOUND_RESPONSE
 )
 def list_trust_history(
-    agent_id: str, user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
+    agent_id: str, user: CurrentUserDep, db: DbSessionDep, page: PageParam = 1, page_size: PageSizeParam = 20
 ) -> Page[TrustEvaluationOut]:
-    """Every `TrustEvaluation` ever computed for this agent, newest first —
-    what the dashboard's trust-over-time chart is built from.
+    """Every `TrustEvaluation` ever persisted for this agent, newest first —
+    what the dashboard's trust-over-time chart is built from."""
+    _get_agent_row_or_404(db, agent_id)
+    rows = (
+        db.execute(
+            select(TrustEvaluationRow)
+            .where(TrustEvaluationRow.agent_id == agent_id)
+            .order_by(TrustEvaluationRow.evaluated_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    items = [TrustEvaluationOut(id=row.id, **row.payload) for row in rows]
+    return paginate(items, page, page_size)
 
-    Once implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY
-    evaluated_at DESC`.
-    """
-    _get_agent_or_404(agent_id)
-    history = list(reversed(TRUST_HISTORY.get(agent_id, [])))
-    return paginate(history, page, page_size)
+
+@router.post(
+    "/{agent_id}/recommendations",
+    response_model=RecommendationOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={**NOT_FOUND_RESPONSE, **SERVICE_UNAVAILABLE_RESPONSE},
+)
+def create_recommendation(agent_id: str, user: CurrentUserDep, db: DbSessionDep) -> RecommendationOut:
+    """Generate a fresh governance recommendation for `agent_id`: recompute
+    its `TrustEvaluation` from persisted decisions, run the governance panel
+    over it (`GOVERNANCE_MODE`, default `stub`), clamp the panel's proposal to
+    what the evidence actually supports, and persist trust evaluation,
+    recommendation, and audit entry — all in this one request's transaction
+    (`app.deps.get_session`; see `app/services/governance.py`)."""
+    agent = _get_agent_row_or_404(db, agent_id)
+    return generate_recommendation(db, agent)
