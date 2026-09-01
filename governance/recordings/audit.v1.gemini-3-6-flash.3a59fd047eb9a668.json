@@ -1,0 +1,12 @@
+{
+  "agent_name": "audit",
+  "cache_key": "audit.v1.gemini-3-6-flash.3a59fd047eb9a668",
+  "evidence_hash": "3a59fd047eb9a668",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "4cd375d6faf9ad1b",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:54:02+00:00",
+  "response_text": "{\"reasoning\":\"The decision record of 110 total decisions reconciles completely: 110 acted autonomously, 0 escalated, 92 correct decisions, 18 non-critical errors, and 0 critical errors (92 + 18 = 110). Baseline (60 decisions) and recent (50 decisions) drift partitions sum precisely to 110. There are no unruled escalations and no clustered critical errors. The primary structural observation is that because 100% of decisions (110/110) were executed autonomously without escalation, the human_agreement component is unavailable (0 trials). This caused trust score weights to renormalise, elevating the effective weight of accuracy_wilson_lower from 0.50 nominal to 0.67 effective and critical_error_penalty from 0.15 to 0.20. The record is self-consistent and mathematically sound, though resting on three score components rather than four.\",\"concerns\":[\"Trust score weights are renormalised because human_agreement is unavailable (0 escalations), increasing accuracy_wilson_lower effective weight from 0.50 to 0.67.\"],\"verdict\":\"CONCUR\",\"confidence\":0.9}",
+  "schema_version": "1"
+}

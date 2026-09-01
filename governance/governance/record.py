@@ -24,8 +24,10 @@ at demo time, and the fix requires a network connection you may not have.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Iterator
+from pathlib import Path
 
 from governance.agents.base import AGENT_NAMES
 from governance.llm.base import LLMClient
@@ -37,11 +39,73 @@ from governance.prompts.schema import OpinionParseError, parse_opinion
 from governance.scenarios import SCENARIOS, Scenario
 
 
+def load_dotenv(path: Path | None = None) -> list[str]:
+    """Read `.env` at the repo root into the environment. Returns the names it set.
+
+    The library never does this — `gemini.py` reads `os.environ` and nothing else, so
+    importing this lane can never pick up an API key as a side effect. Only this
+    dev-time CLI reads the file, because it is the only thing whose help text promises
+    that `.env` works.
+
+    Hand-rolled rather than depending on python-dotenv: this lane justifies every
+    runtime dependency it takes, and the format we need is `NAME=value` lines.
+
+    A name already present in the real environment wins. An explicit
+    `GEMINI_API_KEY=... python -m governance.record` must not be silently overridden by
+    a stale file — the whole point of this run is knowing which key answered.
+    """
+    path = path or Path(__file__).resolve().parents[2] / ".env"
+    if not path.is_file():
+        return []
+
+    applied: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip().strip("'\"")
+        # An empty value is not a key. Leaving the name unset makes the "no API key"
+        # message fire, which is the accurate diagnosis; setting it to "" would send a
+        # keyless request and report whatever Gemini says about it instead.
+        if not name or not value or name in os.environ:
+            continue
+        os.environ[name] = value
+        applied.append(name)
+    return applied
+
+
+def select_scenarios(names: list[str] | None) -> tuple[Scenario, ...]:
+    """The scenarios to record, defaulting to all five.
+
+    An unknown name is an error rather than an empty run: a typo'd `--scenario` that
+    quietly recorded nothing looks exactly like "everything was already recorded".
+    """
+    if not names:
+        return tuple(SCENARIOS)
+    by_name = {scenario.name: scenario for scenario in SCENARIOS}
+    unknown = [name for name in names if name not in by_name]
+    if unknown:
+        raise ValueError(
+            f"unknown scenario(s) {', '.join(sorted(unknown))}; "
+            f"expected one of {', '.join(sorted(by_name))}"
+        )
+    # Deduplicated, but in SCENARIOS order rather than the order they were typed, so a
+    # partial run is a subset of the full run and not a differently-ordered one.
+    chosen = set(names)
+    return tuple(s for s in SCENARIOS if s.name in chosen)
+
+
 def iter_work(
-    store: RecordingStore, clients: dict[str, LLMClient], *, force: bool
+    store: RecordingStore,
+    clients: dict[str, LLMClient],
+    *,
+    force: bool,
+    scenarios: tuple[Scenario, ...] = (),
 ) -> Iterator[tuple[Scenario, str, bool]]:
     """Yield (scenario, agent_name, already_recorded) for every prompt in the matrix."""
-    for scenario in SCENARIOS:
+    for scenario in scenarios or tuple(SCENARIOS):
         evaluation = scenario.build()
         for agent_name in AGENT_NAMES:
             prompt = build_prompt(agent_name, evaluation)
@@ -54,18 +118,27 @@ def _first_agent_on(clients: dict[str, LLMClient], provider: str) -> str:
     return next(name for name, client in clients.items() if client.provider == provider)
 
 
-def record_all(*, force: bool = False, dry_run: bool = False) -> int:
+def record_all(
+    *, force: bool = False, dry_run: bool = False, scenarios: list[str] | None = None
+) -> int:
     """Record every missing scenario/agent pair. Returns a process exit code."""
     store = RecordingStore()
     clients: dict[str, LLMClient] = {name: build_client(name) for name in AGENT_NAMES}
     panel = describe_panel(AGENT_NAMES)
+    chosen = select_scenarios(scenarios)
 
     pending = [
         (scenario, agent)
-        for scenario, agent, already in iter_work(store, clients, force=force)
+        for scenario, agent, already in iter_work(
+            store, clients, force=force, scenarios=chosen
+        )
         if not already
     ]
-    skipped = sum(1 for _, _, already in iter_work(store, clients, force=force) if already)
+    skipped = sum(
+        1
+        for _, _, already in iter_work(store, clients, force=force, scenarios=chosen)
+        if already
+    )
 
     total_calls = len(pending)
     # Agents on one provider share a client and therefore a pacer, because a rate limit
@@ -167,8 +240,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="print the call plan and exit without touching the network",
     )
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        metavar="NAME",
+        help=(
+            "record only this scenario; repeatable. Defaults to all five. "
+            f"One of: {', '.join(s.name for s in SCENARIOS)}"
+        ),
+    )
     args = parser.parse_args(argv)
-    return record_all(force=args.force, dry_run=args.dry_run)
+    load_dotenv()
+    try:
+        return record_all(force=args.force, dry_run=args.dry_run, scenarios=args.scenario)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover

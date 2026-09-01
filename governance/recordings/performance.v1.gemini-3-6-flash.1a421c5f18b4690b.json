@@ -1,0 +1,12 @@
+{
+  "agent_name": "performance",
+  "cache_key": "performance.v1.gemini-3-6-flash.1a421c5f18b4690b",
+  "evidence_hash": "1a421c5f18b4690b",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "a06e443d709b1a88",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:59:18+00:00",
+  "response_text": "{\n  \"reasoning\": \"The evidence shows a statistically significant performance degradation. Baseline accuracy was 100.0% over 90 decisions, but recent accuracy has fallen to 64.0% over 50 decisions, representing a drop of 36.0 percentage points (z = -6.0976, p = 0.0000). The test is adequately powered (underpowered: false). Although overall accuracy is 87.1% (122/140) with a 95% Wilson confidence interval of [80.6%, 91.7%], the confirmed negative trend justifies reducing autonomy from INR 2500 to INR 1000. Therefore, I concur with the proposed CLAWBACK direction.\",\n  \"concerns\": [\n    \"Recent accuracy has dropped significantly to 64.0% over the last 50 decisions.\",\n    \"18 non-critical errors have been recorded.\"\n  ],\n  \"verdict\": \"CONCUR\",\n  \"confidence\": 0.95\n}",
+  "schema_version": "1"
+}

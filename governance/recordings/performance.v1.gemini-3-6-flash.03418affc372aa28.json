@@ -1,0 +1,12 @@
+{
+  "agent_name": "performance",
+  "cache_key": "performance.v1.gemini-3-6-flash.03418affc372aa28",
+  "evidence_hash": "03418affc372aa28",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "89b6aaee86d2963c",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:02:03+00:00",
+  "response_text": "{\"reasoning\":\"The trust engine proposes a HOLD at INR 500, which is fully supported by the evidence. While the agent has a point estimate accuracy of 100.0% (10 out of 10 decisions), the 95% Wilson confidence interval has a lower bound of 72.2%. This wide interval reflects substantial uncertainty from a small sample size of 10 decisions. The trust engine correctly identified INSUFFICIENT_SAMPLE and set eligible_for_increase to False. Concurring with the HOLD recommendation allows the agent to gather more decision history without prematurely increasing autonomy.\",\"concerns\":[\"Small sample size of 10 decisions leaves the 95% Wilson lower bound at 72.2%.\",\"Zero human agreement trials are available for evaluation.\"],\"verdict\":\"CONCUR\",\"confidence\":0.95}",
+  "schema_version": "1"
+}

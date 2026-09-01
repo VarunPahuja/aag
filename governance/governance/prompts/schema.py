@@ -64,7 +64,7 @@ class OpinionParseError(ValueError):
     """Raised when a model response cannot be turned into a valid opinion.
 
     Carries the raw text so a failure can be logged and inspected. In live mode this
-    is the trigger for falling back to cached (due 3 Sept) — a malformed response is
+    is the trigger for falling back to cached — a malformed response is
     an unavailable model, not a reason to guess at what it meant.
     """
 

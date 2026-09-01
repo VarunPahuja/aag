@@ -2,7 +2,7 @@
 
 Provider-neutral on purpose. Three providers raise three different SDK exception
 families, and the caller should not have to know which one it got — the distinction
-that matters is **retryable or not**, because live mode's fallback rule (due 3 Sept) is
+that matters is **retryable or not**, because live mode's fallback rule is
 written in those terms. A transport failure or a rate limit is worth retrying and then
 falling back to cached; an auth failure is a misconfiguration that retrying will never
 fix, and burning the retry budget on it only delays a clear error message.
@@ -96,4 +96,25 @@ class RecordingMissError(GovernanceLLMError):
 
     def __init__(self, message: str, cache_key: str) -> None:
         super().__init__(message)
+        self.cache_key = cache_key
+
+
+class RecordingStaleError(GovernanceLLMError):
+    """The recording was made from different prompt text than the one being replayed.
+
+    The cache key carries the prompt *version*, not its text, so editing a `.v1.md` file
+    without bumping to `v2` leaves the key pointing at a recording of the older wording.
+    Nothing about the replay looks wrong: right agent, right evidence, right model,
+    plausible reasoning — produced by a prompt that no longer exists in the repo.
+
+    Loud, and not retryable. Either bump the prompt version and re-record, or revert the
+    edit. Both are cheap; a demo whose reasoning came from text nobody can read is not.
+    """
+
+    retryable = False
+
+    def __init__(self, message: str, cache_key: str, *, expected: str, found: str) -> None:
+        super().__init__(message)
+        self.expected = expected
+        self.found = found
         self.cache_key = cache_key

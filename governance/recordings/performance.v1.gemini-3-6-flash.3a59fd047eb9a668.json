@@ -1,0 +1,12 @@
+{
+  "agent_name": "performance",
+  "cache_key": "performance.v1.gemini-3-6-flash.3a59fd047eb9a668",
+  "evidence_hash": "3a59fd047eb9a668",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "215a22938bc6914f",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:52:51+00:00",
+  "response_text": "{\"reasoning\":\"The proposed limit increase from INR 1000 to INR 2500 rests on 110 decisions with an observed accuracy of 83.6% (92 out of 110). However, the 95% Wilson confidence interval is [75.6%, 89.4%]. The lower bound of 75.6% shows significant statistical uncertainty, driven by 18 non-critical errors out of 110 decisions. While drift severity is NONE (recent accuracy of 84.0% over 50 decisions versus baseline accuracy of 83.3% over 60 decisions; underpowered: False) and critical errors stand at 0, the lower bound of 75.6% indicates true accuracy may be well below the point estimate. An increase proposal resting on a wide interval with a 75.6% lower bound cannot carry the requested expansion of autonomy. In addition, human agreement evidence is completely absent (0 trials).\",\"concerns\":[\"95% Wilson confidence lower bound is 75.6% despite an 83.6% point estimate over 110 decisions.\",\"18 non-critical errors observed out of 110 decisions.\",\"Zero human agreement evidence available (0 trials).\"],\"verdict\":\"OBJECT\",\"confidence\":0.85}",
+  "schema_version": "1"
+}

@@ -1,0 +1,12 @@
+{
+  "agent_name": "risk",
+  "cache_key": "risk.v1.gemini-3-6-flash.1a421c5f18b4690b",
+  "evidence_hash": "1a421c5f18b4690b",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "8fa62f891eba2652",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T19:07:45+00:00",
+  "response_text": "{\"reasoning\":\"The proposal is a CLAWBACK, reducing the autonomous spending limit from INR 2500 to INR 1000. Lowering the threshold reduces the maximum exposure per error by a factor of 2.5 (from INR 2500 down to INR 1000). Because a reduction in autonomy strictly decreases financial blast radius and risk exposure across all future 140+ decisions, there is no risk argument against this action.\",\"concerns\":[],\"verdict\":\"CONCUR\",\"confidence\":1.0}",
+  "schema_version": "1"
+}
