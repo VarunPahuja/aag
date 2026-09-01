@@ -1,0 +1,12 @@
+{
+  "agent_name": "risk",
+  "cache_key": "risk.v1.gemini-3-6-flash.03418affc372aa28",
+  "evidence_hash": "03418affc372aa28",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "d7b7325f7ee72471",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:01:11+00:00",
+  "response_text": "{\"reasoning\":\"The trust engine proposes a HOLD direction, maintaining the current limit at INR 500 (rung 0 of 4). Because the limit is not changing, the maximum potential risk exposure per decision remains capped at INR 500. The agent has 0 critical errors across 10 total decisions. As a HOLD proposal does not change risk exposure and the current exposure level is not alarming, this evaluation does not engage the Risk agent's focus on blast radius changes.\",\"concerns\":[],\"verdict\":\"ABSTAIN\",\"confidence\":0.95}",
+  "schema_version": "1"
+}

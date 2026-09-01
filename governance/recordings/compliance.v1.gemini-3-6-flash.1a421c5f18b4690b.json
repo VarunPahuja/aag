@@ -1,0 +1,12 @@
+{
+  "agent_name": "compliance",
+  "cache_key": "compliance.v1.gemini-3-6-flash.1a421c5f18b4690b",
+  "evidence_hash": "1a421c5f18b4690b",
+  "model": "gemini-3.6-flash",
+  "prompt_sha": "1499debb97286e12",
+  "prompt_version": "v1",
+  "provider": "gemini",
+  "recorded_at": "2026-08-30T13:59:38+00:00",
+  "response_text": "{\"reasoning\":\"I evaluated the proposal against all governance constraints. Current limit INR 2500 (rung 2) and proposed limit INR 1000 (rung 1) accurately map to the defined ladder (INR 500, INR 1000, INR 2500, INR 5000, INR 10000). The proposed direction is CLAWBACK triggered by reason code CLAWBACK_DRIFT. The agent state is active, and eligible_for_increase is False, which is consistent with a non-increase proposal. No procedural or governance rules are violated.\",\"concerns\":[],\"verdict\":\"CONCUR\",\"confidence\":1.0}",
+  "schema_version": "1"
+}

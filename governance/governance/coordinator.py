@@ -29,8 +29,8 @@ from shared.contracts import AgentOpinion, Recommendation, TrustEvaluation
 from shared.enums import Direction, OpinionVerdict, RecommendationStatus
 
 from governance.agents import AGENT_MODULES, AGENT_NAMES
-from governance.agents.llm_backed import opine_via_model
-from governance.modes import CACHED, resolve_mode
+from governance.agents.llm_backed import opine_with_provenance
+from governance.modes import CACHED, LIVE, resolve_mode
 from governance.state import GovernanceState
 
 
@@ -51,11 +51,13 @@ def _agent_node(agent_name: str):
 
     def node(state: GovernanceState) -> dict:
         mode = state["mode"]
-        if mode == CACHED:
-            opinion = opine_via_model(agent_name, state["evaluation"], mode)
-        else:
-            opinion = module.opine(state["evaluation"], mode)
-        return {"opinions": [opinion]}
+        if mode in (CACHED, LIVE):
+            result = opine_with_provenance(agent_name, state["evaluation"], mode)
+            return {
+                "opinions": [result.opinion],
+                "fell_back": [agent_name] if result.fell_back else [],
+            }
+        return {"opinions": [module.opine(state["evaluation"], mode)], "fell_back": []}
 
     node.__name__ = f"{agent_name}_node"
     return node
@@ -103,17 +105,24 @@ def _aggregate(state: GovernanceState) -> dict:
 
     confidence = sum(o.confidence for o in opinions) / len(opinions) if opinions else 0.0
 
+    # Say which mode actually answered, not which one was asked for. If any agent's live
+    # call failed and its recording served instead, this recommendation is not `live` and
+    # must not claim to be — a recording is a real response to the same evidence, but it
+    # was made earlier, and a reviewer deciding whether to trust this deserves to know.
+    fell_back = tuple(n for n in AGENT_NAMES if n in set(state.get("fell_back", [])))
+    effective_mode = f"{state['mode']}+{CACHED}" if fell_back else state["mode"]
+
     recommendation = Recommendation(
         recommendation_id=uuid.uuid4().hex,
         agent_id=evaluation.agent_id,
         direction=direction,
         proposed_limit=proposed_limit,
         proposed_rung=rung_of(proposed_limit),
-        rationale=_rationale(evaluation, opinions, dissenters, direction),
+        rationale=_rationale(evaluation, opinions, dissenters, direction, fell_back),
         opinions=opinions,
         has_dissent=has_dissent,
         confidence=round(confidence, 4),
-        governance_mode=state["mode"],
+        governance_mode=effective_mode,
         # PENDING, always. Governance cannot approve its own recommendation; an increase
         # needs a human (ADR-0004). Nothing in this lane may set APPROVED.
         status=RecommendationStatus.PENDING,
@@ -131,6 +140,7 @@ def _rationale(
     opinions: tuple[AgentOpinion, ...],
     dissenters: tuple[AgentOpinion, ...],
     direction: Direction,
+    fell_back: tuple[str, ...] = (),
 ) -> str:
     """One paragraph a human reviewer reads before deciding.
 
@@ -160,6 +170,16 @@ def _rationale(
             parts.append(f"[{o.agent_name}] {o.reasoning}")
     else:
         parts.append("No agent objected.")
+
+    if fell_back:
+        # In the rationale, not only in `governance_mode`, because this is the line a
+        # reviewer reads. A live run that quietly served recordings would look
+        # identical to one that did not.
+        names = ", ".join(fell_back)
+        parts.append(
+            f"Live call failed for {names}; served from recorded responses to the same "
+            f"evidence."
+        )
 
     if direction is not Direction.CLAWBACK:
         parts.append("Requires human authorization before any limit changes.")
@@ -209,6 +229,7 @@ def recommend(
             "evaluation": evaluation,
             "mode": resolved,
             "opinions": [],
+            "fell_back": [],
             "trust_evaluation_ref": trust_evaluation_ref,
         }
     )

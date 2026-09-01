@@ -42,10 +42,16 @@ from governance.prompts.schema import gemini_response_schema
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 
-# 2.5 Flash: the cheapest model that follows a response schema reliably. Free tier only
+# Flash: the cheapest model that follows a response schema reliably. Free tier only
 # (docs/lanes/vc.md forbids a paid API), and free-tier quotas were cut sharply in Dec
 # 2025 — verify against your own key rather than trusting a published number.
-DEFAULT_MODEL = "gemini-2.5-flash"
+#
+# 3.6, not 2.5: as of 30 Aug 2026 the API answers a 2.5-flash request with a 404 reading
+# "no longer available to new users". A retired default is a 404 on every call, so this
+# is checked by a live probe, not by a test — nothing in CI touches the network. If this
+# 404s again, run one call by hand before a recording run and read the model the error
+# names; the retirement notice is the only place that number is published.
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 PROVIDER = "gemini"
 
@@ -135,7 +141,13 @@ class GeminiClient:
             },
         }
 
-    def generate(self, prompt: Prompt, *, client: httpx.Client | None = None) -> str:
+    def generate(
+        self,
+        prompt: Prompt,
+        *,
+        client: httpx.Client | None = None,
+        timeout_s: float | None = None,
+    ) -> str:
         """Send one prompt, return the model's raw text.
 
         Paces itself first, so callers cannot accidentally burst. Raises a
@@ -159,14 +171,17 @@ class GeminiClient:
             "content-type": "application/json",
         }
 
+        # Per call, not per client. Live mode needs a far shorter deadline than a
+        # recording run, and giving it a client of its own would give it a `Pacer` of its
+        # own — two pacers on one provider send at twice the rate the key allows.
+        deadline = self.config.timeout_s if timeout_s is None else timeout_s
+
         owns_client = client is None
-        http = client or httpx.Client(timeout=self.config.timeout_s)
+        http = client or httpx.Client(timeout=deadline)
         try:
             response = http.post(self.config.endpoint, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
-            raise LLMTransportError(
-                f"Gemini call timed out after {self.config.timeout_s}s: {exc}"
-            ) from exc
+            raise LLMTransportError(f"Gemini call timed out after {deadline}s: {exc}") from exc
         except httpx.HTTPError as exc:
             raise LLMTransportError(f"Gemini call failed to complete: {exc}") from exc
         finally:
