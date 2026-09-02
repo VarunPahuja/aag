@@ -15,6 +15,7 @@ import type {
   Recommendation,
   TrustEvaluation,
   AuditSample,
+  AuditLogEntry,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -294,4 +295,91 @@ export const MOCK_AUDIT_SAMPLES: AuditSample[] = [
   { sample_id: "smp-001", decision_id: "d1", agent_id: "gemini-agent-001", sampled_at: "2026-08-13T09:01:00Z", reviewed_at: "2026-08-13T10:00:00Z", reviewer: "reviewer@company.com", verdict: "AGREED", reviewer_action: "APPROVE", is_reviewed: true, is_pending: false },
   { sample_id: "smp-002", decision_id: "d3", agent_id: "gemini-agent-001", sampled_at: "2026-08-13T09:11:00Z", reviewed_at: null, reviewer: null, verdict: null, reviewer_action: null, is_reviewed: false, is_pending: true },
   { sample_id: "smp-003", decision_id: "d5", agent_id: "gemini-agent-001", sampled_at: "2026-08-13T09:21:00Z", reviewed_at: null, reviewer: null, verdict: null, reviewer_action: null, is_reviewed: false, is_pending: true },
+];
+
+// ---------------------------------------------------------------------------
+// Audit log (hash-chained immutable governance record)
+// ---------------------------------------------------------------------------
+
+export const MOCK_AUDIT_LOG: AuditLogEntry[] = [
+  {
+    id: "al-001", ts: "2026-08-01T09:00:00Z",
+    actor: "system", actor_type: "system", event_type: "agent_registered",
+    entity_type: "agent", entity_id: "gemini-agent-001",
+    payload: { name: "GeminiAgent (gemini-2.5-flash)", initial_limit: 500, initial_rung: 0 },
+    prev_hash: "0000000000000000000000000000000000000000000000000000000000000000",
+    hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  },
+  {
+    id: "al-002", ts: "2026-08-01T10:00:00Z",
+    actor: "gemini-agent-001", actor_type: "agent", event_type: "decision_recorded",
+    entity_type: "decision", entity_id: "d-batch-001",
+    payload: { action: "APPROVE", amount: 450, invoice_id: "inv-001" },
+    prev_hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    hash: "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+  },
+  {
+    id: "al-003", ts: "2026-08-02T10:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "trust_evaluated",
+    entity_type: "trust_evaluation", entity_id: "eval-001",
+    payload: { trust_score: 68.5, direction: "HOLD", current_rung: 0, current_limit: 500 },
+    prev_hash: "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+    hash: "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+  },
+  {
+    id: "al-004", ts: "2026-08-03T18:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "autonomy_changed",
+    entity_type: "policy_version", entity_id: "pv-002",
+    payload: { direction: "INCREASE", from_rung: 0, to_rung: 1, from_limit: 500, to_limit: 1000, reason: "EVIDENCE_SUFFICIENT" },
+    prev_hash: "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    hash: "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
+  },
+  {
+    id: "al-005", ts: "2026-08-06T10:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "drift_detected",
+    entity_type: "agent", entity_id: "gemini-agent-001",
+    payload: { severity: "CONFIRMED", recent_accuracy: 0.82, baseline_accuracy: 0.93, drop_pp: 11 },
+    prev_hash: "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
+    hash: "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+  },
+  {
+    id: "al-006", ts: "2026-08-07T18:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "autonomy_changed",
+    entity_type: "policy_version", entity_id: "pv-003",
+    payload: { direction: "CLAWBACK", from_rung: 1, to_rung: 0, from_limit: 1000, to_limit: 500, reason: "CLAWBACK_DRIFT" },
+    prev_hash: "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+    hash: "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+  },
+  {
+    id: "al-007", ts: "2026-08-08T10:00:00Z",
+    actor: "governance", actor_type: "system", event_type: "recommendation_created",
+    entity_type: "recommendation", entity_id: "rec-002",
+    payload: { direction: "INCREASE", proposed_limit: 2500, proposed_rung: 2, has_dissent: false },
+    prev_hash: "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+    hash: "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8",
+  },
+  {
+    id: "al-008", ts: "2026-08-10T18:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "trust_evaluated",
+    entity_type: "trust_evaluation", entity_id: "eval-045",
+    payload: { trust_score: 72.4, direction: "HOLD", current_rung: 0, current_limit: 500, reason_codes: ["COOLDOWN_ACTIVE"] },
+    prev_hash: "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8",
+    hash: "b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9",
+  },
+  {
+    id: "al-009", ts: "2026-08-12T14:00:00Z",
+    actor: "reviewer@company.com", actor_type: "human", event_type: "sample_reviewed",
+    entity_type: "audit_sample", entity_id: "smp-001",
+    payload: { decision_id: "d1", verdict: "AGREED", reviewer_action: "APPROVE" },
+    prev_hash: "b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9",
+    hash: "c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0",
+  },
+  {
+    id: "al-010", ts: "2026-08-13T10:00:00Z",
+    actor: "trust-engine", actor_type: "system", event_type: "trust_evaluated",
+    entity_type: "trust_evaluation", entity_id: "eval-060",
+    payload: { trust_score: 72.4, direction: "HOLD", current_rung: 1, current_limit: 1000, reason_codes: ["COOLDOWN_ACTIVE"] },
+    prev_hash: "c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0",
+    hash: "d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1",
+  },
 ];

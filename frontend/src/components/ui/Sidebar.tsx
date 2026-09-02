@@ -7,6 +7,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { recommendationsApi } from "@/lib/api-client";
 import {
   IconAgents,
   IconApprovals,
@@ -23,7 +25,14 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const pendingApprovalsCount = 4;
+
+  const { data: pendingRecommendations } = useQuery({
+    queryKey: ["recommendations", "PENDING"],
+    queryFn: () => recommendationsApi.list("PENDING"),
+    refetchInterval: 10_000,
+  });
+
+  const pendingApprovalsCount = pendingRecommendations?.length ?? 0;
 
   return (
     <aside className="w-[240px] min-h-screen bg-white border-r border-[#E2E8F0] flex flex-col justify-between flex-shrink-0 font-sans">

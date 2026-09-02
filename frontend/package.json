@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:api": "npx openapi-typescript ../backend/openapi.json -o src/types/generated.ts",
+    "gen:msw": "echo 'MSW handler generation: not yet implemented'"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.0",
@@ -24,6 +26,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

@@ -10,8 +10,8 @@ WHY A PROTOCOL (not ABC):
   third-party agent behind the interface without modifying it.
 
 INTERFACE CONTRACT:
-  decide(invoice: Invoice) → AgentDecisionRecord
-    • Must return a fully populated AgentDecisionRecord
+  decide(invoice: Invoice) → AgentOutcome
+    • Must return a fully populated AgentOutcome
     • May call an LLM, use rules, or replay a fixture — doesn't matter
     • Must be callable from a single thread (no async for simplicity)
     • The runner catches all exceptions and records them as errors

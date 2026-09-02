@@ -13,6 +13,7 @@ import {
   MOCK_RECOMMENDATIONS,
   MOCK_TRUST_EVALUATION,
   MOCK_AUDIT_SAMPLES,
+  MOCK_AUDIT_LOG,
 } from "./data";
 
 const API = "http://localhost:8000/api/v1";
@@ -92,7 +93,7 @@ export const handlers = [
     return HttpResponse.json(updated);
   }),
 
-  // ── Audit ────────────────────────────────────────────────────────────────
+  // ── Audit (decision records) ──────────────────────────────────────────────
   http.get(`${API}/audit`, ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get("page") ?? 1);
@@ -100,6 +101,19 @@ export const handlers = [
     return HttpResponse.json({
       items: MOCK_DECISIONS.slice((page - 1) * size, page * size),
       total: MOCK_DECISIONS.length,
+      page,
+      page_size: size,
+    });
+  }),
+
+  // ── Audit log (hash-chained) ────────────────────────────────────────────
+  http.get(`${API}/audit-log`, ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get("page") ?? 1);
+    const size = Number(url.searchParams.get("page_size") ?? 50);
+    return HttpResponse.json({
+      items: MOCK_AUDIT_LOG.slice((page - 1) * size, page * size),
+      total: MOCK_AUDIT_LOG.length,
       page,
       page_size: size,
     });

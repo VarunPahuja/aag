@@ -285,6 +285,25 @@ export interface AuditSample {
   is_pending: boolean;
 }
 
+// --- audit log (hash-chained) ---
+
+/**
+ * One hash-chained audit log row. `prev_hash`/`hash` make tampering detectable —
+ * sha256(prev_hash + canonical_json(payload)). Read-only.
+ */
+export interface AuditLogEntry {
+  id: string;
+  ts: string; // ISO datetime
+  actor: string;
+  actor_type: string;
+  event_type: string;
+  entity_type: string;
+  entity_id: string;
+  payload: Record<string, unknown>;
+  prev_hash: string;
+  hash: string;
+}
+
 // ===========================================================================
 // API-specific shapes (response envelopes, agent summary, autonomy events)
 // ===========================================================================

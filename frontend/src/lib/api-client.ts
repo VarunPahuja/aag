@@ -16,6 +16,7 @@ import type {
   TrustEvaluation,
   Recommendation,
   AuditSample,
+  AuditLogEntry,
   PaginatedResponse,
 } from "@/types/api";
 
@@ -108,7 +109,7 @@ export const recommendationsApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Audit trail
+// Audit trail (decision records)
 // ---------------------------------------------------------------------------
 
 export const auditApi = {
@@ -128,6 +129,26 @@ export const auditApi = {
       )
     ).toString();
     return apiFetch(`/audit${qs ? `?${qs}` : ""}`);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Audit log (hash-chained immutable entries)
+// ---------------------------------------------------------------------------
+
+export const auditLogApi = {
+  list: (params?: {
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<AuditLogEntry>> => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(params ?? {})
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
+    return apiFetch(`/audit-log${qs ? `?${qs}` : ""}`);
   },
 };
 

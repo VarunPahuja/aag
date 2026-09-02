@@ -7,7 +7,6 @@
  */
 
 import type { DecisionRecord, Action } from "@/types/api";
-import { HUMAN_READABLE } from "@/types/api";
 
 const ACTION_STYLES: Record<Action, { text: string; bg: string; border: string }> = {
   APPROVE:  { text: "text-[#5f8914]", bg: "bg-[#86BC25]/10", border: "border-[#86BC25]/30" },
