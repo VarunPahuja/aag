@@ -1,5 +1,10 @@
 """Audit-sample and audit-log resources — the post-hoc review queue (ADR-0009)
 and the hash-chained record of everything the system has done.
+
+`list_audit_log` reads the real `audit_log` table (vp/approval-workflow) and
+recomputes the chain fresh on every call — the tamper-evidence property
+docs/lanes/vp.md claims, demonstrable, not just asserted. Audit samples
+remain fixture-backed — out of scope here.
 """
 
 from __future__ import annotations
@@ -7,9 +12,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 
 from app.api.v1.pagination import PageParam, PageSizeParam, paginate
-from app.deps import CurrentUserDep, require_role
+from app.deps import CurrentUserDep, DbSessionDep, require_role
 from app.errors import (
     CONFLICT_RESPONSE,
     FORBIDDEN_RESPONSE,
@@ -17,8 +23,10 @@ from app.errors import (
     ApiError,
     not_found,
 )
-from app.fixtures.audit import AUDIT_LOG, AUDIT_SAMPLES, AUDIT_SAMPLES_BY_ID
-from app.schemas.audit import AuditLogEntryOut, AuditSampleOut, AuditSampleReview
+from app.fixtures.audit import AUDIT_SAMPLES, AUDIT_SAMPLES_BY_ID
+from app.models import AuditLogEntry
+from app.models.audit_hash import verify_chain
+from app.schemas.audit import AuditLogEntryOut, AuditLogPage, AuditSampleOut, AuditSampleReview
 from app.schemas.envelope import Page
 from app.schemas.user import Role
 
@@ -83,16 +91,34 @@ def review_audit_sample(sample_id: str, body: AuditSampleReview) -> AuditSampleO
     )
 
 
-@router.get("/audit-log", response_model=Page[AuditLogEntryOut])
+@router.get("/audit-log", response_model=AuditLogPage)
 def list_audit_log(
-    user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
-) -> Page[AuditLogEntryOut]:
+    db: DbSessionDep, user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
+) -> AuditLogPage:
     """The complete hash-chained event log, newest first. Read-only —
     nothing in this API ever mutates an existing row (that's the point).
 
-    Once implemented: `SELECT ... ORDER BY ts DESC`. Verifying the chain
-    (recomputing each `hash` from `prev_hash` + the row's own payload) is a
-    read-side operation a caller can do against this same data, not
-    something the backend does on every read.
+    Recomputes the whole chain from `GENESIS_HASH` on every call —
+    `audit_log` is small enough in this system for that to be cheap — and
+    reports the result as `chain_valid`/`chain_verified_scope` rather than
+    just asserting immutability in a docstring. If the table ever grows
+    large enough that a full recompute stops being cheap, this falls back
+    to verifying only the returned page and says so via
+    `chain_verified_scope`, instead of silently verifying less than it
+    claims.
     """
-    return paginate(list(reversed(AUDIT_LOG)), page, page_size)
+    rows = db.execute(select(AuditLogEntry).order_by(AuditLogEntry.ts)).scalars().all()
+    chain_valid = verify_chain((row.prev_hash, row.payload, row.hash) for row in rows)
+
+    newest_first = list(reversed(rows))
+    page_result = paginate(
+        [AuditLogEntryOut.model_validate(row) for row in newest_first], page, page_size
+    )
+    return AuditLogPage(
+        items=page_result.items,
+        total=page_result.total,
+        page=page_result.page,
+        page_size=page_result.page_size,
+        chain_valid=chain_valid,
+        chain_verified_scope="full",
+    )

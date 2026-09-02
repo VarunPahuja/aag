@@ -1,10 +1,9 @@
 """Agent resource — identity, current standing, policy history, trust
 evidence, and the governance recommendations generated from it.
 
-`list_agents`/`get_agent`/`trust`/`trust/history`/`recommendations` read and
-write the real tables (docs/lanes/vp.md; decision-ingest, then
-vp/trust-governance-wiring). Only `policy-versions` remains fixture-backed —
-out of scope here.
+Every route here reads or writes the real tables (docs/lanes/vp.md;
+decision-ingest, then vp/trust-governance-wiring, then vp/approval-workflow
+for `policy-versions`, the last fixture-backed route on this router).
 """
 
 from __future__ import annotations
@@ -18,9 +17,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.pagination import PageParam, PageSizeParam, paginate
 from app.deps import CurrentUserDep, DbSessionDep
 from app.errors import NOT_FOUND_RESPONSE, SERVICE_UNAVAILABLE_RESPONSE, not_found
-from app.fixtures.agents import AGENTS
-from app.fixtures.policy_versions import POLICY_VERSIONS
-from app.models import Agent
+from app.models import Agent, PolicyVersion
 from app.models import TrustEvaluation as TrustEvaluationRow
 from app.schemas.agent import AgentOut, PolicyVersionOut
 from app.schemas.envelope import Page
@@ -30,15 +27,6 @@ from app.services.governance import generate_recommendation
 from app.services.trust import agent_context, compute_and_persist_trust_evaluation
 
 router = APIRouter(prefix="/agents", tags=["agents"])
-
-
-def _get_agent_or_404(agent_id: str) -> AgentOut:
-    """Still fixture-backed — only `list_policy_versions` below uses this;
-    every other route has its own DB-backed lookup."""
-    agent = AGENTS.get(agent_id)
-    if agent is None:
-        raise not_found("agent_not_found", f"No agent {agent_id!r}.", {"agent_id": agent_id})
-    return agent
 
 
 def _get_agent_row_or_404(db: Session, agent_id: str) -> Agent:
@@ -78,17 +66,29 @@ def get_agent(agent_id: str, user: CurrentUserDep, db: DbSessionDep) -> AgentOut
     "/{agent_id}/policy-versions", response_model=Page[PolicyVersionOut], responses=NOT_FOUND_RESPONSE
 )
 def list_policy_versions(
-    agent_id: str, user: CurrentUserDep, page: PageParam = 1, page_size: PageSizeParam = 20
+    agent_id: str,
+    user: CurrentUserDep,
+    db: DbSessionDep,
+    page: PageParam = 1,
+    page_size: PageSizeParam = 20,
 ) -> Page[PolicyVersionOut]:
     """The agent's append-only limit history, newest first.
 
-    Once implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY
-    effective_from DESC`. `previous_version_id` always chains to a row
-    that exists, except the very first version for an agent.
+    `previous_version_id` always chains to a row that exists, except the
+    very first version for an agent.
     """
-    _get_agent_or_404(agent_id)
-    versions = list(reversed(POLICY_VERSIONS.get(agent_id, [])))
-    return paginate(versions, page, page_size)
+    _get_agent_row_or_404(db, agent_id)
+    rows = (
+        db.execute(
+            select(PolicyVersion)
+            .where(PolicyVersion.agent_id == agent_id)
+            .order_by(PolicyVersion.effective_from.desc())
+        )
+        .scalars()
+        .all()
+    )
+    items = [PolicyVersionOut.model_validate(row) for row in rows]
+    return paginate(items, page, page_size)
 
 
 @router.get("/{agent_id}/trust", response_model=TrustEvaluationOut, responses=NOT_FOUND_RESPONSE)

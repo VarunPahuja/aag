@@ -190,6 +190,58 @@
         "title": "AuditLogEntryOut",
         "type": "object"
       },
+      "AuditLogPage": {
+        "description": "`GET /api/v1/audit-log`'s response: the usual pagination envelope,\nplus a chain-verification result computed fresh on every call \u2014 this is\nwhat makes tamper-evidence demonstrable on screen rather than claimed in\na docstring (docs/lanes/vp.md).\n\n`chain_verified_scope` says exactly what `chain_valid` covers: `\"full\"`\nwhen every row in `audit_log` was recomputed from `GENESIS_HASH`,\n`\"page\"` if the table ever grows large enough that a full recompute on\nevery request stops being cheap and this endpoint falls back to\nverifying only the returned page \u2014 never silently verifying less than\nit claims.",
+        "properties": {
+          "chain_valid": {
+            "title": "Chain Valid",
+            "type": "boolean"
+          },
+          "chain_verified_scope": {
+            "enum": [
+              "full",
+              "page"
+            ],
+            "title": "Chain Verified Scope",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogEntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "1-indexed page number",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Items per page, as requested",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching records, independent of page size",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "chain_valid",
+          "chain_verified_scope"
+        ],
+        "title": "AuditLogPage",
+        "type": "object"
+      },
       "AuditSampleOut": {
         "description": "Mirrors `shared.contracts.AuditSample` field-for-field.",
         "properties": {
@@ -636,43 +688,6 @@
           "page_size"
         ],
         "title": "Page[AgentOut]",
-        "type": "object"
-      },
-      "Page_AuditLogEntryOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AuditLogEntryOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "page": {
-            "description": "1-indexed page number",
-            "minimum": 1.0,
-            "title": "Page",
-            "type": "integer"
-          },
-          "page_size": {
-            "description": "Items per page, as requested",
-            "minimum": 1.0,
-            "title": "Page Size",
-            "type": "integer"
-          },
-          "total": {
-            "description": "Total matching records, independent of page size",
-            "minimum": 0.0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "Page[AuditLogEntryOut]",
         "type": "object"
       },
       "Page_AuditSampleOut_": {
@@ -1677,7 +1692,7 @@
     },
     "/api/v1/agents/{agent_id}/policy-versions": {
       "get": {
-        "description": "The agent's append-only limit history, newest first.\n\nOnce implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY\neffective_from DESC`. `previous_version_id` always chains to a row\nthat exists, except the very first version for an agent.",
+        "description": "The agent's append-only limit history, newest first.\n\n`previous_version_id` always chains to a row that exists, except the\nvery first version for an agent.",
         "operationId": "list_policy_versions_api_v1_agents__agent_id__policy_versions_get",
         "parameters": [
           {
@@ -2017,7 +2032,7 @@
     },
     "/api/v1/audit-log": {
       "get": {
-        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nOnce implemented: `SELECT ... ORDER BY ts DESC`. Verifying the chain\n(recomputing each `hash` from `prev_hash` + the row's own payload) is a\nread-side operation a caller can do against this same data, not\nsomething the backend does on every read.",
+        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nRecomputes the whole chain from `GENESIS_HASH` on every call \u2014\n`audit_log` is small enough in this system for that to be cheap \u2014 and\nreports the result as `chain_valid`/`chain_verified_scope` rather than\njust asserting immutability in a docstring. If the table ever grows\nlarge enough that a full recompute stops being cheap, this falls back\nto verifying only the returned page and says so via\n`chain_verified_scope`, instead of silently verifying less than it\nclaims.",
         "operationId": "list_audit_log_api_v1_audit_log_get",
         "parameters": [
           {
@@ -2069,7 +2084,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_AuditLogEntryOut_"
+                  "$ref": "#/components/schemas/AuditLogPage"
                 }
               }
             },
@@ -2642,7 +2657,7 @@
     },
     "/api/v1/recommendations/{rec_id}/approve": {
       "post": {
-        "description": "Authorize a pending INCREASE. ADMIN only.\n\nOnce implemented: writes an `approvals` row (`decided_by`, `verdict`,\n`reason`, `decided_at`), flips `Recommendation.status` to `APPROVED`,\nand \u2014 in the same transaction \u2014 writes the new `policy_versions` row\nthat actually changes `agents.current_limit`\n(docs/lanes/vp.md: \"Never update agents.current_limit without writing a\npolicy_versions row in the same transaction\"). This stub validates the\nrecommendation exists and is still `PENDING`, then returns a copy with\n`status=APPROVED` \u2014 it does not persist the change or write a policy\nversion.",
+        "description": "Authorize a pending recommendation. ADMIN only.\n\nWrites an `approvals` row (`decided_by`, `verdict=APPROVED`, `reason`,\n`decided_at`), flips `Recommendation.status` to `APPROVED`, and \u2014 in the\nsame transaction \u2014 writes the new `policy_versions` row that actually\nchanges `agents.current_limit`/`current_rung`\n(docs/lanes/vp.md: \"Never update agents.current_limit without writing a\npolicy_versions row in the same transaction\").",
         "operationId": "approve_recommendation_api_v1_recommendations__rec_id__approve_post",
         "parameters": [
           {
@@ -2741,7 +2756,7 @@
     },
     "/api/v1/recommendations/{rec_id}/reject": {
       "post": {
-        "description": "Reject a pending recommendation. ADMIN only, same as approve.\n\nOnce implemented: writes an `approvals` row with `verdict=REJECTED` and\nflips `Recommendation.status` to `REJECTED`. No policy version is\nwritten \u2014 the agent's limit does not change.",
+        "description": "Reject a pending recommendation. ADMIN only, same as approve.\n\nWrites an `approvals` row with `verdict=REJECTED` and flips\n`Recommendation.status` to `REJECTED`. No policy version is written \u2014\nthe agent's limit does not change.",
         "operationId": "reject_recommendation_api_v1_recommendations__rec_id__reject_post",
         "parameters": [
           {

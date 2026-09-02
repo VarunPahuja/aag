@@ -1,17 +1,21 @@
 """Recommendation resource — what governance proposed, and the human
 authorization step ADR-0004 requires before an increase takes effect.
 
-`list_recommendations`/`get_recommendation` read the real `recommendations`
-table (vp/trust-governance-wiring). `approve`/`reject` remain fixture-backed —
-wiring the human-authorization write path (an `approvals` row plus
-`apply_policy_version` in the same transaction) is separate, later work; see
-this branch's own report for why leaving that split is a real, visible gap
-rather than an oversight.
+Every route here reads or writes the real tables. `approve`/`reject` are the
+human-authorization write path: an `approvals` row, and — on approval only —
+a new `policy_versions` row via `apply_policy_version`, all in the one
+transaction `app.deps.get_session` commits or rolls back as a whole (the
+same pattern `app/api/v1/decisions.py`'s decision-ingest and
+`app/services/governance.py`'s recommendation generation already use).
 """
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends
+from shared.constants import rung_of
 from shared.enums import RecommendationStatus
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,11 +29,12 @@ from app.errors import (
     ApiError,
     not_found,
 )
-from app.fixtures.recommendations import RECOMMENDATIONS_BY_ID
+from app.models import Agent, Approval, apply_policy_version
 from app.models import Recommendation as RecommendationRow
+from app.models.audit_log import append_entry
 from app.schemas.envelope import Page
 from app.schemas.governance import RecommendationDecision, RecommendationOut
-from app.schemas.user import Role
+from app.schemas.user import CurrentUser, Role
 from app.services.governance import recommendation_out
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -48,26 +53,83 @@ def _get_recommendation_row_or_404(db: Session, rec_id: str) -> RecommendationRo
     return row
 
 
-def _get_recommendation_or_404(rec_id: str) -> RecommendationOut:
-    """Still fixture-backed — only `approve`/`reject` below use this."""
-    rec = RECOMMENDATIONS_BY_ID.get(rec_id)
-    if rec is None:
-        raise not_found(
-            "recommendation_not_found", f"No recommendation {rec_id!r}.", {"recommendation_id": rec_id}
-        )
-    return rec
+def _record_decision(
+    db: Session,
+    user: CurrentUser,
+    rec_id: str,
+    verdict: RecommendationStatus,
+    reason: str,
+) -> RecommendationOut:
+    """The one transaction behind both `approve` and `reject`: load the
+    recommendation, refuse to re-decide a resolved one, write the `approvals`
+    row, flip the recommendation's status, and — on `APPROVED` only — apply
+    the new policy version via `apply_policy_version` (the sanctioned path;
+    `app/models/guards.py` refuses any other way to move
+    `agents.current_limit`/`current_rung`). A single `audit_log` entry closes
+    every path, approve or reject.
 
-
-def _decide(rec_id: str, new_status: RecommendationStatus) -> RecommendationOut:
-    rec = _get_recommendation_or_404(rec_id)
-    if rec.status is not RecommendationStatus.PENDING:
+    `row.proposed_limit` is already the post-clamp value
+    (`app/services/governance.py:generate_recommendation` stores
+    `clamp_recommendation`'s `final_limit`, not governance's raw ask) — an
+    approval can only ever move an agent to what the evidence supported, not
+    what a panel proposed before the ceiling ran.
+    """
+    row = _get_recommendation_row_or_404(db, rec_id)
+    if row.status is not RecommendationStatus.PENDING:
         raise ApiError(
             status_code=409,
             code="recommendation_already_resolved",
-            message=f"Recommendation {rec_id!r} is already {rec.status.value}, not PENDING.",
-            detail={"recommendation_id": rec_id, "status": rec.status.value},
+            message=f"Recommendation {rec_id!r} is already {row.status.value}, not PENDING.",
+            detail={"recommendation_id": rec_id, "status": row.status.value},
         )
-    return rec.model_copy(update={"status": new_status})
+
+    decided_at = datetime.now(UTC)
+    db.add(
+        Approval(
+            id=f"appr-{uuid.uuid4().hex[:12]}",
+            recommendation_id=rec_id,
+            decided_by=user.user_id,
+            verdict=verdict,
+            reason=reason,
+            decided_at=decided_at,
+        )
+    )
+    row.status = verdict
+
+    policy_version_id: str | None = None
+    if verdict is RecommendationStatus.APPROVED:
+        agent = db.get(Agent, row.agent_id)
+        policy_version_id = f"pv-{uuid.uuid4().hex[:12]}"
+        apply_policy_version(
+            db,
+            agent,
+            id=policy_version_id,
+            limit=row.proposed_limit,
+            rung=rung_of(row.proposed_limit),
+            effective_from=decided_at,
+            created_by=user.user_id,
+            reason=reason,
+        )
+
+    append_entry(
+        db,
+        id=f"log-{uuid.uuid4().hex[:12]}",
+        ts=decided_at,
+        actor=user.user_id,
+        actor_type="user",
+        event_type="recommendation.approved" if policy_version_id else "recommendation.rejected",
+        entity_type="recommendation",
+        entity_id=rec_id,
+        payload={
+            "agent_id": row.agent_id,
+            "verdict": verdict.value,
+            "reason": reason,
+            "proposed_limit": row.proposed_limit,
+            "policy_version_id": policy_version_id,
+        },
+    )
+
+    return recommendation_out(row)
 
 
 @router.get("", response_model=Page[RecommendationOut])
@@ -98,20 +160,19 @@ _mutation_responses = {**NOT_FOUND_RESPONSE, **FORBIDDEN_RESPONSE, **CONFLICT_RE
     dependencies=[_admin_only],
     responses=_mutation_responses,
 )
-def approve_recommendation(rec_id: str, body: RecommendationDecision) -> RecommendationOut:
-    """Authorize a pending INCREASE. ADMIN only.
+def approve_recommendation(
+    rec_id: str, body: RecommendationDecision, user: CurrentUserDep, db: DbSessionDep
+) -> RecommendationOut:
+    """Authorize a pending recommendation. ADMIN only.
 
-    Once implemented: writes an `approvals` row (`decided_by`, `verdict`,
-    `reason`, `decided_at`), flips `Recommendation.status` to `APPROVED`,
-    and — in the same transaction — writes the new `policy_versions` row
-    that actually changes `agents.current_limit`
+    Writes an `approvals` row (`decided_by`, `verdict=APPROVED`, `reason`,
+    `decided_at`), flips `Recommendation.status` to `APPROVED`, and — in the
+    same transaction — writes the new `policy_versions` row that actually
+    changes `agents.current_limit`/`current_rung`
     (docs/lanes/vp.md: "Never update agents.current_limit without writing a
-    policy_versions row in the same transaction"). This stub validates the
-    recommendation exists and is still `PENDING`, then returns a copy with
-    `status=APPROVED` — it does not persist the change or write a policy
-    version.
+    policy_versions row in the same transaction").
     """
-    return _decide(rec_id, RecommendationStatus.APPROVED)
+    return _record_decision(db, user, rec_id, RecommendationStatus.APPROVED, body.reason)
 
 
 @router.post(
@@ -120,11 +181,13 @@ def approve_recommendation(rec_id: str, body: RecommendationDecision) -> Recomme
     dependencies=[_admin_only],
     responses=_mutation_responses,
 )
-def reject_recommendation(rec_id: str, body: RecommendationDecision) -> RecommendationOut:
+def reject_recommendation(
+    rec_id: str, body: RecommendationDecision, user: CurrentUserDep, db: DbSessionDep
+) -> RecommendationOut:
     """Reject a pending recommendation. ADMIN only, same as approve.
 
-    Once implemented: writes an `approvals` row with `verdict=REJECTED` and
-    flips `Recommendation.status` to `REJECTED`. No policy version is
-    written — the agent's limit does not change.
+    Writes an `approvals` row with `verdict=REJECTED` and flips
+    `Recommendation.status` to `REJECTED`. No policy version is written —
+    the agent's limit does not change.
     """
-    return _decide(rec_id, RecommendationStatus.REJECTED)
+    return _record_decision(db, user, rec_id, RecommendationStatus.REJECTED, body.reason)

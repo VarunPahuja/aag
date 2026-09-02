@@ -14,7 +14,6 @@ import pytest
         "/api/v1/decisions",
         "/api/v1/recommendations",
         "/api/v1/audit-samples",
-        "/api/v1/audit-log",
     ],
 )
 def test_every_list_endpoint_uses_the_one_pagination_envelope(client, admin_headers, path):
@@ -22,6 +21,17 @@ def test_every_list_endpoint_uses_the_one_pagination_envelope(client, admin_head
     assert resp.status_code == 200
     body = resp.json()
     assert set(body.keys()) == {"items", "total", "page", "page_size"}
+    assert isinstance(body["items"], list)
+
+
+def test_audit_log_extends_the_envelope_with_chain_verification(client, admin_headers):
+    # The one deliberate exception to "one pagination envelope everywhere"
+    # (docs/lanes/vp.md): audit-log has to report whether the hash chain
+    # verifies, which is not a list-endpoint concern any other resource has.
+    resp = client.get("/api/v1/audit-log", headers=admin_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {"items", "total", "page", "page_size", "chain_valid", "chain_verified_scope"}
     assert isinstance(body["items"], list)
 
 

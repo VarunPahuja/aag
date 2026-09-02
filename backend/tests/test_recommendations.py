@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
+from shared.constants import limit_of, rung_of
 from shared.contracts import Recommendation
 from shared.enums import Direction, RecommendationStatus
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AuditLogEntry
+from app.api.v1.recommendations import _record_decision
+from app.models import Agent, Approval, AuditLogEntry, PolicyVersion
 from app.models import Recommendation as RecommendationRow
 from app.models import TrustEvaluation as TrustEvaluationRow
 from app.models.audit_hash import GENESIS_HASH, compute_hash
+from app.schemas.user import CurrentUser, Role
 from app.services.governance import generate_recommendation
+
+_ADMIN = CurrentUser(user_id="user-admin-01", email="admin@aagp.dev", role=Role.ADMIN)
 
 
 def test_list_recommendations(client, admin_headers):
@@ -98,6 +105,280 @@ def test_cannot_decide_an_already_resolved_recommendation(client, admin_headers)
     )
     assert resp.status_code == 409
     assert resp.json()["code"] == "recommendation_already_resolved"
+
+
+def test_cannot_reject_an_already_resolved_recommendation(client, admin_headers):
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent03-001/reject",
+        headers=admin_headers,
+        json={"reason": "trying anyway"},
+    )
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "recommendation_already_resolved"
+
+
+def test_reviewer_cannot_reject(client, reviewer_headers):
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/reject",
+        headers=reviewer_headers,
+        json={"reason": "trying anyway"},
+    )
+    assert resp.status_code == 403
+
+
+def test_auditor_cannot_reject(client, auditor_headers):
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/reject",
+        headers=auditor_headers,
+        json={"reason": "trying anyway"},
+    )
+    assert resp.status_code == 403
+
+
+def test_reject_recommendation_requires_reason(client, admin_headers):
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/reject", headers=admin_headers, json={}
+    )
+    assert resp.status_code == 422
+
+
+# --- the human-authorization write path: approvals + policy_versions ------------------
+
+
+def test_approve_creates_an_approval_row_and_moves_the_agent(client, admin_headers, db_engine):
+    with Session(db_engine) as session:
+        agent_before = session.get(Agent, "agent-01")
+        limit_before = agent_before.current_limit
+        rung_before = agent_before.current_rung
+        assert limit_before != limit_of(3)  # sanity: the approval has somewhere to move it to
+
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/approve",
+        headers=admin_headers,
+        json={"reason": "Evidence is solid, cooldown satisfied."},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "APPROVED"
+
+    with Session(db_engine) as session:
+        approval = (
+            session.query(Approval).filter_by(recommendation_id="rec-agent01-001").one()
+        )
+        assert approval.decided_by == "user-admin-01"
+        assert approval.verdict == RecommendationStatus.APPROVED
+        assert approval.reason == "Evidence is solid, cooldown satisfied."
+
+        agent_after = session.get(Agent, "agent-01")
+        # rec-agent01-001's proposed_limit (seed.py) is limit_of(3), already
+        # the post-clamp value — the agent lands exactly there.
+        assert agent_after.current_limit == limit_of(3)
+        assert agent_after.current_rung == rung_of(limit_of(3))
+        assert agent_after.current_limit != limit_before
+        assert agent_after.current_rung != rung_before
+
+
+def test_approve_writes_a_policy_version_chained_to_the_prior_one(client, admin_headers, db_engine):
+    with Session(db_engine) as session:
+        prior = (
+            session.query(PolicyVersion)
+            .filter_by(agent_id="agent-01")
+            .order_by(PolicyVersion.effective_from.desc())
+            .first()
+        )
+        prior_id = prior.id
+
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/approve",
+        headers=admin_headers,
+        json={"reason": "Evidence is solid, cooldown satisfied."},
+    )
+    assert resp.status_code == 200
+
+    with Session(db_engine) as session:
+        newest = (
+            session.query(PolicyVersion)
+            .filter_by(agent_id="agent-01")
+            .order_by(PolicyVersion.effective_from.desc())
+            .first()
+        )
+        assert newest.id != prior_id
+        assert newest.previous_version_id == prior_id
+        assert newest.limit == limit_of(3)
+        assert newest.rung == rung_of(limit_of(3))
+        assert newest.created_by == "user-admin-01"
+
+
+def test_reject_creates_an_approval_and_changes_nothing_else(client, admin_headers, db_engine):
+    with Session(db_engine) as session:
+        agent_before = session.get(Agent, "agent-01")
+        limit_before = agent_before.current_limit
+        rung_before = agent_before.current_rung
+        versions_before = session.query(PolicyVersion).filter_by(agent_id="agent-01").count()
+
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/reject",
+        headers=admin_headers,
+        json={"reason": "Not this time."},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "REJECTED"
+
+    with Session(db_engine) as session:
+        approval = (
+            session.query(Approval).filter_by(recommendation_id="rec-agent01-001").one()
+        )
+        assert approval.verdict == RecommendationStatus.REJECTED
+        assert approval.reason == "Not this time."
+
+        agent_after = session.get(Agent, "agent-01")
+        assert agent_after.current_limit == limit_before
+        assert agent_after.current_rung == rung_before
+        versions_after = session.query(PolicyVersion).filter_by(agent_id="agent-01").count()
+        assert versions_after == versions_before
+
+
+def test_approve_and_reject_each_append_exactly_one_audit_entry_and_the_chain_verifies(
+    client, admin_headers, db_engine
+):
+    with Session(db_engine) as session:
+        before = session.query(AuditLogEntry).count()
+
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent01-001/approve",
+        headers=admin_headers,
+        json={"reason": "Evidence is solid."},
+    )
+    assert resp.status_code == 200
+
+    with Session(db_engine) as session:
+        after_approve = session.query(AuditLogEntry).count()
+        assert after_approve - before == 1
+        approved_entry = (
+            session.query(AuditLogEntry).filter_by(event_type="recommendation.approved").one()
+        )
+        assert approved_entry.entity_id == "rec-agent01-001"
+
+    resp = client.post(
+        "/api/v1/recommendations/rec-agent03-001/reject",
+        headers=admin_headers,
+        json={"reason": "trying anyway"},
+    )
+    # rec-agent03-001 is already resolved — this is a 409, so it must NOT
+    # append an audit entry; only the approve above should have.
+    assert resp.status_code == 409
+
+    with Session(db_engine) as session:
+        after_reject_attempt = session.query(AuditLogEntry).count()
+        assert after_reject_attempt == after_approve
+
+        entries = session.query(AuditLogEntry).order_by(AuditLogEntry.ts).all()
+        prev_hash = GENESIS_HASH
+        for entry in entries:
+            assert entry.prev_hash == prev_hash
+            assert entry.hash == compute_hash(prev_hash, entry.payload)
+            prev_hash = entry.hash
+
+
+def test_approve_lands_on_the_clamped_value_not_what_governance_proposed(
+    client, admin_headers, db_engine, monkeypatch
+):
+    """Same rigging as the generation-side clamp test: forces a fresh
+    PENDING recommendation whose stored `proposed_limit` is already the
+    post-clamp value, then proves approval moves the agent there — never to
+    whatever governance originally asked for."""
+
+    def _rigged_recommend(evaluation, mode=None, trust_evaluation_ref=None):
+        return Recommendation(
+            recommendation_id="rigged",
+            agent_id=evaluation.agent_id,
+            direction=Direction.INCREASE,
+            proposed_limit=999_999,
+            proposed_rung=4,
+            rationale="rigged for the clamp test",
+            opinions=(),
+            has_dissent=False,
+            confidence=1.0,
+            governance_mode="stub",
+            status=RecommendationStatus.PENDING,
+            trust_evaluation_ref=trust_evaluation_ref,
+            generated_at=None,
+            clamped=False,
+            clamped_from=None,
+        )
+
+    monkeypatch.setattr("app.services.governance.recommend", _rigged_recommend)
+
+    gen_resp = client.post("/api/v1/agents/agent-01/recommendations", headers=admin_headers)
+    assert gen_resp.status_code == 201
+    rec = gen_resp.json()
+    assert rec["clamped"] is True
+    assert rec["proposed_limit"] < 999_999
+
+    approve_resp = client.post(
+        f"/api/v1/recommendations/{rec['recommendation_id']}/approve",
+        headers=admin_headers,
+        json={"reason": "Evidence supports this, not the rigged ask."},
+    )
+    assert approve_resp.status_code == 200
+
+    with Session(db_engine) as session:
+        agent = session.get(Agent, "agent-01")
+        assert agent.current_limit == rec["proposed_limit"]
+        assert agent.current_limit != 999_999
+
+
+def test_approve_mid_transaction_failure_rolls_back_everything(db_engine):
+    """Same pattern as the generation-side rollback test: force a second,
+    colliding write into the same, still-uncommitted transaction
+    `_record_decision` built, and prove the whole thing — approval, policy
+    version, agent limit/rung, audit entry — rolls back together, not just
+    the piece that collided."""
+    with Session(db_engine) as session:
+        before_approvals = session.query(Approval).count()
+        before_versions = session.query(PolicyVersion).count()
+        before_audit = session.query(AuditLogEntry).count()
+        agent_before = session.get(Agent, "agent-01")
+        limit_before = agent_before.current_limit
+        rung_before = agent_before.current_rung
+
+        _record_decision(
+            session, _ADMIN, "rec-agent01-001", RecommendationStatus.APPROVED, "test"
+        )
+
+        # A second, colliding row (duplicate primary key, matching the same
+        # forced-collision pattern test_recommendation_generation_mid_transaction_failure_rolls_back_everything
+        # uses) — forces the whole not-yet-committed transaction, including
+        # everything _record_decision just added, to fail on commit.
+        session.add(
+            RecommendationRow(
+                id="rec-agent03-001",  # already exists (seed.py) — PK collision
+                agent_id="agent-01",
+                trust_evaluation_id="trust-eval-agent01-002",
+                direction=Direction.INCREASE,
+                proposed_limit=limit_of(3),
+                rationale="forced collision",
+                agent_opinions=[],
+                status=RecommendationStatus.PENDING,
+                governance_mode="stub",
+                clamped=False,
+                clamped_from=None,
+                generated_at=datetime.now(UTC),
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
+    with Session(db_engine) as verify:
+        assert verify.query(Approval).count() == before_approvals
+        assert verify.query(PolicyVersion).count() == before_versions
+        assert verify.query(AuditLogEntry).count() == before_audit
+        agent_after = verify.get(Agent, "agent-01")
+        assert agent_after.current_limit == limit_before
+        assert agent_after.current_rung == rung_before
+        rec = verify.get(RecommendationRow, "rec-agent01-001")
+        assert rec.status == RecommendationStatus.PENDING
 
 
 # --- generation: POST /agents/{agent_id}/recommendations --------------------------------
