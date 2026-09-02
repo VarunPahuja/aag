@@ -211,6 +211,7 @@ tr.us td:first-child{font-weight:600}
   <a href="#top" class="on">Overview</a>
   <a href="#problem">The problem today</a>
   <a href="#loop">How it works</a>
+  <a href="#path-running">The path, running</a>
   <a href="#layers">Layers &amp; team</a>
   <a href="#wilson">The evidence model</a>
   <a href="#landscape">Landscape research</a>
@@ -241,7 +242,7 @@ tr.us td:first-child{font-weight:600}
   <div class="meta">
     <div><div class="k">Team</div><div class="v">4 · CheatCodes</div></div>
     <div><div class="k">Submission</div><div class="v">15 September 2026</div></div>
-    <div><div class="k">Tests passing</div><div class="v">338</div></div>
+    <div><div class="k">Tests passing</div><div class="v">654</div></div>
     <div><div class="k">Cost to build</div><div class="v">₹0 · fully OSS</div></div>
   </div>
 </section>
@@ -300,6 +301,24 @@ tr.us td:first-child{font-weight:600}
   <p><strong>Two return paths, deliberately asymmetric.</strong> The slow path on the left requires a human signature before a limit rises. The fast path on the right drops the limit the moment drift is confirmed or a critical error appears — no human needed. Removing authority is always the safe direction; granting it is not.</p>
 </section>
 
+<section id="path-running">
+  <div class="eyebrow">Verified live, 2 September 2026</div>
+  <h2>The path, running</h2>
+  <p>Every hop in the diagram above, run in order against a real Postgres database, not asserted from a test suite. Agent-01 started this run at rung 2 (₹2,500) and finished it at rung 3 (₹5,000).</p>
+  <table>
+    <thead><tr><th style="width:38%">Call</th><th>What happened</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /api/v1/decisions</code></td><td>Policy engine evaluates the invoice, persists the decision, appends a hash-chained audit entry.</td></tr>
+      <tr><td><code>GET /api/v1/agents/{id}/trust</code></td><td>Wilson bounds computed fresh from the agent's persisted decisions.</td></tr>
+      <tr><td><code>POST /api/v1/agents/{id}/recommendations</code></td><td>Four agents opine; the hard ceiling clamps the panel's proposal to what the evidence supports.</td></tr>
+      <tr><td><code>POST /api/v1/recommendations/{id}/approve</code></td><td>Writes an approvals row and a new immutable policy version, in the same transaction.</td></tr>
+      <tr><td><code>GET /api/v1/agents/{id}</code></td><td>The limit has moved: ₹2,500 → ₹5,000.</td></tr>
+      <tr><td><code>GET /api/v1/agents/{id}/policy-versions</code></td><td>The new version is on record, chained to the one it replaced.</td></tr>
+      <tr><td><code>GET /api/v1/audit-log</code></td><td><code>chain_valid: true</code>, recomputed from genesis across eight entries.</td></tr>
+    </tbody>
+  </table>
+</section>
+
 <section id="layers">
   <div class="eyebrow">Architecture</div>
   <h2>Four kinds of authority, four components</h2>
@@ -317,6 +336,7 @@ tr.us td:first-child{font-weight:600}
   <div class="layer t-llm">
     <h4><span>Agentic governance</span><span class="who">Varun C. · governance/</span></h4>
     <p>Four LangGraph agents — Risk, Performance, Compliance, Audit — each writing an independent opinion on the evidence, combined by a coordinator into one recommendation an administrator can read. Disagreement between agents is surfaced, not averaged away. They produce recommendations only: no database writes, no policy mutation, enforced by a CI check on imports.</p>
+    <p>One <code>LLMClient</code> protocol sits behind all three providers — Gemini, Claude and OpenAI — selected per agent by configuration, not hard-coded. The demo itself runs on recorded responses, so LLM latency and availability sit outside the demo path entirely. Provider independence turned out to be a practical constraint, not a theoretical nicety: Gemini's free tier is 20 requests per <em>day</em>, not per minute, which makes a single-provider dependency a real risk to a live demo rather than an edge case.</p>
   </div>
   <div class="layer t-det">
     <h4><span>Backend &amp; policy infrastructure</span><span class="who">Varun P. · backend/</span></h4>
@@ -396,13 +416,15 @@ tr.us td:first-child{font-weight:600}
     <div class="chip"><div class="n">Next.js · TypeScript</div><div class="r">Administrator dashboard</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Tailwind · Recharts</div><div class="r">Styling and the confidence-band charts</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Typer · httpx</div><div class="r">Simulator CLI and its HTTP client</div><div class="l">MIT / BSD</div></div>
-    <div class="chip"><div class="n">pytest · Hypothesis</div><div class="r">338 tests including property-based statistics tests</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">pytest · Hypothesis</div><div class="r">654 tests including property-based statistics tests</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Docker Compose</div><div class="r">Reproducible local environment</div><div class="l">Apache 2.0</div></div>
     <div class="chip"><div class="n">GitHub Actions</div><div class="r">CI: lint, tests, API schema freshness check</div><div class="l">Free tier</div></div>
     <div class="chip"><div class="n">JWT · RBAC</div><div class="r">Admin, reviewer, auditor roles</div><div class="l">MIT</div></div>
   </div>
   <h3>Deliberately excluded</h3>
   <p class="muted">Celery, Redis, Prometheus, Grafana, OpenTelemetry, Jaeger, MLflow, object storage and Kubernetes were all scoped out, each recorded as an architecture decision. The system is a monolith with enforced module boundaries — the boundaries that matter here are architectural, not network, and we enforce them with import rules in CI rather than paying for a distributed system on a three-week build.</p>
+  <h3>Headless by design</h3>
+  <p>The backend's only public surface is a committed OpenAPI schema, with a CI check that fails the build the moment the schema goes stale against the code that generates it. The frontend and the simulator are pure HTTP clients against that schema — neither imports backend code or touches the database directly. Frontend types are meant to be generated from it rather than hand-written, with the same staleness discipline extended to catch a hand-edit once that migration lands. It is the same boundary discipline that keeps the trust engine and the policy engine from reaching for a database, applied one level up to the platform's own internal seam.</p>
   <h3>How correctness is defended</h3>
   <div class="grid2">
     <div class="card" style="margin:8px 0"><h4 style="font-size:14px;font-weight:600">Statistics cross-validated</h4><p style="font-size:13px;color:var(--slate);margin:4px 0 0">The Wilson implementation is checked against <code>statsmodels</code> as an independent reference, plus property-based tests over random inputs.</p></div>
@@ -1280,39 +1302,40 @@ tr.us td:first-child{font-weight:600}
 </section>
 
 <section id="progress">
-  <div class="eyebrow">Status · 27 August 2026</div>
+  <div class="eyebrow">Status · 2 September 2026</div>
   <h2>Work done and work planned</h2>
   <div class="grid3" style="margin-bottom:8px">
-    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Tests passing</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">338</div><div class="barmeter"><i style="width:100%"></i></div></div>
-    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Lanes merged to main</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">3 of 4</div><div class="barmeter"><i style="width:75%"></i></div></div>
-    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Days to submission</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">19</div><div class="barmeter"><i style="width:38%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Tests passing</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">654</div><div class="barmeter"><i style="width:100%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">PRs merged, zero open</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">26</div><div class="barmeter"><i style="width:100%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Days to submission</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">13</div><div class="barmeter"><i style="width:26%"></i></div></div>
   </div>
-  <div class="prog">
+  <div class="grid2">
     <div>
       <h3 style="margin-top:8px">Complete and merged</h3>
       <div class="tl done">
         <div class="it"><div class="d">SHARED CONTRACTS · v1.1 FROZEN</div><div class="t">Cross-lane type system</div><div class="m">Ten frozen dataclasses, seven enums, 18 machine-readable reason codes, the autonomy ladder and sampling-rate constants. Governed as a treaty requiring all four owners to approve any change.</div></div>
-        <div class="it"><div class="d">TRUST ENGINE · 174 TESTS</div><div class="t">The full statistical core</div><div class="m">Wilson intervals cross-validated against statsmodels, accuracy / utilization / human agreement, critical-error weighting, two-stage drift detection, composed trust score, and the complete ladder with cooldowns and automatic clawback.</div></div>
-        <div class="it"><div class="d">GOVERNANCE · 67 TESTS</div><div class="t">LangGraph coordinator, stub mode</div><div class="m">Four agent nodes and an aggregator producing a valid recommendation with per-agent opinions and dissent detection. Zero LLM calls in the stub path, and a CI test that fails the build if governance can import the database.</div></div>
-        <div class="it"><div class="d">SIMULATOR · 97 TESTS</div><div class="t">Synthetic invoice generation</div><div class="m">Generator, ground-truth labeller, baseline and shifted distributions, three-phase run with degradation injection, committed fixtures, and a CLI. Communicates with the backend over HTTP only.</div></div>
-        <div class="it"><div class="d">INFRASTRUCTURE &amp; DOCS</div><div class="t">Reproducible environment</div><div class="m">Docker Compose, Makefile, CI running lint and tests across every lane, ten architecture decision records, three point-in-time repository audits, and per-lane engineering briefs.</div></div>
+        <div class="it"><div class="d">TRUST ENGINE · 174 TESTS</div><div class="t">The full statistical core</div><div class="m">Wilson bounds, two-stage drift detection, a composed trust score, and the full autonomy ladder — six increase gates, cooldowns, and automatic clawback.</div></div>
+        <div class="it"><div class="d">GOVERNANCE · 226 TESTS</div><div class="t">LangGraph coordinator, stub / cached / live</div><div class="m">Four agents, a swappable provider layer (Gemini, Claude and OpenAI behind one protocol), 15 real recorded responses, live mode with automatic fallback to cached, and a prompt-staleness tripwire.</div></div>
+        <div class="it"><div class="d">BACKEND · 157 TESTS</div><div class="t">Schema through human approval</div><div class="m">Full schema and migrations, seeded and verified against Postgres. Policy Engine as a pure module with an AST import-boundary test. Decision ingest, trust evaluation and governance recommendation generation all wired to real persistence with the hard ceiling clamp, human approval writing immutable policy versions, and a hash-chained audit log with live chain verification on every read.</div></div>
+        <div class="it"><div class="d">SIMULATOR · 97 TESTS</div><div class="t">Synthetic invoice generation</div><div class="m">Generator, ground-truth labeller, three-phase run with degradation injection, committed fixtures, ported onto the frozen contracts.</div></div>
       </div>
     </div>
     <div>
-      <h3 style="margin-top:8px">Planned</h3>
+      <h3 style="margin-top:8px">In flight</h3>
       <div class="tl">
-        <div class="it"><div class="d">IN PROGRESS</div><div class="t">Backend API contract</div><div class="m">Eighteen endpoints, response models mirrored from the shared contracts with a CI check for drift, committed OpenAPI schema that the frontend generates its types from.</div></div>
-        <div class="it"><div class="d">28–29 AUG</div><div class="t">Schema, and the policy engine</div><div class="m">Alembic migrations and seed data, then the policy engine as a pure module with no database or network imports — the sole enforcement boundary.</div></div>
-        <div class="it"><div class="d">31 AUG</div><div class="t">Decision ingest and audit chain</div><div class="m">Real persistence, immutable policy versioning, and the hash-chained audit log with live chain verification.</div></div>
-        <div class="it"><div class="d">1 SEPT</div><div class="t">Integration checkpoint</div><div class="m">Simulator to backend to trust to governance to dashboard, unbroken end to end. Stubs permitted anywhere; the path must connect.</div></div>
-        <div class="it"><div class="d">2–6 SEPT</div><div class="t">Governance live mode, charts, sampling</div><div class="m">Recorded Gemini responses with automatic fallback, the confidence-band and ladder charts on real data, approval workflow with RBAC, and post-hoc audit sampling end to end.</div></div>
-        <div class="it"><div class="d">9 SEPT</div><div class="t">Feature freeze</div><div class="m">Failure cases handled visibly: LLM unavailable, insufficient sample, at maximum rung, hard-ceiling clamp. Nothing new after this date.</div></div>
-        <div class="it"><div class="d">10–15 SEPT</div><div class="t">Hardening and rehearsal</div><div class="m">Security pass, documentation brought current, three timed rehearsals, technical Q&amp;A preparation, one full buffer day, submission.</div></div>
+        <div class="it"><div class="d">IN FLIGHT</div><div class="t">Simulator's backend endpoint</div><div class="m">Pointing the simulator's HTTP client at the real, now-live decision-ingest path.</div></div>
+        <div class="it"><div class="d">IN FLIGHT</div><div class="t">Frontend on the frozen contracts</div><div class="m">Migrating off hand-written types and the earlier three-tier model onto types generated from the committed OpenAPI schema.</div></div>
+        <div class="it"><div class="d">IN FLIGHT</div><div class="t">Three remaining governance recordings</div><div class="m">Real responses recorded for every scenario but three, so live mode's fallback path has a recording to fall back to.</div></div>
+      </div>
+      <h3>Not started</h3>
+      <div class="tl">
+        <div class="it"><div class="d">DUE 6 SEPT</div><div class="t">Audit sampling end to end</div><div class="m">Sampled decisions into the review queue, and a review updating the evidence.</div></div>
+        <div class="it"><div class="d">NOT STARTED</div><div class="t">RBAC beyond the current role check</div><div class="m">Admin, reviewer and auditor are gated on every mutation today; broader access control is scoped for the security pass.</div></div>
       </div>
     </div>
   </div>
   <h3>How the work is governed</h3>
-  <p>Every architectural decision is recorded as an ADR before the code lands, not as after-the-fact justification. Every merged pull request adds a line to a decision log. Three independent repository audits have been run and committed — including one that documented a coordination failure of our own and its root cause, which is in the repository permanently rather than quietly fixed.</p>
+  <p>Every architectural decision is recorded as an ADR before the code lands, not as after-the-fact justification — 15 to date. Every merged pull request adds a line to a decision log — 26 merged, none open. Five independent repository audits have been run and committed, including one that documented a coordination failure of our own and its root cause, which stays in the repository permanently rather than being quietly fixed.</p>
 </section>
 
 <section id="questions">
