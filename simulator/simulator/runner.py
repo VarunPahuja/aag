@@ -5,7 +5,7 @@ SimulationRunner — orchestrates one complete simulation run.
 
 WHAT IT DOES:
   For each invoice in the batch:
-    1. Call the agent's decide() method → AgentDecisionRecord
+    1. Call the agent's decide() method → AgentOutcome
     2. Compare decision to invoice.ground_truth_decision → is_correct
     3. POST to the backend API (if api_client is provided)
     4. Collect stats
@@ -152,7 +152,8 @@ class SimulationRunner:
         # Submit to backend API (if configured)
         if self.api_client:
             try:
-                self.api_client.submit_invoice(invoice, self.config.agent_id)
+                reason = f"sim-run {self.config.seed} invoice {invoice.invoice_id}"
+                self.api_client.submit_decision(invoice, record, self.config.agent_id, reason)
             except Exception as exc:
                 result.errors.append(f"API submit failed for {invoice.invoice_id}: {exc}")
 

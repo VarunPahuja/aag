@@ -3,7 +3,13 @@
  * src/components/charts/AutonomyTimeline.tsx
  * --------------------------------------------
  * Executive Financial & Performance Autonomy Chart.
- * Clean, restrained Deloitte design system.
+ *
+ * KEY CHANGE (v1.1): Accuracy is now a shaded confidence band
+ * [wilson_lower, wilson_upper] with the point estimate as a line on top.
+ * The band narrows as evidence accumulates — that narrowing is what
+ * unlocks the next rung. This is the single most important visualisation.
+ *
+ * Y-axis ticks updated from the old 3-tier limits to the five-rung ladder.
  */
 
 import {
@@ -19,6 +25,7 @@ import {
   YAxis,
 } from "recharts";
 import type { AutonomyEvent } from "@/types/api";
+import { AUTONOMY_LADDER } from "@/types/api";
 
 interface Props {
   events: AutonomyEvent[];
@@ -45,18 +52,32 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
   const data = events.map(e => ({
     time: e.evaluated_at,
     timeLabel: fmtTime(e.evaluated_at),
-    limit: parseFloat(e.limit_amount),
-    accuracy: Math.round(e.rolling_accuracy * 1000) / 10,
-    wilson: Math.round(e.wilson_lower_bound * 1000) / 10,
-    phase: e.phase,
+    limit: e.current_limit,
+    accuracy: e.rolling_accuracy != null ? Math.round(e.rolling_accuracy * 1000) / 10 : null,
+    wilsonLower: Math.round(e.wilson_lower * 1000) / 10,
+    wilsonUpper: Math.round(e.wilson_upper * 1000) / 10,
+    // Recharts Area needs a [min, max] array for the band
+    wilsonBand: [Math.round(e.wilson_lower * 1000) / 10, Math.round(e.wilson_upper * 1000) / 10] as [number, number],
+    state: e.state,
     is_clawback: e.is_clawback_event,
     is_promotion: e.is_promotion_event,
-    drift: e.drift_direction,
+    drift_severity: e.drift_severity,
+    direction: e.direction,
+    rung: e.current_rung,
   }));
 
-  const driftEvt = events.find(e => e.drift_direction === "degrading");
-  const clawbackEvt = events.find(e => e.is_clawback_event);
+  // Find annotation events
   const promotionEvt = events.find(e => e.is_promotion_event);
+  const driftEvt = events.find(e => e.drift_severity === "CONFIRMED" || e.drift_severity === "CRITICAL");
+  const clawbackEvt = events.find(e => e.is_clawback_event);
+
+  // Derive label text from actual data rather than hardcoding
+  const promotionLabel = promotionEvt
+    ? `PROMOTION → ${fmtLimit(promotionEvt.current_limit)}`
+    : "PROMOTION";
+  const clawbackLabel = clawbackEvt
+    ? `CLAWBACK → ${fmtLimit(clawbackEvt.current_limit)}`
+    : "CLAWBACK";
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
@@ -69,25 +90,33 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
         <div className="space-y-1">
           <div className="flex justify-between gap-4">
             <span className="text-slate-600 font-medium">Autonomy Limit:</span>
-            <span className="font-bold text-[#5f8914]">{fmtLimit(d?.limit)}</span>
+            <span className="font-bold text-[#5f8914]">{fmtLimit(d?.limit)} (Rung {d?.rung})</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-slate-600 font-medium">Rolling Accuracy:</span>
             <span className="font-bold text-slate-900">{d?.accuracy}%</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span className="text-slate-600 font-medium">Wilson Lower Bound:</span>
-            <span className="font-bold text-amber-700">{d?.wilson}%</span>
+            <span className="text-slate-600 font-medium">Wilson Band:</span>
+            <span className="font-bold text-blue-700">{d?.wilsonLower}% – {d?.wilsonUpper}%</span>
           </div>
+          {d?.drift_severity && d.drift_severity !== "NONE" && (
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-600 font-medium">Drift:</span>
+              <span className={`font-bold ${d.drift_severity === "CRITICAL" ? "text-red-700" : "text-amber-700"}`}>
+                {d.drift_severity}
+              </span>
+            </div>
+          )}
         </div>
         {d?.is_clawback && (
           <div className="mt-2 text-[11px] text-red-700 font-bold bg-red-50 p-1 border border-red-200 rounded">
-            CLAWBACK: ₹15,000 → ₹3,000
+            CLAWBACK — Autonomy reduced
           </div>
         )}
         {d?.is_promotion && (
           <div className="mt-2 text-[11px] text-[#5f8914] font-bold bg-green-50 p-1 border border-green-200 rounded">
-            PROMOTION: ₹3,000 → ₹15,000
+            PROMOTION — Autonomy increased
           </div>
         )}
       </div>
@@ -108,7 +137,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             interval="preserveStartEnd"
           />
 
-          {/* Left Y-axis: Autonomy Limit (Step Function) */}
+          {/* Left Y-axis: Autonomy Limit (Step Function) — five-rung ladder */}
           <YAxis
             yAxisId="limit"
             orientation="left"
@@ -116,8 +145,8 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             tickLine={false}
             axisLine={{ stroke: "#cbd5e1" }}
             tickFormatter={fmtLimit}
-            ticks={[0, 3000, 15000, 50000]}
-            domain={[0, 55000]}
+            ticks={[...AUTONOMY_LADDER]}
+            domain={[0, 12000]}
           />
 
           {/* Right Y-axis: Performance Metrics (%) */}
@@ -147,7 +176,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
               strokeDasharray="4 2"
               strokeWidth={1.5}
               label={{
-                value: "PROMOTION (₹3k→₹15k)",
+                value: promotionLabel,
                 fill: "#5f8914",
                 fontSize: 9,
                 position: "insideTopLeft",
@@ -164,7 +193,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
               strokeDasharray="4 2"
               strokeWidth={1.5}
               label={{
-                value: "DRIFT DETECTED (Shift)",
+                value: `DRIFT ${driftEvt.drift_severity}`,
                 fill: "#dc2626",
                 fontSize: 9,
                 position: "insideTopRight",
@@ -181,7 +210,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
               strokeDasharray="2 2"
               strokeWidth={2}
               label={{
-                value: "CLAWBACK (₹15k→₹3k)",
+                value: clawbackLabel,
                 fill: "#b91c1c",
                 fontSize: 9,
                 position: "insideTopLeft",
@@ -212,7 +241,45 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             strokeWidth={2}
           />
 
-          {/* Rolling Accuracy Line */}
+          {/* Wilson Confidence Band — the key visualization */}
+          <Area
+            yAxisId="pct"
+            type="monotone"
+            dataKey="wilsonBand"
+            name="Wilson 95% Confidence Band"
+            stroke="none"
+            fill="#3b82f6"
+            fillOpacity={0.15}
+            connectNulls
+          />
+
+          {/* Wilson Lower Bound Line (bottom of band) */}
+          <Line
+            yAxisId="pct"
+            type="monotone"
+            dataKey="wilsonLower"
+            name="Wilson Lower Bound"
+            stroke="#93c5fd"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            dot={false}
+            legendType="none"
+          />
+
+          {/* Wilson Upper Bound Line (top of band) */}
+          <Line
+            yAxisId="pct"
+            type="monotone"
+            dataKey="wilsonUpper"
+            name="Wilson Upper Bound"
+            stroke="#93c5fd"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            dot={false}
+            legendType="none"
+          />
+
+          {/* Rolling Accuracy Point Estimate Line — on top of the band */}
           <Line
             yAxisId="pct"
             type="monotone"
@@ -220,18 +287,6 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             name="Rolling Accuracy"
             stroke="#0f172a"
             strokeWidth={2}
-            dot={false}
-          />
-
-          {/* Wilson Lower Bound Line */}
-          <Line
-            yAxisId="pct"
-            type="monotone"
-            dataKey="wilson"
-            name="Wilson Lower Bound (95%)"
-            stroke="#d97706"
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
             dot={false}
           />
         </ComposedChart>

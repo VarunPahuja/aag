@@ -10,13 +10,15 @@ interface Props {
   accuracy: number;     // 0-1
   wilsonLB: number;     // 0-1
   threshold?: number;   // default 0.85
+  /** Pass from backend when available. Falls back to client-side derivation. */
+  isHealthy?: boolean;
 }
 
-export function HorizontalThresholdGauge({ accuracy, wilsonLB, threshold = 0.85 }: Props) {
+export function HorizontalThresholdGauge({ accuracy, wilsonLB, threshold = 0.85, isHealthy: isHealthyProp }: Props) {
   const accPct = Math.round(accuracy * 100);
   const wlbPct = Math.round(wilsonLB * 100);
   const threshPct = Math.round(threshold * 100);
-  const isHealthy = wilsonLB >= threshold;
+  const isHealthy = isHealthyProp ?? wilsonLB >= threshold;
 
   // Convert percentage (50 to 100 domain) into position percentage (0% to 100%)
   const toPos = (pct: number) => Math.max(0, Math.min(100, ((pct - 50) / 50) * 100));

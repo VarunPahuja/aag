@@ -193,3 +193,75 @@ select, input, button {
 .editorial-content {
   padding: 2.5rem 3rem;
 }
+
+/* ============================================================
+   RUNG TAGS — five-rung autonomy ladder
+   Replaces the three-tier system (low/medium/high).
+   Rung 0 = ₹500 (most muted), Rung 4 = ₹10,000 (full green).
+   ============================================================ */
+
+.rung-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.625rem; /* 10px */
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 1px solid;
+  font-family: var(--font-open-sans), "Open Sans", sans-serif;
+}
+
+.rung-0 { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+.rung-1 { background: #f0fdf4; color: #4d7c0f; border-color: #bef264; }
+.rung-2 { background: #ecfccb; color: #3f6212; border-color: #a3e635; }
+.rung-3 { background: #d9f99d; color: #365314; border-color: #84cc16; }
+.rung-4 { background: rgba(134,188,37,0.15); color: #5f8914; border-color: #86BC25; }
+
+/* ============================================================
+   STATE BADGES — agent lifecycle states
+   ============================================================ */
+
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.state-probation { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.state-active    { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.state-restricted { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.state-suspended  { background: #fecaca; color: #7f1d1d; border-color: #f87171; }
+
+/* ============================================================
+   DIRECTION BADGES
+   ============================================================ */
+
+.direction-increase { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.direction-hold     { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.direction-clawback { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+/* ============================================================
+   DRIFT SEVERITY BADGES
+   ============================================================ */
+
+.drift-none      { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+.drift-warning   { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.drift-confirmed { background: #fed7aa; color: #9a3412; border-color: #fb923c; }
+.drift-critical  { background: #fecaca; color: #7f1d1d; border-color: #f87171; }
+
+/* ============================================================
+   VERDICT BADGES — governance agent opinions
+   ============================================================ */
+
+.verdict-concur  { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.verdict-object  { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.verdict-abstain { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+

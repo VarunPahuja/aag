@@ -1,17 +1,19 @@
 /**
  * src/mocks/handlers.ts
  * ----------------------
- * MSW request handlers for all 5 pages.
+ * MSW request handlers — v1.1 contract-aligned.
  * Swap to real API by setting NEXT_PUBLIC_MSW_ENABLED=false.
  */
 
 import { http, HttpResponse } from "msw";
 import {
   MOCK_AGENTS,
-  MOCK_APPROVALS,
   MOCK_AUTONOMY_EVENTS,
   MOCK_DECISIONS,
-  MOCK_SIMULATION_RUNS,
+  MOCK_RECOMMENDATIONS,
+  MOCK_TRUST_EVALUATION,
+  MOCK_AUDIT_SAMPLES,
+  MOCK_AUDIT_LOG,
 } from "./data";
 
 const API = "http://localhost:8000/api/v1";
@@ -49,31 +51,49 @@ export const handlers = [
     return HttpResponse.json(events);
   }),
 
-  // ── Approvals ────────────────────────────────────────────────────────────
-  http.get(`${API}/approvals`, ({ request }) => {
-    const url = new URL(request.url);
-    const status = url.searchParams.get("status") ?? "pending";
-    const items = status === "all"
-      ? MOCK_APPROVALS
-      : MOCK_APPROVALS.filter(a => a.status === status);
-    return HttpResponse.json(items);
+  // ── Trust evaluation ────────────────────────────────────────────────────
+  http.get(`${API}/agents/:agentId/trust-evaluation`, ({ params }) => {
+    if (params.agentId === MOCK_TRUST_EVALUATION.agent_id) {
+      return HttpResponse.json(MOCK_TRUST_EVALUATION);
+    }
+    // Return a default evaluation for other agents
+    return HttpResponse.json({
+      ...MOCK_TRUST_EVALUATION,
+      agent_id: params.agentId,
+    });
   }),
 
-  http.post(`${API}/approvals/:approvalId/resolve`, async ({ params, request }) => {
-    const body = await request.json() as { status: string; resolution_note?: string };
-    const appr = MOCK_APPROVALS.find(a => a.approval_id === params.approvalId);
-    if (!appr) return new HttpResponse(null, { status: 404 });
+  // ── Recommendations (replaces old approvals) ────────────────────────────
+  http.get(`${API}/recommendations`, ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    if (status && status !== "all") {
+      return HttpResponse.json(
+        MOCK_RECOMMENDATIONS.filter(r => r.status === status)
+      );
+    }
+    return HttpResponse.json(MOCK_RECOMMENDATIONS);
+  }),
+
+  http.get(`${API}/recommendations/:recId`, ({ params }) => {
+    const rec = MOCK_RECOMMENDATIONS.find(r => r.recommendation_id === params.recId);
+    return rec
+      ? HttpResponse.json(rec)
+      : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post(`${API}/recommendations/:recId/resolve`, async ({ params, request }) => {
+    const body = await request.json() as { status: string; reason: string };
+    const rec = MOCK_RECOMMENDATIONS.find(r => r.recommendation_id === params.recId);
+    if (!rec) return new HttpResponse(null, { status: 404 });
     const updated = {
-      ...appr,
+      ...rec,
       status: body.status,
-      resolved_at: new Date().toISOString(),
-      resolved_by: "demo-user@company.com",
-      resolution_note: body.resolution_note ?? null,
     };
     return HttpResponse.json(updated);
   }),
 
-  // ── Audit ────────────────────────────────────────────────────────────────
+  // ── Audit (decision records) ──────────────────────────────────────────────
   http.get(`${API}/audit`, ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get("page") ?? 1);
@@ -86,28 +106,40 @@ export const handlers = [
     });
   }),
 
-  // ── Simulation ───────────────────────────────────────────────────────────
-  http.get(`${API}/simulation/runs`, () =>
-    HttpResponse.json(MOCK_SIMULATION_RUNS)
-  ),
-
-  http.get(`${API}/simulation/runs/:runId`, ({ params }) => {
-    const run = MOCK_SIMULATION_RUNS.find(r => r.run_id === params.runId);
-    return run
-      ? HttpResponse.json(run)
-      : new HttpResponse(null, { status: 404 });
+  // ── Audit log (hash-chained) ────────────────────────────────────────────
+  http.get(`${API}/audit-log`, ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get("page") ?? 1);
+    const size = Number(url.searchParams.get("page_size") ?? 50);
+    return HttpResponse.json({
+      items: MOCK_AUDIT_LOG.slice((page - 1) * size, page * size),
+      total: MOCK_AUDIT_LOG.length,
+      page,
+      page_size: size,
+    });
   }),
 
-  http.post(`${API}/simulation/runs`, async ({ request }) => {
-    const config = await request.json();
-    const newRun = {
-      ...MOCK_SIMULATION_RUNS[0],
+  // ── Audit samples ───────────────────────────────────────────────────────
+  http.get(`${API}/audit-samples`, ({ request }) => {
+    const url = new URL(request.url);
+    const agentId = url.searchParams.get("agent_id");
+    const items = agentId
+      ? MOCK_AUDIT_SAMPLES.filter(s => s.agent_id === agentId)
+      : MOCK_AUDIT_SAMPLES;
+    return HttpResponse.json(items);
+  }),
+
+  // ── Simulation ───────────────────────────────────────────────────────────
+  http.get(`${API}/simulation/runs`, () =>
+    HttpResponse.json([])
+  ),
+
+  http.post(`${API}/simulation/runs`, async () => {
+    return HttpResponse.json({
       run_id: `run-${Date.now()}`,
-      config,
+      status: "running",
       started_at: new Date().toISOString(),
-      completed_at: null,
-    };
-    return HttpResponse.json(newRun, { status: 201 });
+    }, { status: 201 });
   }),
 
   // ── Health ───────────────────────────────────────────────────────────────

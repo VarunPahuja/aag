@@ -71,9 +71,10 @@ class GroundTruthLabeller:
         """
         Apply rules in priority order and return (decision, reason_code, confidence).
         """
-        # Rule 1: Missing required fields
+        # Rule 1: Missing required fields → REJECT
+        # (can't process an incomplete invoice; non-material fields are callee's choice)
         if invoice.missing_field_names:
-            return Action.ESCALATE, RC.ESCALATE_MISSING_FIELDS, 1.0
+            return Action.REJECT, RC.ESCALATE_MISSING_FIELDS, 1.0
 
         # Rule 2: Blocked vendor
         if invoice.vendor_name in BLOCKED_VENDORS:
@@ -106,21 +107,24 @@ class GroundTruthLabeller:
         if amount > high_limit:
             return Action.REJECT, RC.REJECT_EXCEEDS_LIMIT, 1.0
 
-        # Rule 7: Amount exceeds current tier limit → escalate for human review
+        # Rule 7: Amount exceeds current tier limit → APPROVE
+        # (tier limits are system constraints, not invoice defects; resolve to underlying truth)
         current_limit = self.current_limit
         if amount > current_limit:
-            return Action.ESCALATE, RC.ESCALATE_EXCEEDS_TIER, 1.0
+            return Action.APPROVE, RC.ESCALATE_EXCEEDS_TIER, 1.0
 
-        # Rule 8: Boundary zone (±5 % of current limit)
+        # Rule 8: Boundary zone (±5 % of current limit) → APPROVE
+        # (boundary zones are system constraints, not invoice defects; resolve to underlying truth)
         tol = 0.05
         lower_bound = current_limit * (1 - tol)
         if lower_bound <= float(amount) <= current_limit:
-            # Amount is in the zone [limit * 0.95, limit] — escalate, confidence 0.7
-            return Action.ESCALATE, RC.ESCALATE_BOUNDARY_AMOUNT, 0.7
+            # Amount is in the zone [limit * 0.95, limit] — approve, confidence 0.7
+            return Action.APPROVE, RC.ESCALATE_BOUNDARY_AMOUNT, 0.7
 
-        # Rule 9: Ambiguous vendor + non-trivial amount
+        # Rule 9: Ambiguous vendor + non-trivial amount → APPROVE
+        # (ambiguous but not blocked; resolve to underlying truth)
         if invoice.is_ambiguous_vendor and float(amount) > TRIVIAL_AMOUNT_THRESHOLD_INR:
-            return Action.ESCALATE, RC.ESCALATE_AMBIGUOUS_VENDOR, 0.8
+            return Action.APPROVE, RC.ESCALATE_AMBIGUOUS_VENDOR, 0.8
 
         # Rule 10: Approve
         if float(amount) <= current_limit * 0.5:

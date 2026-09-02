@@ -1,45 +1,27 @@
 "use client";
 /**
  * Page 5: /simulation — Governance Simulation Control Room
- * Deloitte White Enterprise Editorial Simulation Platform
+ * v1.1 contracts: simulation progress wired to actual state (no hardcoded numbers).
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { simulationApi } from "@/lib/api-client";
 import { IconSimulation } from "@/components/ui/Icons";
-import type { SimulationPhase } from "@/types/api";
-
-const PHASE_DESC: Record<SimulationPhase, { title: string; desc: string }> = {
-  good: {
-    title: "Good Phase (Baseline Distribution)",
-    desc: "Clean invoices with standard vendor distributions. Validates ~90% baseline model reliability.",
-  },
-  degraded: {
-    title: "Degraded Phase (Distribution Shift)",
-    desc: "Ambiguous vendors, missing fields & boundary amounts. Triggers genuine LLM drift and automated clawback.",
-  },
-  recovery: {
-    title: "Recovery Phase",
-    desc: "Difficulty eases back toward baseline to demonstrate autonomy re-earning.",
-  },
-};
 
 export default function SimulationPage() {
   const qc = useQueryClient();
-  const [phase, setPhase] = useState<SimulationPhase>("good");
   const [agentType, setAgentType] = useState<"scripted" | "llm">("scripted");
   const [count, setCount] = useState(100);
 
-  const { data: runs = [], isLoading } = useQuery({
+  const { data: runs = [], isLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["simulation-runs"],
-    queryFn: simulationApi.listRuns,
+    queryFn: simulationApi.listRuns as () => Promise<Record<string, unknown>[]>,
   });
 
-  const { mutate: startRun, isPending } = useMutation({
+  const { mutate: startRun, isPending, data: activeRun } = useMutation<{ run_id: string; status: string }>({
     mutationFn: () =>
       simulationApi.start({
-        phase,
         invoice_count: count,
         seed: 42,
         agent_type: agentType,
@@ -63,32 +45,14 @@ export default function SimulationPage() {
       </div>
 
       <div className="editorial-content space-y-8">
-        {/* Large Configuration & Controls Panel */}
+        {/* Configuration & Controls Panel */}
         <div className="editorial-panel p-6">
           <span className="eyebrow-label block mb-1">ENVIRONMENT CONTROLS</span>
           <h2 className="text-xl font-black text-slate-900 tracking-tight mb-4 border-b border-slate-200 pb-2">
             Simulation Setup
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Phase */}
-            <div>
-              <label className="eyebrow-label block mb-1">PHASE</label>
-              <select
-                id="sim-phase-select"
-                value={phase}
-                onChange={e => setPhase(e.target.value as SimulationPhase)}
-                className="w-full bg-white border border-slate-300 rounded-[2px] px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#86BC25]"
-              >
-                <option value="good">Good (Baseline)</option>
-                <option value="degraded">Degraded (Distribution Shift)</option>
-                <option value="recovery">Recovery (Performance Recovery)</option>
-              </select>
-              <p className="text-[11px] text-slate-500 font-medium mt-1">
-                {PHASE_DESC[phase].desc}
-              </p>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Agent */}
             <div>
               <label className="eyebrow-label block mb-1">AGENT</label>
@@ -126,44 +90,32 @@ export default function SimulationPage() {
             className="flex items-center justify-center gap-2 px-6 py-3 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-black transition-colors disabled:opacity-50"
           >
             <IconSimulation className="w-4 h-4" />
-            <span>{isPending ? "SIMULATING BATCH..." : "LAUNCH SIMULATION"}</span>
+            <span>{isPending ? "SIMULATING..." : "LAUNCH SIMULATION"}</span>
           </button>
         </div>
 
-        {/* Live Simulation Progress Visualizer (If Pending) */}
+        {/* Simulation Progress — honest: shows actual state, not fake numbers */}
         {isPending && (
           <div className="editorial-panel p-6 bg-[#F7F8F6] border-l-4 border-[#86BC25]">
             <div className="flex items-center justify-between mb-3">
               <span className="eyebrow-label text-slate-900">SIMULATION RUNNING</span>
-              <span className="text-xs font-mono font-bold text-[#5f8914]">37 / {count} Invoices Processed</span>
+              <span className="text-xs font-mono font-bold text-[#5f8914]">
+                In Progress
+              </span>
             </div>
 
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
-              <div className="bg-[#86BC25] h-full w-[37%] transition-all duration-300" />
+              <div className="bg-[#86BC25] h-full animate-pulse w-full" />
             </div>
 
-            <div className="grid grid-cols-4 gap-4 text-xs font-sans">
-              <div>
-                <span className="eyebrow-label block text-[9px]">ACCURACY</span>
-                <span className="font-bold text-slate-900">84%</span>
-              </div>
-              <div>
-                <span className="eyebrow-label block text-[9px]">ESCALATIONS</span>
-                <span className="font-bold text-amber-900">8</span>
-              </div>
-              <div>
-                <span className="eyebrow-label block text-[9px]">CACHE HITS</span>
-                <span className="font-bold text-slate-900">14</span>
-              </div>
-              <div>
-                <span className="eyebrow-label block text-[9px]">CURRENT AUTONOMY</span>
-                <span className="font-bold text-[#5f8914]">₹15,000</span>
-              </div>
+            <div className="text-xs text-slate-600 font-medium">
+              Processing {count} invoices. Results will appear below when the run completes.
+              Check the agent detail page for live trust evaluation updates.
             </div>
           </div>
         )}
 
-        {/* Recent Simulation Runs List */}
+        {/* Simulation History */}
         <div className="editorial-panel p-6">
           <span className="eyebrow-label block mb-1">HISTORICAL RUNS</span>
           <h2 className="text-xl font-black text-slate-900 tracking-tight mb-4 border-b border-slate-200 pb-2">
@@ -174,45 +126,25 @@ export default function SimulationPage() {
             <div className="p-6 text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
               LOADING RUN HISTORY...
             </div>
+          ) : runs.length === 0 ? (
+            <div className="p-6 text-xs text-slate-500 font-medium text-center">
+              No simulation runs yet. Launch one above.
+            </div>
           ) : (
             <div className="space-y-3">
-              {runs.map(run => {
-                const acc = run.accuracy;
-                const isClawback = run.config.phase === "degraded";
-
-                return (
-                  <div key={run.run_id} className="editorial-panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-[2px] ${
-                          run.config.phase === "good" ? "bg-green-100 text-[#5f8914]" :
-                          run.config.phase === "degraded" ? "bg-red-100 text-red-700" :
-                          "bg-slate-100 text-slate-800"
-                        }`}>
-                          {run.config.phase}
-                        </span>
-                        <span className="font-mono text-xs font-bold text-slate-900">{run.run_id}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 font-medium">
-                        {run.total_invoices} invoices · {run.config.agent_type}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-6 text-xs">
-                      <div>
-                        <span className="eyebrow-label block text-[9px]">ACCURACY</span>
-                        <span className="font-black text-slate-900">{acc != null ? `${Math.round(acc * 100)}%` : "—"}</span>
-                      </div>
-                      <div>
-                        <span className="eyebrow-label block text-[9px]">OUTCOME</span>
-                        <span className={`font-bold ${isClawback ? "text-red-700" : "text-[#5f8914]"}`}>
-                          {isClawback ? "Clawback Triggered" : "Autonomy Stable"}
-                        </span>
-                      </div>
-                    </div>
+              {runs.map((run) => (
+                <div key={String(run.run_id)} className="editorial-panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="font-mono text-xs font-bold text-slate-900">{String(run.run_id)}</span>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {String(run.status ?? "completed")}
+                    </p>
                   </div>
-                );
-              })}
+                  <div className="text-xs text-slate-500">
+                    {run.started_at ? new Date(String(run.started_at)).toLocaleString("en-IN") : "—"}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

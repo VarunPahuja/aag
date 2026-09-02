@@ -22,6 +22,7 @@ import os
 import sys
 import time
 from typing import Optional
+from decimal import Decimal
 
 _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _repo_root not in sys.path:
@@ -30,7 +31,7 @@ if _repo_root not in sys.path:
 import httpx
 
 from simulator.constants import DEFAULT_API_BASE_URL, DEFAULT_API_VERSION
-from simulator.models import Invoice
+from simulator.models import Invoice, AgentOutcome
 
 
 class APIClient:
@@ -70,19 +71,36 @@ class APIClient:
     # Public API
     # ------------------------------------------------------------------
 
-    def submit_invoice(
+    def submit_decision(
         self,
         invoice: Invoice,
+        outcome: AgentOutcome,
         agent_id: str,
+        reason: str,
     ) -> dict:
         """
-        POST /api/v1/invoices
-        Submit an invoice through the policy engine.
-        Returns the backend's policy decision.
+        POST /api/v1/decisions
+        Submit a decision (agent action + ground truth) to the backend.
+        
+        Args:
+            invoice:   The Invoice object (source of ground_truth_decision and amount)
+            outcome:   The AgentOutcome with the agent's decision
+            agent_id:  Agent identifier
+            reason:    Why this decision is being submitted (e.g., simulation run ID)
+        
+        Returns:
+            Backend's DecisionRecordOut response.
         """
-        body = {"invoice": invoice.model_dump(mode="json"), "agent_id": agent_id}
+        body = {
+            "invoice_id": invoice.invoice_id,
+            "amount": int(Decimal(invoice.amount)),
+            "action": outcome.action.value,
+            "ground_truth": invoice.ground_truth_decision.value,
+            "agent_id": agent_id,
+            "reason": reason,
+        }
         data = self._post(
-            f"{self.api_prefix}/invoices",
+            f"{self.api_prefix}/decisions",
             body,
         )
         return data
