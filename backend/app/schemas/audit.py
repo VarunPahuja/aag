@@ -8,9 +8,12 @@ resource (docs/lanes/vp.md's `audit_log` table: hash-chained, append-only).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from shared.enums import Action, ReviewVerdict
+
+from app.schemas.envelope import Page
 
 
 class AuditSampleOut(BaseModel):
@@ -59,3 +62,21 @@ class AuditLogEntryOut(BaseModel):
     payload: dict
     prev_hash: str
     hash: str
+
+
+class AuditLogPage(Page[AuditLogEntryOut]):
+    """`GET /api/v1/audit-log`'s response: the usual pagination envelope,
+    plus a chain-verification result computed fresh on every call — this is
+    what makes tamper-evidence demonstrable on screen rather than claimed in
+    a docstring (docs/lanes/vp.md).
+
+    `chain_verified_scope` says exactly what `chain_valid` covers: `"full"`
+    when every row in `audit_log` was recomputed from `GENESIS_HASH`,
+    `"page"` if the table ever grows large enough that a full recompute on
+    every request stops being cheap and this endpoint falls back to
+    verifying only the returned page — never silently verifying less than
+    it claims.
+    """
+
+    chain_valid: bool
+    chain_verified_scope: Literal["full", "page"]
