@@ -1,15 +1,18 @@
 "use client";
 /**
  * Page 1: /agents — Governed AI Workforce Overview
- * v1.1 contracts: five-rung ladder, AgentState, trust_score, reason_codes
+ *
+ * Renders from AgentOut — the real shape returned by GET /agents.
+ * AgentOut only carries: id, name, current_limit, current_rung, state, context.
+ * Trust-level fields (trust_score, accuracy, drift, etc.) live on
+ * GET /agents/{id}/trust and are NOT fetched here (fast path per audit).
  */
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { agentsApi } from "@/lib/api-client";
 import { AutonomyLadder } from "@/components/domain/AutonomyLadder";
-import { describeReasonCodes } from "@/types/api";
-import type { AgentSummary, AgentState, DriftSeverity } from "@/types/api";
+import type { AgentOut, AgentState } from "@/types/api";
 
 const STATE_CLASS: Record<AgentState, string> = {
   probation:  "state-badge state-probation",
@@ -24,14 +27,15 @@ function fmtLimit(val: number): string {
 }
 
 export default function AgentsPage() {
-  const { data: agents = [], isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["agents"],
-    queryFn: agentsApi.list,
+    queryFn: () => agentsApi.list(),
   });
 
+  const agents = data?.items ?? [];
   const totalAuthority = agents.reduce((acc, a) => acc + a.current_limit, 0);
   const activeCount = agents.length;
-  const attentionCount = agents.filter(a => a.state === "restricted" || a.state === "suspended" || a.drift_severity !== "NONE").length;
+  const attentionCount = agents.filter(a => a.state === "restricted" || a.state === "suspended").length;
 
   return (
     <div>
@@ -79,14 +83,21 @@ export default function AgentsPage() {
         )}
 
         {isError && (
-          <div className="text-xs text-red-700 font-bold">
-            Unable to connect to governance API.
+          <div className="editorial-panel p-6 border-l-4 border-red-400">
+            <span className="text-xs text-red-700 font-bold block">Unable to connect to governance API.</span>
+            <p className="text-xs text-slate-500 mt-1">Check that the backend is running on the expected port.</p>
           </div>
         )}
 
-        {!isLoading && agents.map((agent: AgentSummary) => (
+        {!isLoading && !isError && agents.length === 0 && (
+          <div className="editorial-panel p-8 text-center text-xs text-slate-500 font-medium">
+            No agents registered yet.
+          </div>
+        )}
+
+        {!isLoading && agents.map((agent: AgentOut) => (
           <div
-            key={agent.agent_id}
+            key={agent.id}
             className="editorial-panel p-6 hover:border-slate-300 transition-colors"
           >
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -99,21 +110,11 @@ export default function AgentsPage() {
                   <span className={STATE_CLASS[agent.state]}>
                     {agent.state.toUpperCase()}
                   </span>
-                  {agent.drift_severity !== "NONE" && (
-                    <span className={`state-badge drift-${agent.drift_severity.toLowerCase()}`}>
-                      DRIFT: {agent.drift_severity}
-                    </span>
-                  )}
                 </div>
                 <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   {agent.name}
                 </h2>
-                <p className="text-xs font-mono text-slate-400">{agent.agent_id}</p>
-                {agent.reason_codes.length > 0 && (
-                  <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
-                    {describeReasonCodes(agent.reason_codes)}
-                  </p>
-                )}
+                <p className="text-xs font-mono text-slate-400">{agent.id}</p>
               </div>
 
               {/* Autonomy Ladder Visual */}
@@ -121,8 +122,8 @@ export default function AgentsPage() {
                 <AutonomyLadder currentRung={agent.current_rung} compact />
               </div>
 
-              {/* Editorial Metric Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 border-t lg:border-t-0 lg:border-l border-slate-200 pt-4 lg:pt-0 lg:pl-6">
+              {/* Editorial Metric Strip — only fields from AgentOut */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 border-t lg:border-t-0 lg:border-l border-slate-200 pt-4 lg:pt-0 lg:pl-6">
                 <div>
                   <span className="eyebrow-label block text-[9px]">CURRENT AUTHORITY</span>
                   <span className="text-base font-black text-slate-900">
@@ -130,27 +131,15 @@ export default function AgentsPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="eyebrow-label block text-[9px]">TRUST SCORE</span>
+                  <span className="eyebrow-label block text-[9px]">RUNG</span>
                   <span className="text-base font-black text-slate-900">
-                    {agent.trust_score.toFixed(1)}
+                    {agent.current_rung} / 4
                   </span>
                 </div>
                 <div>
-                  <span className="eyebrow-label block text-[9px]">ACCURACY</span>
-                  <span className="text-base font-black text-slate-900">
-                    {agent.rolling_accuracy != null ? `${Math.round(agent.rolling_accuracy * 100)}%` : "—"}
-                  </span>
-                </div>
-                <div>
-                  <span className="eyebrow-label block text-[9px]">DECISIONS</span>
-                  <span className="text-base font-black text-slate-900">
-                    {agent.total_decisions.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="eyebrow-label block text-[9px]">DIRECTION</span>
-                  <span className={`state-badge direction-${agent.direction.toLowerCase()}`}>
-                    {agent.direction}
+                  <span className="eyebrow-label block text-[9px]">STATE</span>
+                  <span className={STATE_CLASS[agent.state]}>
+                    {agent.state.toUpperCase()}
                   </span>
                 </div>
               </div>
@@ -158,7 +147,7 @@ export default function AgentsPage() {
               {/* View Agent Action Link */}
               <div className="flex items-center justify-end">
                 <Link
-                  href={`/agents/${agent.agent_id}`}
+                  href={`/agents/${agent.id}`}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-bold transition-colors"
                 >
                   <span>VIEW AGENT</span>

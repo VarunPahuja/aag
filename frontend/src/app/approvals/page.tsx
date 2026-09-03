@@ -1,16 +1,23 @@
 "use client";
 /**
  * Page 3: /approvals — Governance Recommendation Review Queue
- * v1.1 contracts: Recommendation with AgentOpinion[], dissent, clamped.
  *
  * Each row is a Recommendation from governance, not a simple HumanApproval.
  * Shows proposed changes, governance agent opinions, and dissent.
  * Mandatory reason field before approve/reject.
+ *
+ * KEY CHANGE: approve and reject are two separate endpoints:
+ *   POST /recommendations/{id}/approve  { reason }
+ *   POST /recommendations/{id}/reject   { reason }
+ * The old "resolve" endpoint does not exist.
+ *
+ * Error handling:
+ *   403 = not admin, 409 = already resolved
  */
 
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { recommendationsApi, agentsApi } from "@/lib/api-client";
+import { recommendationsApi } from "@/lib/api-client";
 import type { Recommendation, AgentOpinion, OpinionVerdict, RecommendationStatus, Direction } from "@/types/api";
 
 const STATUS_CLASS: Record<RecommendationStatus, string> = {
@@ -78,27 +85,72 @@ export default function ApprovalsPage() {
   const [filter, setFilter] = useState<"PENDING" | "APPROVED" | "REJECTED" | "all">("PENDING");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reasonInputs, setReasonInputs] = useState<Record<string, string>>({});
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const { data: recommendations = [], isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["recommendations", filter],
     queryFn: () => recommendationsApi.list(filter === "all" ? undefined : filter),
   });
 
-  const resolveMutation = useMutation({
-    mutationFn: ({ recId, status, reason }: { recId: string; status: "APPROVED" | "REJECTED"; reason: string }) =>
-      recommendationsApi.resolve(recId, { status, reason }),
+  const recommendations = data?.items ?? [];
+
+  const approveMutation = useMutation({
+    mutationFn: ({ recId, reason }: { recId: string; reason: string }) =>
+      recommendationsApi.approve(recId, reason),
     onSuccess: () => {
+      setMutationError(null);
       qc.invalidateQueries({ queryKey: ["recommendations"] });
       qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent"] });
+    },
+    onError: (error: any) => {
+      if (error.status === 403) {
+        setMutationError("Permission denied: only admins can approve recommendations.");
+      } else if (error.status === 409) {
+        setMutationError("This recommendation has already been resolved.");
+        qc.invalidateQueries({ queryKey: ["recommendations"] });
+      } else {
+        setMutationError(error.message ?? "Failed to approve.");
+      }
     },
   });
 
-  const handleResolve = (recId: string, status: "APPROVED" | "REJECTED") => {
+  const rejectMutation = useMutation({
+    mutationFn: ({ recId, reason }: { recId: string; reason: string }) =>
+      recommendationsApi.reject(recId, reason),
+    onSuccess: () => {
+      setMutationError(null);
+      qc.invalidateQueries({ queryKey: ["recommendations"] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent"] });
+    },
+    onError: (error: any) => {
+      if (error.status === 403) {
+        setMutationError("Permission denied: only admins can reject recommendations.");
+      } else if (error.status === 409) {
+        setMutationError("This recommendation has already been resolved.");
+        qc.invalidateQueries({ queryKey: ["recommendations"] });
+      } else {
+        setMutationError(error.message ?? "Failed to reject.");
+      }
+    },
+  });
+
+  const handleApprove = (recId: string) => {
     const reason = reasonInputs[recId]?.trim();
-    if (!reason) return; // reason is mandatory
-    resolveMutation.mutate({ recId, status, reason });
+    if (!reason) return;
+    setMutationError(null);
+    approveMutation.mutate({ recId, reason });
   };
 
+  const handleReject = (recId: string) => {
+    const reason = reasonInputs[recId]?.trim();
+    if (!reason) return;
+    setMutationError(null);
+    rejectMutation.mutate({ recId, reason });
+  };
+
+  const isMutating = approveMutation.isPending || rejectMutation.isPending;
   const pendingCount = recommendations.filter(r => r.status === "PENDING").length;
 
   return (
@@ -148,13 +200,26 @@ export default function ApprovalsPage() {
           </div>
         )}
 
-        {!isLoading && recommendations.length === 0 && (
+        {isError && (
+          <div className="editorial-panel p-6 border-l-4 border-red-400">
+            <span className="text-xs text-red-700 font-bold block">Unable to load recommendations.</span>
+            <p className="text-xs text-slate-500 mt-1">Check that the backend is running.</p>
+          </div>
+        )}
+
+        {mutationError && (
+          <div className="editorial-panel p-4 border-l-4 border-red-400 bg-red-50">
+            <span className="text-xs text-red-700 font-bold">{mutationError}</span>
+          </div>
+        )}
+
+        {!isLoading && !isError && recommendations.length === 0 && (
           <div className="editorial-panel p-8 text-center text-xs text-slate-500 font-medium">
             No {filter.toLowerCase()} recommendations requiring attention.
           </div>
         )}
 
-        {!isLoading && recommendations.map(rec => {
+        {!isLoading && !isError && recommendations.map(rec => {
           const isExpanded = expandedId === rec.recommendation_id;
           const isPending = rec.status === "PENDING";
           const reason = reasonInputs[rec.recommendation_id] ?? "";
@@ -209,15 +274,15 @@ export default function ApprovalsPage() {
                     className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-[2px] font-medium"
                   />
                   <button
-                    onClick={() => handleResolve(rec.recommendation_id, "APPROVED")}
-                    disabled={!reason.trim() || resolveMutation.isPending}
+                    onClick={() => handleApprove(rec.recommendation_id)}
+                    disabled={!reason.trim() || isMutating}
                     className="px-3 py-1.5 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-bold transition-colors disabled:opacity-50"
                   >
                     APPROVE
                   </button>
                   <button
-                    onClick={() => handleResolve(rec.recommendation_id, "REJECTED")}
-                    disabled={!reason.trim() || resolveMutation.isPending}
+                    onClick={() => handleReject(rec.recommendation_id)}
+                    disabled={!reason.trim() || isMutating}
                     className="px-3 py-1.5 rounded-[2px] bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
                   >
                     REJECT

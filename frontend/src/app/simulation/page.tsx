@@ -1,37 +1,57 @@
 "use client";
 /**
  * Page 5: /simulation — Governance Simulation Control Room
- * v1.1 contracts: simulation progress wired to actual state (no hardcoded numbers).
+ *
+ * KEY CHANGES:
+ *  - No GET /simulation/runs (list-all) endpoint exists — dropped history panel
+ *  - POST /simulation/runs body matches SimulationRunCreate:
+ *    { agent_id, invoice_count, phase, reason, seed }
+ *  - phase replaces agent_type: "good" | "degraded" | "recovery"
+ *  - reason is mandatory
+ *  - Can poll individual run status via GET /simulation/runs/{run_id}
+ *  - Added isError handling
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { simulationApi } from "@/lib/api-client";
 import { IconSimulation } from "@/components/ui/Icons";
+import type { SimulationPhase, SimulationRunOut } from "@/types/api";
 
 export default function SimulationPage() {
   const qc = useQueryClient();
-  const [agentType, setAgentType] = useState<"scripted" | "llm">("scripted");
+  const [phase, setPhase] = useState<SimulationPhase>("good");
   const [count, setCount] = useState(100);
+  const [agentId, setAgentId] = useState("agent-01");
+  const [reason, setReason] = useState("");
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
-  const { data: runs = [], isLoading } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["simulation-runs"],
-    queryFn: simulationApi.listRuns as () => Promise<Record<string, unknown>[]>,
+  // Poll active run status
+  const { data: activeRun } = useQuery<SimulationRunOut>({
+    queryKey: ["simulation-run", activeRunId],
+    queryFn: () => simulationApi.getRun(activeRunId!),
+    enabled: activeRunId != null,
+    refetchInterval: 2_000,
   });
 
-  const { mutate: startRun, isPending, data: activeRun } = useMutation<{ run_id: string; status: string }>({
+  const { mutate: startRun, isPending, error: startError } = useMutation({
     mutationFn: () =>
       simulationApi.start({
+        agent_id: agentId,
         invoice_count: count,
+        phase,
+        reason: reason.trim(),
         seed: 42,
-        agent_type: agentType,
-        agent_id: agentType === "llm" ? "gemini-agent-001" : "scripted-agent-001",
-        api_base_url: "http://localhost:8000",
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["simulation-runs"] });
+    onSuccess: (data) => {
+      setActiveRunId(data.run_id);
+      // Invalidate agent/trust queries so the dashboard picks up new decisions
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent"] });
     },
   });
+
+  const isRunComplete = activeRun?.status === "completed" || activeRun?.status === "failed";
 
   return (
     <div>
@@ -53,17 +73,33 @@ export default function SimulationPage() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Agent */}
+            {/* Agent ID */}
             <div>
-              <label className="eyebrow-label block mb-1">AGENT</label>
+              <label className="eyebrow-label block mb-1">AGENT ID</label>
               <select
                 id="sim-agent-select"
-                value={agentType}
-                onChange={e => setAgentType(e.target.value as "scripted" | "llm")}
+                value={agentId}
+                onChange={e => setAgentId(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-[2px] px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#86BC25]"
               >
-                <option value="scripted">ScriptedAgent (Deterministic)</option>
-                <option value="llm">GeminiAgent (Real LLM - gemini-2.5-flash)</option>
+                <option value="agent-01">agent-01 (Rung 2, ₹2,500)</option>
+                <option value="agent-02">agent-02 (Probation)</option>
+                <option value="agent-03">agent-03 (Clawed back)</option>
+              </select>
+            </div>
+
+            {/* Phase */}
+            <div>
+              <label className="eyebrow-label block mb-1">SIMULATION PHASE</label>
+              <select
+                id="sim-phase-select"
+                value={phase}
+                onChange={e => setPhase(e.target.value as SimulationPhase)}
+                className="w-full bg-white border border-slate-300 rounded-[2px] px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#86BC25]"
+              >
+                <option value="good">Good (Normal performance)</option>
+                <option value="degraded">Degraded (Performance drop → triggers drift)</option>
+                <option value="recovery">Recovery (Performance recovers)</option>
               </select>
             </div>
 
@@ -81,12 +117,33 @@ export default function SimulationPage() {
                 <option value={200}>200 invoices</option>
               </select>
             </div>
+
+            {/* Reason (mandatory) */}
+            <div>
+              <label className="eyebrow-label block mb-1">REASON (MANDATORY)</label>
+              <input
+                type="text"
+                id="sim-reason-input"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Why this simulation is being run"
+                className="w-full bg-white border border-slate-300 rounded-[2px] px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#86BC25]"
+              />
+            </div>
           </div>
+
+          {startError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-[2px]">
+              <span className="text-xs text-red-700 font-bold">
+                Failed to start simulation: {(startError as Error).message}
+              </span>
+            </div>
+          )}
 
           <button
             id="sim-start-btn"
             onClick={() => startRun()}
-            disabled={isPending}
+            disabled={isPending || !reason.trim()}
             className="flex items-center justify-center gap-2 px-6 py-3 rounded-[2px] bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-black transition-colors disabled:opacity-50"
           >
             <IconSimulation className="w-4 h-4" />
@@ -94,60 +151,98 @@ export default function SimulationPage() {
           </button>
         </div>
 
-        {/* Simulation Progress — honest: shows actual state, not fake numbers */}
-        {isPending && (
-          <div className="editorial-panel p-6 bg-[#F7F8F6] border-l-4 border-[#86BC25]">
+        {/* Simulation Progress — from active run polling */}
+        {activeRun && (
+          <div className={`editorial-panel p-6 border-l-4 ${
+            activeRun.status === "failed" ? "border-red-400 bg-red-50/30" :
+            activeRun.status === "completed" ? "border-[#86BC25] bg-[#F7F8F6]" :
+            "border-[#86BC25] bg-[#F7F8F6]"
+          }`}>
             <div className="flex items-center justify-between mb-3">
-              <span className="eyebrow-label text-slate-900">SIMULATION RUNNING</span>
-              <span className="text-xs font-mono font-bold text-[#5f8914]">
-                In Progress
+              <span className="eyebrow-label text-slate-900">
+                SIMULATION {activeRun.status.toUpperCase()}
               </span>
+              <span className="font-mono text-xs text-slate-500">{activeRun.run_id}</span>
             </div>
 
-            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
-              <div className="bg-[#86BC25] h-full animate-pulse w-full" />
+            {!isRunComplete && (
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
+                <div className="bg-[#86BC25] h-full animate-pulse w-full" />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div>
+                <span className="eyebrow-label text-[9px] block">PHASE</span>
+                <span className="font-bold text-slate-900 uppercase">{activeRun.phase}</span>
+              </div>
+              <div>
+                <span className="eyebrow-label text-[9px] block">INVOICES</span>
+                <span className="font-bold text-slate-900">{activeRun.invoice_count}</span>
+              </div>
+              <div>
+                <span className="eyebrow-label text-[9px] block">DECISIONS SUBMITTED</span>
+                <span className="font-bold text-slate-900">{activeRun.decisions_submitted}</span>
+              </div>
+              <div>
+                <span className="eyebrow-label text-[9px] block">STATUS</span>
+                <span className={`font-bold ${
+                  activeRun.status === "completed" ? "text-[#5f8914]" :
+                  activeRun.status === "failed" ? "text-red-700" :
+                  "text-amber-800"
+                }`}>
+                  {activeRun.status.toUpperCase()}
+                </span>
+              </div>
             </div>
 
-            <div className="text-xs text-slate-600 font-medium">
-              Processing {count} invoices. Results will appear below when the run completes.
-              Check the agent detail page for live trust evaluation updates.
-            </div>
+            {isRunComplete && activeRun.accuracy != null && (
+              <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="eyebrow-label text-[9px] block">ACCURACY</span>
+                  <span className="text-base font-black text-slate-900">
+                    {Math.round(activeRun.accuracy * 100)}%
+                  </span>
+                </div>
+                {activeRun.wilson_lower_bound != null && (
+                  <div>
+                    <span className="eyebrow-label text-[9px] block">WILSON LOWER BOUND</span>
+                    <span className="text-base font-black text-blue-700">
+                      {Math.round(activeRun.wilson_lower_bound * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isRunComplete && (
+              <p className="text-xs text-slate-600 font-medium mt-3">
+                Check the agent detail page for live trust evaluation updates.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Simulation History */}
-        <div className="editorial-panel p-6">
-          <span className="eyebrow-label block mb-1">HISTORICAL RUNS</span>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight mb-4 border-b border-slate-200 pb-2">
-            Simulation History
-          </h2>
-
-          {isLoading ? (
-            <div className="p-6 text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
-              LOADING RUN HISTORY...
+        {/* Info panel instead of history (no list-all endpoint) */}
+        {!activeRun && !isPending && (
+          <div className="editorial-panel p-6">
+            <span className="eyebrow-label block mb-1">HOW IT WORKS</span>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight mb-4 border-b border-slate-200 pb-2">
+              Simulation Guide
+            </h2>
+            <div className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
+              <p>
+                <strong className="text-slate-900">Good phase:</strong> Normal agent performance. The agent processes invoices with high accuracy, building evidence for autonomy increases.
+              </p>
+              <p>
+                <strong className="text-slate-900">Degraded phase:</strong> Inject a performance drop. The trust engine detects drift, and the system automatically claws back autonomy — this is the demo&apos;s most dramatic beat.
+              </p>
+              <p>
+                <strong className="text-slate-900">Recovery phase:</strong> Performance returns to normal. After enough clean decisions, the system will recommend an increase again.
+              </p>
             </div>
-          ) : runs.length === 0 ? (
-            <div className="p-6 text-xs text-slate-500 font-medium text-center">
-              No simulation runs yet. Launch one above.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {runs.map((run) => (
-                <div key={String(run.run_id)} className="editorial-panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <span className="font-mono text-xs font-bold text-slate-900">{String(run.run_id)}</span>
-                    <p className="text-xs text-slate-500 font-medium">
-                      {String(run.status ?? "completed")}
-                    </p>
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {run.started_at ? new Date(String(run.started_at)).toLocaleString("en-IN") : "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

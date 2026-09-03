@@ -1,23 +1,32 @@
 "use client";
 /**
  * Page 2: /agents/[id] — Agent Detail & Governance Hero Page
- * v1.1 contracts: five-rung ladder, TrustEvaluation, data-driven event history,
- * reason codes, drift, score components, sampling rate.
+ *
+ * Uses AgentOut (from GET /agents/{id}) for basic identity, and
+ * TrustEvaluation (from GET /agents/{id}/trust) for all metrics.
+ * Policy versions (from GET /agents/{id}/policy-versions) for the timeline.
+ * Decisions from GET /decisions filtered client-side by agent_id.
+ *
+ * KEY CHANGES:
+ *  - trust endpoint is /trust not /trust-evaluation
+ *  - autonomy history is /policy-versions not /autonomy-history
+ *  - agent shape is AgentOut (id, name, current_limit, current_rung, state, context)
+ *  - trust metrics come from the trust query, not from the agent
+ *  - decisions from /decisions, not /agents/{id}/decisions
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { agentsApi } from "@/lib/api-client";
+import { agentsApi, decisionsApi } from "@/lib/api-client";
 import { AutonomyTimeline } from "@/components/charts/AutonomyTimeline";
 import { HorizontalThresholdGauge } from "@/components/charts/HorizontalThresholdGauge";
-import { InvoiceCard } from "@/components/domain/InvoiceCard";
 import { AutonomyLadder } from "@/components/domain/AutonomyLadder";
 import {
   describeReasonCodes,
   AUTONOMY_LADDER,
   samplingRateOf,
 } from "@/types/api";
-import type { AgentState, AutonomyEvent } from "@/types/api";
+import type { AgentState, PolicyVersionOut } from "@/types/api";
 
 const STATE_CLASS: Record<AgentState, string> = {
   probation:  "state-badge state-probation",
@@ -37,68 +46,70 @@ function fmtTime(iso: string): string {
   });
 }
 
-/** Build a data-driven governance event timeline from AutonomyEvent[] */
-function buildEventTimeline(events: AutonomyEvent[]) {
-  const significant = events.filter(
-    e => e.is_promotion_event || e.is_clawback_event || e.drift_severity === "CONFIRMED" || e.drift_severity === "CRITICAL"
-      || e.state === "restricted" || e.state === "suspended"
-  );
+/** Detect clawbacks by comparing consecutive policy versions (rung going down). */
+function buildEventTimeline(versions: PolicyVersionOut[]) {
+  // versions are newest-first from the API — reverse for chronological order
+  const chronological = [...versions].reverse();
 
-  return significant.reverse().map(e => {
+  return chronological.map((v, i) => {
+    const prevVersion = i > 0 ? chronological[i - 1] : null;
+    const isClawback = prevVersion != null && v.rung < prevVersion.rung;
+    const isPromotion = prevVersion != null && v.rung > prevVersion.rung;
+
     let color = "bg-slate-400";
     let title = "";
     let description = "";
 
-    if (e.is_clawback_event) {
+    if (isClawback) {
       color = "bg-red-600";
-      title = `Automatic clawback → ${fmtLimit(e.current_limit)}`;
-      description = `Autonomy reduced to rung ${e.current_rung}. ${describeReasonCodes(e.reason_codes)}`;
-    } else if (e.is_promotion_event) {
+      title = `Automatic clawback → ${fmtLimit(v.limit)}`;
+      description = `Autonomy reduced to rung ${v.rung}. ${v.reason}`;
+    } else if (isPromotion) {
       color = "bg-[#86BC25]";
-      title = `Promotion granted → ${fmtLimit(e.current_limit)}`;
-      description = `Earned rung ${e.current_rung}. ${describeReasonCodes(e.reason_codes)}`;
-    } else if (e.drift_severity === "CRITICAL") {
-      color = "bg-red-600";
-      title = "Critical drift detected";
-      description = `Performance degradation severity: CRITICAL. ${describeReasonCodes(e.reason_codes)}`;
-    } else if (e.drift_severity === "CONFIRMED") {
-      color = "bg-amber-500";
-      title = "Drift confirmed";
-      description = `Performance drift confirmed. ${describeReasonCodes(e.reason_codes)}`;
-    } else if (e.state === "restricted") {
-      color = "bg-red-400";
-      title = "Agent restricted";
-      description = describeReasonCodes(e.reason_codes);
+      title = `Promotion granted → ${fmtLimit(v.limit)}`;
+      description = `Earned rung ${v.rung}. ${v.reason}`;
+    } else if (i === 0) {
+      color = "bg-blue-500";
+      title = `Initial policy → ${fmtLimit(v.limit)}`;
+      description = `Starting at rung ${v.rung}. ${v.reason}`;
     } else {
-      title = "State change";
-      description = describeReasonCodes(e.reason_codes);
+      title = `Policy change → ${fmtLimit(v.limit)}`;
+      description = v.reason;
     }
 
-    return { time: fmtTime(e.evaluated_at), color, title, description };
+    return { time: fmtTime(v.effective_from), color, title, description };
   });
 }
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const { data: agent, isLoading: agentLoading } = useQuery({
+  const { data: agent, isLoading: agentLoading, isError: agentError } = useQuery({
     queryKey: ["agent", id],
     queryFn: () => agentsApi.get(id),
   });
 
-  const { data: history = [] } = useQuery({
-    queryKey: ["agent-history", id],
-    queryFn: () => agentsApi.getAutonomyHistory(id),
+  const { data: policyVersionsData } = useQuery({
+    queryKey: ["agent-policy-versions", id],
+    queryFn: () => agentsApi.getPolicyVersions(id),
   });
 
   const { data: trustEval } = useQuery({
     queryKey: ["agent-trust", id],
-    queryFn: () => agentsApi.getTrustEvaluation(id),
+    queryFn: () => agentsApi.getTrust(id),
+    // Don't poll — each call computes and persists a new evaluation
+    refetchInterval: false,
+    staleTime: 60_000,
   });
 
-  const { data: decisions } = useQuery({
+  const { data: trustHistoryData } = useQuery({
+    queryKey: ["agent-trust-history", id],
+    queryFn: () => agentsApi.getTrustHistory(id),
+  });
+
+  const { data: decisionsData } = useQuery({
     queryKey: ["agent-decisions", id],
-    queryFn: () => agentsApi.getDecisions(id),
+    queryFn: () => decisionsApi.list(),
   });
 
   if (agentLoading) {
@@ -109,17 +120,31 @@ export default function AgentDetailPage() {
     );
   }
 
-  if (!agent) {
+  if (agentError || !agent) {
     return (
-      <div className="editorial-content text-xs font-bold text-red-700 uppercase tracking-widest">
-        GOVERNANCE RECORD NOT FOUND.
+      <div className="editorial-content">
+        <div className="editorial-panel p-6 border-l-4 border-red-400">
+          <span className="text-xs font-bold text-red-700 uppercase tracking-widest block">
+            {agentError ? "FAILED TO LOAD AGENT" : "GOVERNANCE RECORD NOT FOUND."}
+          </span>
+          <p className="text-xs text-slate-500 mt-1">Check that the backend is running and the agent ID is valid.</p>
+        </div>
       </div>
     );
   }
 
-  const hasClawback = history.some(e => e.is_clawback_event);
-  const eventTimeline = buildEventTimeline(history);
+  const policyVersions = policyVersionsData?.items ?? [];
+  const trustHistory = trustHistoryData?.items ?? [];
+  const hasClawback = policyVersions.some((v, i) => {
+    const chronological = [...policyVersions].reverse();
+    const idx = chronological.indexOf(v);
+    return idx > 0 && v.rung < chronological[idx - 1].rung;
+  });
+  const eventTimeline = buildEventTimeline(policyVersions);
   const samplingRate = samplingRateOf(agent.current_rung);
+
+  // Filter decisions for this agent (client-side, since no per-agent endpoint exists)
+  const agentDecisions = (decisionsData?.items ?? []).filter(d => d.agent_id === id);
 
   return (
     <div>
@@ -132,7 +157,7 @@ export default function AgentDetailPage() {
               {agent.name.split(" ")[0]}
             </h1>
             <div className="flex items-center gap-3 text-xs text-slate-500 font-mono mt-1">
-              <span>{agent.agent_id}</span>
+              <span>{agent.id}</span>
             </div>
             <div className="flex items-center gap-2 mt-2">
               <span className={STATE_CLASS[agent.state]}>
@@ -141,9 +166,9 @@ export default function AgentDetailPage() {
               <span className={`rung-tag rung-${agent.current_rung}`}>
                 RUNG {agent.current_rung}
               </span>
-              {agent.drift_severity !== "NONE" && (
-                <span className={`state-badge drift-${agent.drift_severity.toLowerCase()}`}>
-                  DRIFT: {agent.drift_severity}
+              {trustEval && trustEval.drift.severity !== "NONE" && (
+                <span className={`state-badge drift-${trustEval.drift.severity.toLowerCase()}`}>
+                  DRIFT: {trustEval.drift.severity}
                 </span>
               )}
             </div>
@@ -159,12 +184,12 @@ export default function AgentDetailPage() {
               </p>
             </div>
             <div className="flex items-center justify-end gap-2 mt-1.5">
-              {agent.direction !== "HOLD" && (
-                <span className={`state-badge direction-${agent.direction.toLowerCase()}`}>
-                  {agent.direction}
+              {trustEval && trustEval.direction !== "HOLD" && (
+                <span className={`state-badge direction-${trustEval.direction.toLowerCase()}`}>
+                  {trustEval.direction}
                 </span>
               )}
-              {agent.eligible_for_increase && (
+              {trustEval?.eligible_for_increase && (
                 <span className="state-badge state-active">
                   ELIGIBLE FOR INCREASE
                 </span>
@@ -181,27 +206,31 @@ export default function AgentDetailPage() {
       </div>
 
       <div className="editorial-content space-y-8">
-        {/* Horizontal Performance Band (Strip) */}
+        {/* Horizontal Performance Band (Strip) — from TrustEvaluation */}
         <div className="editorial-panel grid grid-cols-2 sm:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
           <div className="metric-strip-item">
             <span className="eyebrow-label text-[9px]">TRUST SCORE</span>
-            <span className="text-2xl font-black text-slate-900">{agent.trust_score.toFixed(1)}</span>
+            <span className="text-2xl font-black text-slate-900">
+              {trustEval ? trustEval.trust_score.toFixed(1) : "—"}
+            </span>
           </div>
           <div className="metric-strip-item">
             <span className="eyebrow-label text-[9px]">TOTAL DECISIONS</span>
-            <span className="text-2xl font-black text-slate-900">{agent.total_decisions.toLocaleString()}</span>
+            <span className="text-2xl font-black text-slate-900">
+              {trustEval ? trustEval.total_decisions.toLocaleString() : "—"}
+            </span>
           </div>
           <div className="metric-strip-item">
             <span className="eyebrow-label text-[9px]">ACCURACY</span>
             <span className="text-2xl font-black text-slate-900">
-              {agent.rolling_accuracy != null ? `${Math.round(agent.rolling_accuracy * 100)}%` : "—"}
+              {trustEval?.accuracy?.point != null ? `${Math.round(trustEval.accuracy.point * 100)}%` : "—"}
             </span>
           </div>
           <div className="metric-strip-item">
             <span className="eyebrow-label text-[9px]">WILSON BAND</span>
             <span className="text-2xl font-black text-blue-700">
-              {agent.wilson_lower != null && agent.wilson_upper != null
-                ? `${Math.round(agent.wilson_lower * 100)}–${Math.round(agent.wilson_upper * 100)}%`
+              {trustEval?.accuracy != null
+                ? `${Math.round(trustEval.accuracy.wilson_lower * 100)}–${Math.round(trustEval.accuracy.wilson_upper * 100)}%`
                 : "—"}
             </span>
           </div>
@@ -210,9 +239,9 @@ export default function AgentDetailPage() {
             <span className="text-2xl font-black text-slate-900">{Math.round(samplingRate * 100)}%</span>
           </div>
           <div className="metric-strip-item">
-            <span className="eyebrow-label text-[9px]">PENDING</span>
-            <span className={`text-2xl font-black ${agent.pending_approvals > 0 ? "text-amber-900" : "text-slate-900"}`}>
-              {agent.pending_approvals}
+            <span className="eyebrow-label text-[9px]">DIRECTION</span>
+            <span className="text-2xl font-black text-slate-900">
+              {trustEval ? trustEval.direction : "—"}
             </span>
           </div>
         </div>
@@ -229,7 +258,11 @@ export default function AgentDetailPage() {
             </p>
           </div>
 
-          <AutonomyTimeline events={history} height={380} />
+          <AutonomyTimeline
+            policyVersions={policyVersions}
+            trustHistory={trustHistory}
+            height={380}
+          />
         </div>
 
         {/* Two-Column: Why Autonomy Changed & Horizontal Threshold Visualization */}
@@ -302,10 +335,10 @@ export default function AgentDetailPage() {
                 Reliability Position
               </h3>
 
-              {agent.rolling_accuracy != null && agent.wilson_lower != null && (
+              {trustEval?.accuracy != null && trustEval.accuracy.point != null && (
                 <HorizontalThresholdGauge
-                  accuracy={agent.rolling_accuracy}
-                  wilsonLB={agent.wilson_lower}
+                  accuracy={trustEval.accuracy.point}
+                  wilsonLB={trustEval.accuracy.wilson_lower}
                 />
               )}
             </div>
@@ -373,7 +406,7 @@ export default function AgentDetailPage() {
               Review burden by rung
             </h3>
             <p className="text-xs text-slate-600 mb-3">
-              As an agent climbs the ladder, its autonomous decisions are sampled at a lower rate. This shrinking review burden is the system's ROI.
+              As an agent climbs the ladder, its autonomous decisions are sampled at a lower rate. This shrinking review burden is the system&apos;s ROI.
             </p>
             <div className="grid grid-cols-5 gap-2">
               {AUTONOMY_LADDER.map((limit, rung) => (
@@ -390,7 +423,7 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        {/* Governance Event Timeline — data-driven from AutonomyEvent[] */}
+        {/* Governance Event Timeline — data-driven from PolicyVersionOut[] */}
         {eventTimeline.length > 0 && (
           <div className="editorial-panel p-6">
             <span className="eyebrow-label block mb-1">CHRONOLOGICAL AUDIT</span>
@@ -411,20 +444,42 @@ export default function AgentDetailPage() {
           </div>
         )}
 
-        {/* Recent Decisions Editorial Feed */}
+        {/* Recent Decisions */}
         <div className="editorial-panel p-6">
           <span className="eyebrow-label block mb-1">DECISION LOG</span>
           <h3 className="text-lg font-black text-slate-900 mb-4 border-b border-slate-200 pb-2">
             Recent Decisions
           </h3>
-          {decisions?.items?.length ? (
+          {agentDecisions.length > 0 ? (
             <div className="space-y-2">
-              {decisions.items.map(r => (
-                <InvoiceCard key={r.decision_id} record={r} />
-              ))}
+              {agentDecisions.slice(0, 20).map(r => {
+                const time = r.decided_at
+                  ? new Date(r.decided_at).toLocaleString("en-IN", {
+                      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+                    })
+                  : "—";
+                return (
+                  <div key={r.decision_id} className="bg-white border border-slate-200 rounded-[4px] p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`px-2 py-0.5 font-bold uppercase rounded-[3px] border ${
+                        r.action === "APPROVE" ? "bg-[#86BC25]/10 text-[#5f8914] border-[#86BC25]/30" :
+                        r.action === "REJECT" ? "bg-red-50 text-red-700 border-red-200" :
+                        "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}>
+                        {r.action}
+                      </span>
+                      <span className="font-mono font-medium text-slate-900 mr-2">{r.invoice_id}</span>
+                      <span className="font-bold text-slate-700">₹{r.amount.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-slate-500 flex-shrink-0">
+                      <span>{time}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <p className="text-slate-500 text-xs">No decision records found.</p>
+            <p className="text-slate-500 text-xs">No decision records found for this agent.</p>
           )}
         </div>
       </div>
