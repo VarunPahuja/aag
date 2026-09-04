@@ -32,7 +32,7 @@ export function Sidebar() {
     refetchInterval: 10_000,
   });
 
-  const pendingApprovalsCount = pendingRecommendations?.length ?? 0;
+  const pendingApprovalsCount = pendingRecommendations?.items?.length ?? 0;
 
   return (
     <aside className="w-[240px] min-h-screen bg-white border-r border-[#E2E8F0] flex flex-col justify-between flex-shrink-0 font-sans">

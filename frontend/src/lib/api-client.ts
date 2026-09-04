@@ -1,23 +1,29 @@
 /**
  * src/lib/api-client.ts
  * ----------------------
- * Typed fetch-based API client — v1.1 contract-aligned.
+ * Typed fetch-based API client — aligned to backend/openapi.json.
  *
  * DESIGN:
  *  - JWT token read from localStorage (prototype-acceptable tradeoff, documented)
  *  - All requests go to NEXT_PUBLIC_API_BASE_URL (env var)
  *  - MSW intercepts all fetch calls in dev when NEXT_PUBLIC_MSW_ENABLED=true
+ *
+ * Every endpoint, path and return type was verified against the live backend.
+ * See: http://localhost:8000/docs for the interactive schema browser.
  */
 
 import type {
-  AgentSummary,
-  AutonomyEvent,
-  DecisionRecord,
+  AgentOut,
   TrustEvaluation,
+  PolicyVersionOut,
   Recommendation,
-  AuditSample,
   AuditLogEntry,
+  AuditSample,
+  DecisionRecordOut,
   PaginatedResponse,
+  AuditLogResponse,
+  SimulationRunCreate,
+  SimulationRunOut,
 } from "@/types/api";
 
 const API_BASE =
@@ -40,7 +46,7 @@ function getAuthHeaders(): HeadersInit {
 }
 
 // ---------------------------------------------------------------------------
-// Base fetch wrapper
+// Base fetch wrappers
 // ---------------------------------------------------------------------------
 
 async function apiFetch<T>(
@@ -57,90 +63,120 @@ async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status} on ${path}: ${text}`);
+    const error = new Error(`API ${res.status} on ${path}: ${text}`);
+    (error as any).status = res.status;
+    throw error;
   }
 
   return res.json() as Promise<T>;
 }
 
+function get<T>(path: string): Promise<T> {
+  return apiFetch<T>(path);
+}
+
+function post<T>(path: string, body: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Agents
+// Agents — GET /agents, GET /agents/{id}
 // ---------------------------------------------------------------------------
 
 export const agentsApi = {
-  list: (): Promise<AgentSummary[]> => apiFetch("/agents"),
+  /** GET /agents → Page<AgentOut> */
+  list: (page = 1, pageSize = 50): Promise<PaginatedResponse<AgentOut>> =>
+    get(`/agents?page=${page}&page_size=${pageSize}`),
 
-  get: (agentId: string): Promise<AgentSummary> =>
-    apiFetch(`/agents/${agentId}`),
+  /** GET /agents/{id} → AgentOut */
+  get: (agentId: string): Promise<AgentOut> =>
+    get(`/agents/${agentId}`),
 
-  getDecisions: (
+  /**
+   * GET /agents/{id}/trust → TrustEvaluation
+   * NOTE: this endpoint computes and persists a fresh evaluation on every call.
+   * Do not poll it — use getTrustHistory for the chart.
+   */
+  getTrust: (agentId: string): Promise<TrustEvaluation> =>
+    get(`/agents/${agentId}/trust`),
+
+  /** GET /agents/{id}/trust/history → Page<TrustEvaluation> (newest first) */
+  getTrustHistory: (
     agentId: string,
     page = 1,
-    pageSize = 50
-  ): Promise<PaginatedResponse<DecisionRecord>> =>
-    apiFetch(`/agents/${agentId}/decisions?page=${page}&page_size=${pageSize}`),
+    pageSize = 100
+  ): Promise<PaginatedResponse<TrustEvaluation>> =>
+    get(`/agents/${agentId}/trust/history?page=${page}&page_size=${pageSize}`),
 
-  getAutonomyHistory: (agentId: string): Promise<AutonomyEvent[]> =>
-    apiFetch(`/agents/${agentId}/autonomy-history`),
+  /** GET /agents/{id}/policy-versions → Page<PolicyVersionOut> (newest first) */
+  getPolicyVersions: (
+    agentId: string,
+    page = 1,
+    pageSize = 100
+  ): Promise<PaginatedResponse<PolicyVersionOut>> =>
+    get(`/agents/${agentId}/policy-versions?page=${page}&page_size=${pageSize}`),
+};
 
-  getTrustEvaluation: (agentId: string): Promise<TrustEvaluation> =>
-    apiFetch(`/agents/${agentId}/trust-evaluation`),
+// ---------------------------------------------------------------------------
+// Decisions — GET /decisions, GET /decisions/{id}
+// No /agents/{id}/decisions endpoint exists. Filter client-side.
+// ---------------------------------------------------------------------------
+
+export const decisionsApi = {
+  /** GET /decisions → Page<DecisionRecordOut> */
+  list: (page = 1, pageSize = 50): Promise<PaginatedResponse<DecisionRecordOut>> =>
+    get(`/decisions?page=${page}&page_size=${pageSize}`),
+
+  /** GET /decisions/{id} → DecisionRecordOut */
+  get: (decisionId: string): Promise<DecisionRecordOut> =>
+    get(`/decisions/${decisionId}`),
 };
 
 // ---------------------------------------------------------------------------
 // Recommendations (governance opinions + human authorization)
+// Approve and reject are separate endpoints, not one "resolve".
 // ---------------------------------------------------------------------------
 
 export const recommendationsApi = {
-  list: (status?: string): Promise<Recommendation[]> =>
-    apiFetch(`/recommendations${status ? `?status=${status}` : ""}`),
+  /** GET /recommendations → Page<Recommendation> */
+  list: (status?: string): Promise<PaginatedResponse<Recommendation>> =>
+    get(`/recommendations${status ? `?status=${status}` : ""}`),
 
+  /** GET /recommendations/{id} → Recommendation */
   get: (recId: string): Promise<Recommendation> =>
-    apiFetch(`/recommendations/${recId}`),
+    get(`/recommendations/${recId}`),
 
-  resolve: (
-    recId: string,
-    resolution: { status: "APPROVED" | "REJECTED"; reason: string }
-  ): Promise<Recommendation> =>
-    apiFetch(`/recommendations/${recId}/resolve`, {
-      method: "POST",
-      body: JSON.stringify(resolution),
-    }),
-};
+  /**
+   * POST /recommendations/{id}/approve
+   * `reason` is mandatory. Returns updated Recommendation.
+   * 403 = not admin, 409 = already resolved.
+   */
+  approve: (recId: string, reason: string): Promise<Recommendation> =>
+    post(`/recommendations/${recId}/approve`, { reason }),
 
-// ---------------------------------------------------------------------------
-// Audit trail (decision records)
-// ---------------------------------------------------------------------------
-
-export const auditApi = {
-  list: (params?: {
-    agent_id?: string;
-    action?: string;
-    from_date?: string;
-    to_date?: string;
-    page?: number;
-    page_size?: number;
-  }): Promise<PaginatedResponse<DecisionRecord>> => {
-    const qs = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params ?? {})
-          .filter(([, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)])
-      )
-    ).toString();
-    return apiFetch(`/audit${qs ? `?${qs}` : ""}`);
-  },
+  /**
+   * POST /recommendations/{id}/reject
+   * `reason` is mandatory. Returns updated Recommendation.
+   * 403 = not admin, 409 = already resolved.
+   */
+  reject: (recId: string, reason: string): Promise<Recommendation> =>
+    post(`/recommendations/${recId}/reject`, { reason }),
 };
 
 // ---------------------------------------------------------------------------
 // Audit log (hash-chained immutable entries)
+// Response includes chain_valid and chain_verified_scope.
 // ---------------------------------------------------------------------------
 
 export const auditLogApi = {
+  /** GET /audit-log → AuditLogResponse (Page<AuditLogEntry> + chain_valid) */
   list: (params?: {
     page?: number;
     page_size?: number;
-  }): Promise<PaginatedResponse<AuditLogEntry>> => {
+  }): Promise<AuditLogResponse> => {
     const qs = new URLSearchParams(
       Object.fromEntries(
         Object.entries(params ?? {})
@@ -148,7 +184,7 @@ export const auditLogApi = {
           .map(([k, v]) => [k, String(v)])
       )
     ).toString();
-    return apiFetch(`/audit-log${qs ? `?${qs}` : ""}`);
+    return get(`/audit-log${qs ? `?${qs}` : ""}`);
   },
 };
 
@@ -157,21 +193,25 @@ export const auditLogApi = {
 // ---------------------------------------------------------------------------
 
 export const auditSamplesApi = {
-  list: (agentId?: string): Promise<AuditSample[]> =>
-    apiFetch(`/audit-samples${agentId ? `?agent_id=${agentId}` : ""}`),
+  /** GET /audit-samples → Page<AuditSample> */
+  list: (agentId?: string): Promise<PaginatedResponse<AuditSample>> =>
+    get(`/audit-samples${agentId ? `?agent_id=${agentId}` : ""}`),
 };
 
 // ---------------------------------------------------------------------------
 // Simulation
+// No GET /simulation/runs (list-all) endpoint exists.
 // ---------------------------------------------------------------------------
 
 export const simulationApi = {
-  start: (config: Record<string, unknown>): Promise<{ run_id: string; status: string }> =>
-    apiFetch("/simulation/runs", {
-      method: "POST",
-      body: JSON.stringify(config),
-    }),
+  /**
+   * POST /simulation/runs → SimulationRunOut
+   * Body: { agent_id, invoice_count, phase, reason, seed? }
+   */
+  start: (config: SimulationRunCreate): Promise<SimulationRunOut> =>
+    post("/simulation/runs", config),
 
-  listRuns: (): Promise<unknown[]> =>
-    apiFetch("/simulation/runs"),
+  /** GET /simulation/runs/{run_id} → SimulationRunOut */
+  getRun: (runId: string): Promise<SimulationRunOut> =>
+    get(`/simulation/runs/${runId}`),
 };

@@ -1,47 +1,42 @@
 "use client";
 /**
  * Page 4: /audit — Immutable Governance Record Table & Detail Drawer
- * v1.1 contracts: AuditLogEntry with hash chain verification.
  *
- * The audit log IS hash-chained — each row stores
- * sha256(prev_hash + canonical_json(payload)). The UI verifies the chain
- * and reports the result dynamically.
+ * The audit log IS hash-chained. The backend verifies the full chain
+ * and returns `chain_valid` + `chain_verified_scope` in the response.
+ * The frontend renders the result — it does NOT recompute the chain.
+ *
+ * KEY CHANGES:
+ *  - Deleted verifyChain() — business logic in the frontend is forbidden
+ *  - Read chain_valid from API response instead
+ *  - Fixed EVENT_TYPE_BADGE keys to use dotted format (the real event_type values)
+ *  - Fixed fmtEventType to split on `.` instead of `_`
+ *  - Added isError handling
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { auditLogApi } from "@/lib/api-client";
 import { IconShieldAlert, IconCheckCircle } from "@/components/ui/Icons";
 import type { AuditLogEntry } from "@/types/api";
 
+/** Real event_type values are dotted: "decision.recorded", "policy_version.created", etc. */
 const EVENT_TYPE_BADGE: Record<string, string> = {
-  agent_registered:       "bg-blue-100 text-blue-700 border-blue-200",
-  decision_recorded:      "bg-green-100 text-[#5f8914] border-green-200",
-  trust_evaluated:        "bg-slate-100 text-slate-700 border-slate-200",
-  autonomy_changed:       "bg-amber-100 text-amber-900 border-amber-200",
-  drift_detected:         "bg-red-100 text-red-700 border-red-200",
-  recommendation_created: "bg-purple-100 text-purple-700 border-purple-200",
-  sample_reviewed:        "bg-cyan-100 text-cyan-800 border-cyan-200",
+  "decision.recorded":         "bg-green-100 text-[#5f8914] border-green-200",
+  "policy_version.created":    "bg-amber-100 text-amber-900 border-amber-200",
+  "recommendation.generated":  "bg-purple-100 text-purple-700 border-purple-200",
+  "recommendation.approved":   "bg-green-100 text-[#5f8914] border-green-200",
+  "recommendation.rejected":   "bg-red-100 text-red-700 border-red-200",
+  "audit_sample.reviewed":     "bg-cyan-100 text-cyan-800 border-cyan-200",
 };
 
+/** Format dotted event types into readable titles: "decision.recorded" → "Decision Recorded" */
 function fmtEventType(type: string): string {
-  return type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/** Verify the hash chain: each entry's prev_hash must match the prior entry's hash. */
-function verifyChain(entries: AuditLogEntry[]): {
-  valid: boolean;
-  checkedCount: number;
-  brokenAt: number | null;
-} {
-  if (entries.length === 0) return { valid: true, checkedCount: 0, brokenAt: null };
-
-  for (let i = 1; i < entries.length; i++) {
-    if (entries[i].prev_hash !== entries[i - 1].hash) {
-      return { valid: false, checkedCount: i, brokenAt: i };
-    }
-  }
-  return { valid: true, checkedCount: entries.length, brokenAt: null };
+  return type
+    .split(".")
+    .map(part => part.replace(/_/g, " "))
+    .map(part => part.replace(/\b\w/g, c => c.toUpperCase()))
+    .join(" · ");
 }
 
 export default function AuditPage() {
@@ -49,7 +44,7 @@ export default function AuditPage() {
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const PAGE_SIZE = 25;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["audit-log", page],
     queryFn: () => auditLogApi.list({ page, page_size: PAGE_SIZE }),
     refetchInterval: 10_000,
@@ -57,10 +52,9 @@ export default function AuditPage() {
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
-  const chainStatus = useMemo(
-    () => verifyChain(data?.items ?? []),
-    [data?.items]
-  );
+  // chain_valid and chain_verified_scope come directly from the backend
+  const chainValid = data?.chain_valid;
+  const chainScope = data?.chain_verified_scope;
 
   return (
     <div>
@@ -75,14 +69,16 @@ export default function AuditPage() {
             </p>
           </div>
 
-          {/* Dynamic integrity indicator — verifies hash chain */}
+          {/* Dynamic integrity indicator — from backend chain_valid */}
           {data && data.items.length > 0 ? (
-            chainStatus.valid ? (
+            chainValid ? (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-[2px]">
                 <IconCheckCircle className="w-4 h-4 text-[#5f8914]" />
                 <div>
                   <span className="text-xs font-bold text-[#5f8914] block">Hash Chain: Verified</span>
-                  <span className="text-[10px] text-green-700">{chainStatus.checkedCount} entries checked</span>
+                  <span className="text-[10px] text-green-700">
+                    Scope: {chainScope} · {data.total} entries
+                  </span>
                 </div>
               </div>
             ) : (
@@ -90,7 +86,7 @@ export default function AuditPage() {
                 <IconShieldAlert className="w-4 h-4 text-red-700" />
                 <div>
                   <span className="text-xs font-bold text-red-700 block">Hash Chain: BROKEN</span>
-                  <span className="text-[10px] text-red-600">Break at entry {chainStatus.brokenAt}</span>
+                  <span className="text-[10px] text-red-600">Tampering detected — investigate immediately</span>
                 </div>
               </div>
             )
@@ -104,6 +100,13 @@ export default function AuditPage() {
       </div>
 
       <div className="editorial-content">
+        {isError && (
+          <div className="editorial-panel p-6 border-l-4 border-red-400 mb-6">
+            <span className="text-xs text-red-700 font-bold block">Unable to load audit log.</span>
+            <p className="text-xs text-slate-500 mt-1">Check that the backend is running.</p>
+          </div>
+        )}
+
         <div className="flex flex-col xl:flex-row gap-6">
           {/* Main Audit Data Table */}
           <div className="editorial-panel overflow-hidden flex-1">
@@ -124,12 +127,9 @@ export default function AuditPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.items.map((entry, idx) => {
+                  {data?.items.map((entry) => {
                     const isSelected = selectedEntry?.id === entry.id;
                     const badge = EVENT_TYPE_BADGE[entry.event_type] ?? "bg-slate-100 text-slate-700 border-slate-200";
-                    // Check if this specific entry's chain link is valid
-                    const prevEntry = idx > 0 ? data.items[idx - 1] : null;
-                    const linkValid = idx === 0 || (prevEntry && entry.prev_hash === prevEntry.hash);
 
                     return (
                       <tr
@@ -163,11 +163,6 @@ export default function AuditPage() {
                         </td>
                         <td>
                           <div className="flex items-center gap-1">
-                            {linkValid ? (
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#86BC25] inline-block flex-shrink-0" />
-                            ) : (
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block flex-shrink-0" />
-                            )}
                             <span className="font-mono text-[10px] text-slate-400 truncate max-w-[80px]">
                               {entry.hash.slice(0, 12)}…
                             </span>

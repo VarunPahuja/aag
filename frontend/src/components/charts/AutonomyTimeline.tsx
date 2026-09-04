@@ -4,12 +4,15 @@
  * --------------------------------------------
  * Executive Financial & Performance Autonomy Chart.
  *
- * KEY CHANGE (v1.1): Accuracy is now a shaded confidence band
- * [wilson_lower, wilson_upper] with the point estimate as a line on top.
- * The band narrows as evidence accumulates — that narrowing is what
- * unlocks the next rung. This is the single most important visualisation.
+ * TWO DATA SOURCES, ONE CHART:
+ *  1. PolicyVersionOut[] — limit/rung over time (stepped, left axis)
+ *  2. TrustEvaluation[] — accuracy with Wilson band (right axis)
  *
- * Y-axis ticks updated from the old 3-tier limits to the five-rung ladder.
+ * Merged by timestamp. Policy versions define the stepped autonomy limit.
+ * Trust evaluations provide the accuracy point estimate and Wilson band.
+ *
+ * A rung going DOWN between consecutive policy versions is a clawback —
+ * marked with a red reference line.
  */
 
 import {
@@ -24,11 +27,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { AutonomyEvent } from "@/types/api";
+import type { PolicyVersionOut, TrustEvaluation } from "@/types/api";
 import { AUTONOMY_LADDER } from "@/types/api";
 
 interface Props {
-  events: AutonomyEvent[];
+  policyVersions: PolicyVersionOut[];
+  trustHistory: TrustEvaluation[];
   height?: number;
 }
 
@@ -48,35 +52,93 @@ function fmtLimit(val: number): string {
   return `₹${val}`;
 }
 
-export function AutonomyTimeline({ events, height = 400 }: Props) {
-  const data = events.map(e => ({
-    time: e.evaluated_at,
-    timeLabel: fmtTime(e.evaluated_at),
-    limit: e.current_limit,
-    accuracy: e.rolling_accuracy != null ? Math.round(e.rolling_accuracy * 1000) / 10 : null,
-    wilsonLower: Math.round(e.wilson_lower * 1000) / 10,
-    wilsonUpper: Math.round(e.wilson_upper * 1000) / 10,
-    // Recharts Area needs a [min, max] array for the band
-    wilsonBand: [Math.round(e.wilson_lower * 1000) / 10, Math.round(e.wilson_upper * 1000) / 10] as [number, number],
-    state: e.state,
-    is_clawback: e.is_clawback_event,
-    is_promotion: e.is_promotion_event,
-    drift_severity: e.drift_severity,
-    direction: e.direction,
-    rung: e.current_rung,
-  }));
+interface ChartDataPoint {
+  time: string;
+  timeLabel: string;
+  timestamp: number;
+  limit: number | null;
+  rung: number | null;
+  accuracy: number | null;
+  wilsonLower: number | null;
+  wilsonUpper: number | null;
+  wilsonBand: [number, number] | null;
+  isClawback: boolean;
+  isPromotion: boolean;
+  source: "policy" | "trust" | "merged";
+}
+
+export function AutonomyTimeline({ policyVersions, trustHistory, height = 400 }: Props) {
+  // Reverse both to chronological order (APIs return newest-first)
+  const chronPolicies = [...policyVersions].reverse();
+  const chronTrust = [...trustHistory].reverse();
+
+  // Build data points from policy versions
+  const policyPoints: ChartDataPoint[] = chronPolicies.map((v, i) => {
+    const prevVersion = i > 0 ? chronPolicies[i - 1] : null;
+    return {
+      time: v.effective_from,
+      timeLabel: fmtTime(v.effective_from),
+      timestamp: new Date(v.effective_from).getTime(),
+      limit: v.limit,
+      rung: v.rung,
+      accuracy: null,
+      wilsonLower: null,
+      wilsonUpper: null,
+      wilsonBand: null,
+      isClawback: prevVersion != null && v.rung < prevVersion.rung,
+      isPromotion: prevVersion != null && v.rung > prevVersion.rung,
+      source: "policy" as const,
+    };
+  });
+
+  // Build data points from trust history
+  const trustPoints: ChartDataPoint[] = chronTrust
+    .filter(t => t.evaluated_at != null)
+    .map(t => {
+      const acc = t.accuracy;
+      return {
+        time: t.evaluated_at!,
+        timeLabel: fmtTime(t.evaluated_at!),
+        timestamp: new Date(t.evaluated_at!).getTime(),
+        limit: null,
+        rung: null,
+        accuracy: acc?.point != null ? Math.round(acc.point * 1000) / 10 : null,
+        wilsonLower: acc != null ? Math.round(acc.wilson_lower * 1000) / 10 : null,
+        wilsonUpper: acc != null ? Math.round(acc.wilson_upper * 1000) / 10 : null,
+        wilsonBand: acc != null ? [Math.round(acc.wilson_lower * 1000) / 10, Math.round(acc.wilson_upper * 1000) / 10] as [number, number] : null,
+        isClawback: false,
+        isPromotion: false,
+        source: "trust" as const,
+      };
+    });
+
+  // Merge and sort by timestamp
+  const allPoints = [...policyPoints, ...trustPoints].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Forward-fill limit/rung from policy points into trust points
+  let lastLimit: number | null = null;
+  let lastRung: number | null = null;
+  const data = allPoints.map(p => {
+    if (p.limit != null) {
+      lastLimit = p.limit;
+      lastRung = p.rung;
+    }
+    return {
+      ...p,
+      limit: p.limit ?? lastLimit,
+      rung: p.rung ?? lastRung,
+    };
+  });
 
   // Find annotation events
-  const promotionEvt = events.find(e => e.is_promotion_event);
-  const driftEvt = events.find(e => e.drift_severity === "CONFIRMED" || e.drift_severity === "CRITICAL");
-  const clawbackEvt = events.find(e => e.is_clawback_event);
+  const promotionEvt = data.find(e => e.isPromotion);
+  const clawbackEvt = data.find(e => e.isClawback);
 
-  // Derive label text from actual data rather than hardcoding
   const promotionLabel = promotionEvt
-    ? `PROMOTION → ${fmtLimit(promotionEvt.current_limit)}`
+    ? `PROMOTION → ${fmtLimit(promotionEvt.limit!)}`
     : "PROMOTION";
   const clawbackLabel = clawbackEvt
-    ? `CLAWBACK → ${fmtLimit(clawbackEvt.current_limit)}`
+    ? `CLAWBACK → ${fmtLimit(clawbackEvt.limit!)}`
     : "CLAWBACK";
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -88,33 +150,31 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
           {d?.timeLabel}
         </p>
         <div className="space-y-1">
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-600 font-medium">Autonomy Limit:</span>
-            <span className="font-bold text-[#5f8914]">{fmtLimit(d?.limit)} (Rung {d?.rung})</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-600 font-medium">Rolling Accuracy:</span>
-            <span className="font-bold text-slate-900">{d?.accuracy}%</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-slate-600 font-medium">Wilson Band:</span>
-            <span className="font-bold text-blue-700">{d?.wilsonLower}% – {d?.wilsonUpper}%</span>
-          </div>
-          {d?.drift_severity && d.drift_severity !== "NONE" && (
+          {d?.limit != null && (
             <div className="flex justify-between gap-4">
-              <span className="text-slate-600 font-medium">Drift:</span>
-              <span className={`font-bold ${d.drift_severity === "CRITICAL" ? "text-red-700" : "text-amber-700"}`}>
-                {d.drift_severity}
-              </span>
+              <span className="text-slate-600 font-medium">Autonomy Limit:</span>
+              <span className="font-bold text-[#5f8914]">{fmtLimit(d.limit)} (Rung {d.rung})</span>
+            </div>
+          )}
+          {d?.accuracy != null && (
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-600 font-medium">Accuracy:</span>
+              <span className="font-bold text-slate-900">{d.accuracy}%</span>
+            </div>
+          )}
+          {d?.wilsonLower != null && d?.wilsonUpper != null && (
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-600 font-medium">Wilson Band:</span>
+              <span className="font-bold text-blue-700">{d.wilsonLower}% – {d.wilsonUpper}%</span>
             </div>
           )}
         </div>
-        {d?.is_clawback && (
+        {d?.isClawback && (
           <div className="mt-2 text-[11px] text-red-700 font-bold bg-red-50 p-1 border border-red-200 rounded">
             CLAWBACK — Autonomy reduced
           </div>
         )}
-        {d?.is_promotion && (
+        {d?.isPromotion && (
           <div className="mt-2 text-[11px] text-[#5f8914] font-bold bg-green-50 p-1 border border-green-200 rounded">
             PROMOTION — Autonomy increased
           </div>
@@ -122,6 +182,14 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
       </div>
     );
   };
+
+  if (data.length === 0) {
+    return (
+      <div className="w-full flex items-center justify-center text-xs text-slate-400 font-medium" style={{ height }}>
+        No timeline data available yet.
+      </div>
+    );
+  }
 
   return (
     <div className="w-full" style={{ height }}>
@@ -171,7 +239,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
           {promotionEvt && (
             <ReferenceLine
               yAxisId="limit"
-              x={fmtTime(promotionEvt.evaluated_at)}
+              x={promotionEvt.timeLabel}
               stroke="#86BC25"
               strokeDasharray="4 2"
               strokeWidth={1.5}
@@ -185,27 +253,10 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             />
           )}
 
-          {driftEvt && (
-            <ReferenceLine
-              yAxisId="limit"
-              x={fmtTime(driftEvt.evaluated_at)}
-              stroke="#ef4444"
-              strokeDasharray="4 2"
-              strokeWidth={1.5}
-              label={{
-                value: `DRIFT ${driftEvt.drift_severity}`,
-                fill: "#dc2626",
-                fontSize: 9,
-                position: "insideTopRight",
-                fontWeight: 700,
-              }}
-            />
-          )}
-
           {clawbackEvt && (
             <ReferenceLine
               yAxisId="limit"
-              x={fmtTime(clawbackEvt.evaluated_at)}
+              x={clawbackEvt.timeLabel}
               stroke="#b91c1c"
               strokeDasharray="2 2"
               strokeWidth={2}
@@ -239,6 +290,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             fill="#86BC25"
             fillOpacity={0.1}
             strokeWidth={2}
+            connectNulls
           />
 
           {/* Wilson Confidence Band — the key visualization */}
@@ -264,6 +316,7 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             strokeDasharray="3 3"
             dot={false}
             legendType="none"
+            connectNulls
           />
 
           {/* Wilson Upper Bound Line (top of band) */}
@@ -277,17 +330,19 @@ export function AutonomyTimeline({ events, height = 400 }: Props) {
             strokeDasharray="3 3"
             dot={false}
             legendType="none"
+            connectNulls
           />
 
-          {/* Rolling Accuracy Point Estimate Line — on top of the band */}
+          {/* Accuracy Point Estimate Line — on top of the band */}
           <Line
             yAxisId="pct"
             type="monotone"
             dataKey="accuracy"
-            name="Rolling Accuracy"
+            name="Accuracy"
             stroke="#0f172a"
             strokeWidth={2}
             dot={false}
+            connectNulls
           />
         </ComposedChart>
       </ResponsiveContainer>

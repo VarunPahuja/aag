@@ -1,34 +1,25 @@
 /**
  * src/types/api.ts
  * ----------------
- * TypeScript types mirroring shared/ v1.1 contracts.
+ * TypeScript types aligned to backend/openapi.json (the real HTTP contract).
  *
- * @generated — PLACEHOLDER
- * These types are hand-aligned to shared/contracts.py, shared/enums.py,
- * shared/constants.py, and shared/reason_codes.py (schema version 1.1).
- *
- * Once backend/openapi.json lands on main, DELETE this file and regenerate
- * via `npx openapi-typescript backend/openapi.json -o src/types/api.ts`.
- * Add `gen:api` script to package.json at that time.
+ * These types mirror the *response* shapes the backend actually sends.
+ * The source of truth is backend/openapi.json — not shared/contracts.py.
  *
  * RULES:
  *  - snake_case throughout — matches Python contracts
  *  - Money fields are numbers (INR integer amounts, not strings)
  *  - All optional fields use `| null` not `undefined` (matches JSON null)
- *  - Never hand-edit once auto-generation is set up
  */
 
 // ===========================================================================
-// Enums — mirrors shared/enums.py
+// Enums
 // ===========================================================================
 
 /** What the agent did, or what ground truth says it should have done. */
 export type Action = "APPROVE" | "REJECT" | "ESCALATE";
 
-/**
- * Agent lifecycle state.
- * NOTE: lowercase values — pre-existing inconsistency preserved from Python.
- */
+/** Agent lifecycle state. */
 export type AgentState = "probation" | "active" | "restricted" | "suspended";
 
 export type DriftSeverity = "NONE" | "WARNING" | "CONFIRMED" | "CRITICAL";
@@ -42,6 +33,12 @@ export type OpinionVerdict = "CONCUR" | "OBJECT" | "ABSTAIN";
 
 /** A human reviewer's verdict on a sampled decision. */
 export type ReviewVerdict = "AGREED" | "DISAGREED" | "INCONCLUSIVE";
+
+/** Simulation phase. */
+export type SimulationPhase = "good" | "degraded" | "recovery";
+
+/** Simulation run status. */
+export type RunStatus = "pending" | "running" | "completed" | "failed";
 
 // ===========================================================================
 // Constants — mirrors shared/constants.py
@@ -143,7 +140,7 @@ export function describeReasonCodes(codes: string[]): string {
 }
 
 // ===========================================================================
-// Data shapes — mirrors shared/contracts.py
+// Data shapes — aligned to backend/openapi.json response schemas
 // ===========================================================================
 
 /** A count with its confidence bound attached. */
@@ -177,9 +174,32 @@ export interface DriftResult {
   underpowered: boolean;
 }
 
-// --- simulator -> trust engine ---
+// --- AgentOut: what GET /agents and GET /agents/{id} return ---
 
-export interface DecisionRecord {
+export interface AgentContext {
+  current_limit: number;
+  decisions_since_clawback: number | null;
+  decisions_since_last_change: number;
+  state: AgentState;
+}
+
+/**
+ * The real AgentOut from the backend.
+ * Note: field is `id`, not `agent_id`. No trust_score, no rolling_accuracy,
+ * no drift_severity, no wilson bounds — those live on TrustEvaluation.
+ */
+export interface AgentOut {
+  id: string;
+  name: string;
+  current_limit: number;
+  current_rung: number;
+  state: AgentState;
+  context: AgentContext;
+}
+
+// --- DecisionRecordOut: what GET /decisions returns ---
+
+export interface DecisionRecordOut {
   decision_id: string;
   sequence: number;
   invoice_id: string;
@@ -188,18 +208,14 @@ export interface DecisionRecord {
   ground_truth: Action;
   agent_id: string;
   decided_at: string | null; // ISO datetime
-
   recommended_action: Action | null;
   human_ruling: Action | null;
-
-  is_escalated: boolean;
-  is_correct: boolean | null;
-  is_critical_error: boolean;
 }
 
-// --- trust engine -> backend ---
+// --- TrustEvaluationOut: what GET /agents/{id}/trust returns ---
 
 export interface TrustEvaluation {
+  id: string;
   agent_id: string;
   schema_version: string;
 
@@ -237,7 +253,20 @@ export interface TrustEvaluation {
   config_fingerprint: string;
 }
 
-// --- governance -> backend ---
+// --- PolicyVersionOut: what GET /agents/{id}/policy-versions returns ---
+
+export interface PolicyVersionOut {
+  id: string;
+  agent_id: string;
+  limit: number;
+  rung: number;
+  effective_from: string; // ISO datetime
+  created_by: string;
+  reason: string;
+  previous_version_id: string | null;
+}
+
+// --- Governance: Recommendations ---
 
 export interface AgentOpinion {
   agent_name: string;
@@ -270,7 +299,7 @@ export interface Recommendation {
   clamped_from: number | null;
 }
 
-// --- human review -> trust engine ---
+// --- AuditSample ---
 
 export interface AuditSample {
   sample_id: string;
@@ -281,11 +310,9 @@ export interface AuditSample {
   reviewer: string | null;
   verdict: ReviewVerdict | null;
   reviewer_action: Action | null;
-  is_reviewed: boolean;
-  is_pending: boolean;
 }
 
-// --- audit log (hash-chained) ---
+// --- Audit log (hash-chained) ---
 
 /**
  * One hash-chained audit log row. `prev_hash`/`hash` make tampering detectable —
@@ -304,56 +331,47 @@ export interface AuditLogEntry {
   hash: string;
 }
 
-// ===========================================================================
-// API-specific shapes (response envelopes, agent summary, autonomy events)
-// ===========================================================================
+// --- Simulation ---
 
-/** Single data point in the autonomy timeline chart. */
-export interface AutonomyEvent {
-  event_id: string;
+export interface SimulationRunCreate {
   agent_id: string;
-  evaluated_at: string; // ISO datetime
-
-  current_rung: number;
-  current_limit: number;
-  rolling_accuracy: number | null;
-  wilson_lower: number;
-  wilson_upper: number;
-  sample_size: number;
-
-  direction: Direction | null;
-  drift_severity: DriftSeverity;
-  is_clawback_event: boolean;
-  is_promotion_event: boolean;
-  state: AgentState;
-
-  reason_codes: string[];
+  invoice_count: number;
+  phase: SimulationPhase;
+  reason: string;
+  seed?: number;
 }
 
-/** Agent summary for the /agents list. */
-export interface AgentSummary {
+export interface SimulationRunOut {
+  run_id: string;
   agent_id: string;
-  name: string;
-  current_rung: number;
-  current_limit: number;
-  state: AgentState;
-  trust_score: number;
-  rolling_accuracy: number | null;
-  wilson_lower: number | null;
-  wilson_upper: number | null;
-  total_decisions: number;
-  pending_approvals: number;
-  direction: Direction;
-  eligible_for_increase: boolean;
-  drift_severity: DriftSeverity;
-  reason_codes: string[];
-  created_at: string;
-  description: string | null;
+  phase: SimulationPhase;
+  invoice_count: number;
+  seed: number;
+  status: RunStatus;
+  started_at: string | null;
+  completed_at: string | null;
+  decisions_submitted: number;
+  accuracy: number | null;
+  wilson_lower_bound: number | null;
 }
 
+// ===========================================================================
+// API-specific shapes (response envelopes)
+// ===========================================================================
+
+/** Standard paginated response envelope. */
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
   page_size: number;
+}
+
+/**
+ * Audit log response — extends PaginatedResponse with chain verification.
+ * The backend verifies the full hash chain and reports the result.
+ */
+export interface AuditLogResponse extends PaginatedResponse<AuditLogEntry> {
+  chain_valid: boolean;
+  chain_verified_scope: "full" | "page";
 }
