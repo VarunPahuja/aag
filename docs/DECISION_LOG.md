@@ -6,6 +6,74 @@ ADR.
 
 ---
 
+**2026-09-12 — Utkarsh (`uk/integration-dryrun`)** — A simulated agent now
+escalates what it may not decide, and rules on what it escalated. Reported as
+"degraded claws back automatically, but good and recovery never produce an
+approval request even though an increase is recommended" — and the cause ran
+three layers deep. **(1)** `generate_decision_plan`
+(`backend/app/services/simulation.py`) assigned APPROVE or REJECT to every
+invoice regardless of amount, so a simulated agent **never escalated**. With no
+escalations there were no human rulings, which left `human_agreement` — the
+trust score's fourth component, weight 0.25 — permanently without evidence:
+`AGREEMENT_EVIDENCE_INSUFFICIENT` and `WEIGHTS_RENORMALISED` appeared on every
+evaluation the dashboard has ever shown. **(2)** The governance audit agent
+(`governance/agents/audit.py`) objects whenever
+`escalated_decisions - ruled_escalations > 0` or agreement evidence is too thin
+— both permanently true — so it returned OBJECT on every evaluation. **(3)**
+`_aggregate` (`governance/coordinator.py`) downgrades an INCREASE to a HOLD on
+any dissent, by design ("dissent can only make the proposal more
+conservative"). Composed: the trust engine said INCREASE to INR 2,500,
+governance wrote `HOLD / PENDING / current_limit`, and **no simulation run
+could ever produce an approval request no matter how well the agent
+performed** — confirmed over four consecutive good runs with the trust score
+climbing 83.7 -> 92.6 and three of four agents concurring throughout. The plan
+now escalates when `amount > current_limit`, carrying the APPROVE/REJECT it
+would have chosen as `recommended_action`, and a completed run answers its own
+deferrals in a second pass (the human modelled as the reference standard,
+ruling per ground truth — the same model `simulator/arc.py` already uses, and
+a second pass for the same reason: a human rules *after* the agent defers).
+All four agents now concur, `has_dissent` is false, and a good run produces
+`INCREASE / PENDING / 2,500` with agreement at 0.847 rising to 0.905.
+**Also fixed, same report:** `_pending_request_already_covers` replaces a guard
+that asked "does any pending recommendation exist". `app/seed.py` ships
+agent-01 with a PENDING increase to INR 5,000 — valid at seed time, stale the
+moment a clawback moves the agent — so that guard suppressed every subsequent
+request for ever. A pending row proposing a different limit is now marked
+`SUPERSEDED`, the state `shared/enums.py` has always defined for "invalidated
+by a newer one before a human ever ruled on it" and which **no code had ever
+written**. That also removes a live hazard: `approve_recommendation` applies
+`row.proposed_limit` whenever it differs from the current limit with **no check
+that the proposal is still one rung away**, so approving the stale INR 5,000
+card while the agent sat at INR 1,000 would have jumped three rungs in one
+click, against ADR-0004. Superseding removes the card before anyone can click
+it; **the missing guard inside the approve path is real and is not fixed here**
+— it belongs to `backend/` and wants its own change. **Test premises corrected,
+not relaxed:** `test_simulation_phases.py` measured accuracy and critical-error
+rate over *every* planned decision, which stopped meaning anything once
+escalations existed — they dilute a whole-plan rate while changing nothing
+about `CRITICAL_ERROR_WINDOW`, which only ever counted acted decisions. Rates
+are now over acted decisions, and the window test asserts the property directly
+across 60 seed/limit/count combinations instead of estimating it from a
+binomial: 59 of 60 trip drift, and the measured behaviour is unchanged
+(degraded 0.60-0.77 accuracy with 1-2 critical errors in the window; good and
+recovery 0.93-0.98 with none). **Affects:** `human_agreement` is live in the
+dashboard for the first time, so all four score components now carry evidence
+on the normal path — `AGREEMENT_EVIDENCE_INSUFFICIENT` and
+`WEIGHTS_RENORMALISED` no longer appear on every evaluation.
+
+**Cost, measured rather than assumed.** Escalations roughly double the writes
+per run, since each one now also carries a ruling and its own hash-chained
+audit entry. A 200-invoice run went from **3.7 s to 11.7 s**, and throughput
+*degraded* with history (55 -> 17 decisions/sec) because the ruling pass opened
+a fresh `Session` per ruling — about 100 connections per run. Sharing one
+session across the pass (each ruling still commits separately, so a failure
+part-way through keeps the rulings already made) brought it to **7.5 s at a
+steady 27 decisions/sec**. That is still ~2x the old cost, and that is simply
+what human-agreement evidence costs; it is not recoverable by tuning. The
+backend suite felt it worst: **74 min before the session reuse, 26 min
+after**, against roughly 3 min before this change. Worth knowing before anyone
+waits on CI.
+
 **2026-09-11 — Utkarsh (`uk/integration-dryrun`)** — An invoice id now names
 exactly one invoice, and a run that earns an increase actually asks for it. Two
 defects, found from one report ("good phase suggests an increase but no

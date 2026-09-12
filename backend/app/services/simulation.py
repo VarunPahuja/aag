@@ -40,11 +40,11 @@ import uuid
 from datetime import UTC, datetime
 
 from shared.enums import Action
-from sqlalchemy import Engine
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 from trust_engine.stats.wilson import wilson_lower_bound
 
-from app.models import Agent
+from app.models import Agent, Decision
 from app.models.audit_log import append_entry
 from app.models.simulation_runs import SimulationRun
 from app.schemas.decision import DecisionCreate
@@ -94,13 +94,24 @@ class PlannedDecision:
     everything `DecisionCreate` needs except `agent_id`/`reason`, which the
     caller already knows."""
 
-    __slots__ = ("action", "amount", "ground_truth", "invoice_id")
+    __slots__ = ("action", "amount", "ground_truth", "invoice_id", "recommended_action")
 
-    def __init__(self, invoice_id: str, amount: int, action: Action, ground_truth: Action) -> None:
+    def __init__(
+        self,
+        invoice_id: str,
+        amount: int,
+        action: Action,
+        ground_truth: Action,
+        recommended_action: Action | None = None,
+    ) -> None:
         self.invoice_id = invoice_id
         self.amount = amount
         self.action = action
         self.ground_truth = ground_truth
+        # Only set when `action` is ESCALATE: the APPROVE/REJECT the agent
+        # would have chosen had it been allowed to act alone. Half of the
+        # human-agreement evidence; the human's ruling is the other half.
+        self.recommended_action = recommended_action
 
 
 def generate_decision_plan(
@@ -163,7 +174,25 @@ def generate_decision_plan(
             ground_truth = Action.APPROVE
             action = Action.REJECT if rng.random() < params["p_noncritical_error"] else Action.APPROVE
 
-        plan.append(PlannedDecision(invoice_id, amount, action, ground_truth))
+        if amount > current_limit:
+            # The agent may not act alone on this, so it defers to a human.
+            # Previously the plan produced APPROVE/REJECT for every invoice
+            # regardless of amount, so a simulated agent never escalated — and
+            # with no escalations there were no human rulings, which left the
+            # trust score's fourth component (`human_agreement`) permanently
+            # without evidence (AGREEMENT_EVIDENCE_INSUFFICIENT and
+            # WEIGHTS_RENORMALISED on every single evaluation) and made the
+            # governance audit agent OBJECT for ever. One objection downgrades
+            # an INCREASE to a HOLD (governance/coordinator.py::_aggregate), so
+            # no simulation run could ever produce an approval request, no
+            # matter how well the agent performed.
+            plan.append(
+                PlannedDecision(
+                    invoice_id, amount, Action.ESCALATE, ground_truth, action
+                )
+            )
+        else:
+            plan.append(PlannedDecision(invoice_id, amount, action, ground_truth))
 
     return plan
 
@@ -228,7 +257,9 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
     )
 
     submitted = 0
+    acted = 0
     correct = 0
+    escalated_ids: list[str] = []
     failure: str | None = None
 
     for planned in plan:
@@ -240,9 +271,12 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
                 action=planned.action,
                 ground_truth=planned.ground_truth,
                 agent_id=agent_id,
+                recommended_action=planned.recommended_action,
                 reason=f"simulation run {run_id} ({phase.value}, seed {seed})",
             )
-            _create_decision(decision_session, body)
+            decision = _create_decision(decision_session, body)
+            if planned.action is Action.ESCALATE:
+                escalated_ids.append(decision.id)
             decision_session.commit()
         except Exception as exc:  # noqa: BLE001 — recorded on the run, not swallowed
             decision_session.rollback()
@@ -253,8 +287,13 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
             decision_session.close()
 
         submitted += 1
-        if planned.action == planned.ground_truth:
-            correct += 1
+        if planned.action is not Action.ESCALATE:
+            # Accuracy is over decisions the agent actually made. An escalation
+            # is a deferral, not a right or wrong answer — the same rule
+            # `trust_engine.stats.rates` applies.
+            acted += 1
+            if planned.action == planned.ground_truth:
+                correct += 1
 
         # Visible to a poller immediately, not just once the whole run ends.
         progress_session = Session(engine)
@@ -265,11 +304,23 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
         finally:
             progress_session.close()
 
-    accuracy = (correct / submitted) if submitted else None
-    wilson = wilson_lower_bound(correct, submitted) if submitted else None
+    accuracy = (correct / acted) if acted else None
+    wilson = wilson_lower_bound(correct, acted) if acted else None
     completed_at = datetime.now(UTC)
 
     if failure is None:
+        # A human answers the deferrals this run produced. Without this the
+        # escalations sit unruled for ever, which is a hole in the record the
+        # governance audit agent objects to by design — and the objection
+        # downgrades every INCREASE to a HOLD, so no run could produce an
+        # approval request. Ruling is also the only source of
+        # `human_agreement`, the trust score's fourth component.
+        #
+        # A second pass, after every decision is committed, rather than ruling
+        # inline: a human rules on an escalation *after* the agent deferred,
+        # never in the same breath, and `simulator/arc.py` models it the same
+        # way for the same reason.
+        _rule_on_the_escalations_this_run_produced(engine, escalated_ids, plan, run_id)
         # Before the run is marked completed, not after. A client that polls and
         # sees `completed` should be able to read the agent's new limit in the
         # very next request; applying afterwards left a window where the run was
@@ -320,22 +371,113 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
 
 
 
-def _has_pending_recommendation(session: Session, agent_id: str) -> bool:
-    """Whether this agent already has a recommendation awaiting a human."""
+def _rule_on_the_escalations_this_run_produced(
+    engine: Engine, escalated_ids: list[str], plan: list[PlannedDecision], run_id: str
+) -> None:
+    """Answer every deferral this run made, one transaction each.
+
+    The human is modelled as the reference standard: they rule the way ground
+    truth says. Agreement therefore measures whether the *agent's* own
+    judgement (`recommended_action`) matched the reviewer's — which is the
+    question `human_agreement` is asking — rather than measuring the reviewer.
+    `simulator/arc.py` models the human exactly the same way.
+
+    Never fails the run. The decisions are committed and the run genuinely
+    succeeded; an unruled escalation is a thinner record, not a wrong one, and
+    a later ruling can still fill it in.
+    """
+    if not escalated_ids:
+        return
+
+    from app.api.v1.decisions import rule_on_decision
+    from app.deps import _STUB_USERS
+    from app.schemas.decision import DecisionRuling
+    from app.schemas.user import Role
+
+    ground_truth_by_invoice = {p.invoice_id: p.ground_truth for p in plan}
+    reviewer = _STUB_USERS[Role.REVIEWER]
+
+    # One session for the whole pass. `rule_on_decision` commits each ruling
+    # itself, so each is still its own transaction and a failure part-way
+    # through keeps the rulings already made — but opening a connection per
+    # ruling cost more than the rulings did. A 200-invoice run escalates
+    # roughly half its invoices, so this is ~100 connections saved per run.
+    session = Session(engine)
+    try:
+        for decision_id in escalated_ids:
+            try:
+                decision = session.get(Decision, decision_id)
+                if decision is None:
+                    continue
+                ruling = ground_truth_by_invoice.get(decision.invoice_id)
+                if ruling is None:
+                    continue
+                rule_on_decision(
+                    decision_id=decision_id,
+                    body=DecisionRuling(
+                        ruling=ruling,
+                        reason=f"simulated review for run {run_id}",
+                    ),
+                    user=reviewer,
+                    db=session,
+                )
+            except Exception:  # noqa: BLE001 - a thinner record must not fail a good run
+                session.rollback()
+    finally:
+        session.close()
+
+
+def _pending_request_already_covers(
+    session: Session, agent_id: str, proposed_limit: int
+) -> bool:
+    """Is a *live* approval request for exactly this limit already waiting?
+
+    "Does any pending recommendation exist" was the wrong question, and asking
+    it broke the thing it was meant to protect. `app/seed.py` ships agent-01
+    with a PENDING increase to INR 5,000 — valid when seeded, since the agent
+    starts at INR 2,500 — so once a clawback moved that agent down, every
+    later run saw a pending row, assumed its own request was a duplicate, and
+    wrote nothing. The approvals queue then showed one stale card forever
+    while the agent detail page reported `direction=INCREASE`, and no new
+    request could ever appear.
+
+    A pending row proposing a *different* limit is not a duplicate, it is out
+    of date: it was written against evidence that has since changed. It is
+    marked `SUPERSEDED` — the state `shared/enums.py` already defines for
+    exactly this ("invalidated by a newer one before a human ever ruled on
+    it") and which no code had ever written — so the queue holds at most one
+    live request per agent instead of a pile of contradictory ones.
+
+    That also defuses a real hazard. `approve_recommendation` applies
+    `row.proposed_limit` whenever it differs from the agent's current limit,
+    with no check that the proposal still sits one rung away. Approving the
+    stale INR 5,000 card while the agent sat at INR 1,000 would have jumped
+    three rungs in a single click, against ADR-0004's "exactly one rung per
+    change". Superseding stale rows removes the card before anyone can click
+    it; the missing guard inside the approve path is flagged in the decision
+    log and is not this function's to add.
+    """
     from shared.enums import RecommendationStatus
-    from sqlalchemy import select
 
     from app.models import Recommendation
 
-    return (
+    rows = (
         session.execute(
-            select(Recommendation.id)
+            select(Recommendation)
             .where(Recommendation.agent_id == agent_id)
             .where(Recommendation.status == RecommendationStatus.PENDING)
-            .limit(1)
-        ).first()
-        is not None
+        )
+        .scalars()
+        .all()
     )
+
+    covered = False
+    for row in rows:
+        if row.proposed_limit == proposed_limit:
+            covered = True
+        else:
+            row.status = RecommendationStatus.SUPERSEDED
+    return covered
 
 
 def _act_on_what_the_run_earned(run_id: str, engine: Engine, agent_id: str) -> None:
@@ -389,11 +531,11 @@ def _act_on_what_the_run_earned(run_id: str, engine: Engine, agent_id: str) -> N
         if evaluation.direction not in (Direction.CLAWBACK, Direction.INCREASE):
             session.commit()
             return
-        if evaluation.direction is Direction.INCREASE and _has_pending_recommendation(
-            session, agent_id
+        if evaluation.direction is Direction.INCREASE and _pending_request_already_covers(
+            session, agent_id, evaluation.recommended_limit
         ):
-            # Already waiting on a human. A second request for the same rung
-            # would not tell anyone anything new.
+            # The same request is already waiting on a human. Asking twice for
+            # one rung tells nobody anything new.
             session.commit()
             return
         generate_recommendation(session, agent)

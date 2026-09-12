@@ -110,22 +110,29 @@ def test_a_good_run_that_makes_a_critical_error_still_claws_back(
     door, and the clawback is not negotiable on the strength of the phase it
     happened in."""
     from shared.enums import Action
+    from trust_engine.constants import CRITICAL_ERROR_WINDOW
 
     from app.schemas.simulation import SimulationPhase
     from app.services.simulation import generate_decision_plan
 
     plan = generate_decision_plan(
-        agent_id="agent-01", phase=SimulationPhase.GOOD, seed=7, count=60,
+        agent_id="agent-01", phase=SimulationPhase.GOOD, seed=42, count=60,
         current_limit=2500,
     )
-    criticals = [
-        i for i, d in enumerate(plan)
+    # Only acted decisions can carry a critical error, and only the last
+    # CRITICAL_ERROR_WINDOW of them are what drift looks at. Escalations are
+    # deferrals, so they neither count nor push earlier errors out of view.
+    acted = [d for d in plan if d.action is not Action.ESCALATE]
+    in_window = [
+        d for d in acted[-CRITICAL_ERROR_WINDOW:]
         if d.action is Action.APPROVE and d.ground_truth is Action.REJECT
     ]
-    assert criticals, "precondition: this seed must contain a critical error"
+    assert in_window, (
+        "precondition: this seed must put a critical error in the recent window"
+    )
 
     _, before_rung = _agent(db_engine)
-    _run(client, admin_headers, "agent-01", "good", seed=7)
+    _run(client, admin_headers, "agent-01", "good", seed=42, count=60)
     _, after_rung = _agent(db_engine)
     assert after_rung == before_rung - 1
 
@@ -192,6 +199,90 @@ def test_the_earned_increase_is_not_applied_by_the_run(client, admin_headers, db
     assert _agent(db_engine) == (limit_before, rung_before), (
         "a run must never raise a limit on its own"
     )
+
+
+def test_a_stale_seeded_request_does_not_block_a_new_one(
+    client, admin_headers, db_engine
+):
+    """The bug this guard originally caused.
+
+    `app/seed.py` ships agent-01 with a PENDING increase to INR 5,000, which is
+    valid at seed time because the agent starts at INR 2,500. A clawback then
+    moves the agent down, and that pending row becomes stale — it asks for a
+    limit the current evidence no longer supports. Guarding on "does any
+    pending recommendation exist" made every later run treat its own request as
+    a duplicate and write nothing, so the approvals queue showed one stale card
+    forever while the agent page reported direction=INCREASE.
+    """
+    from shared.enums import Direction, RecommendationStatus
+
+    from app.models import Agent
+    from app.services.trust import compute_trust_evaluation
+
+    seeded_pending = [
+        r for r in client.get(
+            "/api/v1/recommendations?agent_id=agent-01", headers=admin_headers
+        ).json()["items"]
+        if r["status"] == RecommendationStatus.PENDING.value
+    ]
+    assert seeded_pending, "precondition: the seed ships a pending request for agent-01"
+    stale_limit = seeded_pending[0]["proposed_limit"]
+
+    # Degrade first, so the seeded request is genuinely out of date.
+    _run(client, admin_headers, "agent-01", "degraded")
+    limit_after_clawback, _ = _agent(db_engine)
+    assert limit_after_clawback != stale_limit, (
+        "precondition: the clawback must leave the seeded request stale"
+    )
+
+    _run(client, admin_headers, "agent-01", "good", count=200, seed=99)
+    _run(client, admin_headers, "agent-01", "good", count=200, seed=99)
+
+    with Session(db_engine) as session:
+        evaluation = compute_trust_evaluation(session, session.get(Agent, "agent-01"))
+    assert evaluation.direction is Direction.INCREASE, (
+        f"precondition: recovery from a clawback should earn an increase, got "
+        f"{evaluation.direction} with {list(evaluation.reason_codes)}"
+    )
+
+    items = client.get(
+        "/api/v1/recommendations?agent_id=agent-01", headers=admin_headers
+    ).json()["items"]
+    live = [r for r in items if r["status"] == RecommendationStatus.PENDING.value]
+
+    assert live, "a fresh increase must reach the queue even with a stale one present"
+    assert all(r["proposed_limit"] == evaluation.recommended_limit for r in live), (
+        f"the live request(s) must match current evidence "
+        f"({evaluation.recommended_limit}); got "
+        f"{[r['proposed_limit'] for r in live]}"
+    )
+
+
+def test_the_stale_request_is_marked_superseded_not_deleted(
+    client, admin_headers, db_engine
+):
+    """SUPERSEDED is the state shared/enums.py already defines for "invalidated
+    by a newer one before a human ever ruled on it" — and which no code wrote
+    until now. The stale row stays in the record; only its status changes."""
+    from shared.enums import RecommendationStatus
+
+    before = client.get(
+        "/api/v1/recommendations?agent_id=agent-01", headers=admin_headers
+    ).json()["total"]
+
+    _run(client, admin_headers, "agent-01", "degraded")
+    _run(client, admin_headers, "agent-01", "good", count=200, seed=99)
+    _run(client, admin_headers, "agent-01", "good", count=200, seed=99)
+
+    items = client.get(
+        "/api/v1/recommendations?agent_id=agent-01", headers=admin_headers
+    ).json()["items"]
+    assert len(items) >= before, "nothing may be deleted from the record"
+
+    superseded = [
+        r for r in items if r["status"] == RecommendationStatus.SUPERSEDED.value
+    ]
+    assert superseded, "the stale request should be marked SUPERSEDED"
 
 
 def test_a_second_run_does_not_stack_a_duplicate_request(client, admin_headers, db_engine):
