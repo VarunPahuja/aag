@@ -270,6 +270,32 @@ export interface TrustEvaluation {
   reason_codes: string[];
   evaluated_at: string | null; // ISO datetime
   config_fingerprint: string;
+
+  /**
+   * The trust engine's own gate values, sent with the evaluation they
+   * produced. Optional because a historical row stored before this field
+   * existed will not carry it.
+   *
+   * Anything on screen that draws a threshold must read it from here. It is
+   * not a duplicate of a rule the frontend could derive — the engine's gates
+   * are the only place these numbers are real.
+   */
+  thresholds?: TrustThresholds;
+}
+
+// --- TrustThresholdsOut: the engine's gate values ---
+
+export interface TrustThresholds {
+  /** Acted decisions required before an increase can be considered. */
+  min_sample_for_increase: number;
+  /** Trust score required for an increase. The engine's only "good enough" bar. */
+  min_trust_score_for_increase: number;
+  /** Accuracy drop, in percentage points, below baseline that trips drift. */
+  drift_accuracy_drop_pp: number;
+  /** How many recent acted decisions a critical error is looked for in. */
+  critical_error_window: number;
+  /** How many recent decisions count as "recent" for drift. */
+  recent_window: number;
 }
 
 // --- PolicyVersionOut: what GET /agents/{id}/policy-versions returns ---

@@ -352,6 +352,8 @@ export default function AgentDetailPage() {
                 <HorizontalThresholdGauge
                   accuracy={trustEval.accuracy.point}
                   wilsonLB={trustEval.accuracy.wilson_lower}
+                  drift={trustEval.drift}
+                  thresholds={trustEval.thresholds}
                 />
               )}
             </div>

@@ -1596,6 +1596,9 @@
           "state": {
             "$ref": "#/components/schemas/AgentState"
           },
+          "thresholds": {
+            "$ref": "#/components/schemas/TrustThresholdsOut"
+          },
           "total_decisions": {
             "title": "Total Decisions",
             "type": "integer"
@@ -1651,6 +1654,40 @@
           "config_fingerprint"
         ],
         "title": "TrustEvaluationOut",
+        "type": "object"
+      },
+      "TrustThresholdsOut": {
+        "description": "The trust engine's own gate values, sent with the evaluation they\nproduced.\n\nHere because a client that draws a threshold has to get it from somewhere,\nand the only safe somewhere is the engine that applies it.\n`HorizontalThresholdGauge.tsx` used to mark a \"safety threshold\" at a\nhardcoded 85% accuracy and colour the bar red or green against it \u2014 a\nnumber that appears **nowhere** in `trust/` or `backend/`. The engine has\nno accuracy threshold at all: promotion gates on the *trust score*\n(`MIN_TRUST_SCORE_FOR_INCREASE`), and the accuracy axis is policed by drift\ndetection, which compares recent accuracy against the agent's own baseline\nrather than against any fixed line. So the dashboard was not merely\nduplicating a rule in the wrong place; it was displaying one the system\ndoes not have.\n\nThese are configuration, not per-agent evidence, so they are identical on\nevery evaluation. They ride along with it anyway because that is the\nevaluation these exact values produced \u2014 a client reading a historical row\ngets the thresholds that applied then, not today's.",
+        "properties": {
+          "critical_error_window": {
+            "title": "Critical Error Window",
+            "type": "integer"
+          },
+          "drift_accuracy_drop_pp": {
+            "title": "Drift Accuracy Drop Pp",
+            "type": "number"
+          },
+          "min_sample_for_increase": {
+            "title": "Min Sample For Increase",
+            "type": "integer"
+          },
+          "min_trust_score_for_increase": {
+            "title": "Min Trust Score For Increase",
+            "type": "number"
+          },
+          "recent_window": {
+            "title": "Recent Window",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_sample_for_increase",
+          "min_trust_score_for_increase",
+          "drift_accuracy_drop_pp",
+          "critical_error_window",
+          "recent_window"
+        ],
+        "title": "TrustThresholdsOut",
         "type": "object"
       },
       "ValidationError": {

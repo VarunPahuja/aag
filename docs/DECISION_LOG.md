@@ -6,6 +6,59 @@ ADR.
 
 ---
 
+**2026-09-13 — Utkarsh (`uk/integration-dryrun`)** — Two gaps closed that the
+codebase walkthrough had flagged as known-and-unfixed, and one left open on
+purpose. **(1) The dashboard was drawing a rule the system does not have.**
+`HorizontalThresholdGauge.tsx` marked a "safety threshold" at a hardcoded 85%
+accuracy and coloured the reliability bar red or green against it. That number
+appears **nowhere** in `trust/` or `backend/`: the engine has no accuracy
+threshold at all — promotion gates on the *trust score*
+(`MIN_TRUST_SCORE_FOR_INCREASE = 70`), and the accuracy axis is policed by
+drift detection, which compares recent accuracy against the agent's **own
+baseline** rather than any fixed line. So this was not business logic
+duplicated in the wrong place, which is how the 2026-09-02 and 2026-09-06
+audits recorded it; it was a rule that does not exist, displayed as though it
+did. `TrustEvaluationOut` now carries `thresholds` — the engine's real gate
+values, read from `trust_engine.constants` at construction so the API can never
+report a threshold the engine is not applying — and the gauge draws
+`baseline − drift_accuracy_drop_pp`, takes health from `drift.severity`, and
+derives nothing. With no baseline yet it says so rather than inventing a line.
+`thresholds` is the second backend-local addition to that model and is
+registered as such in `test_schema_contracts.py`'s `extra_fields`, the same way
+`RecommendationOut.reason_codes` already was — that contract test caught this
+addition on the first run, which is precisely its job. **(2) A stale
+recommendation could move an agent more than one rung.**
+`approve_recommendation` applied `row.proposed_limit` whenever it differed from
+the current limit, with no check that the proposal still sat one rung away.
+ADR-0004 caps a change at one rung and `trust_engine.ladder` applies that cap
+when the recommendation is *written*, but a PENDING row outlives the evidence
+that produced it: `app/seed.py` ships agent-01 with a pending increase to INR
+5,000, correct at seed time because the agent starts at INR 2,500, and after a
+clawback to INR 1,000 approving that card would have jumped rung 1 to rung 3 in
+a single click that looks entirely ordinary on screen. Now a 409
+`recommendation_stale` carrying the rung delta. **Refuses rather than
+clamping** — clamping would apply a change the human neither authorised nor
+saw. `_pending_request_already_covers` already marks such rows SUPERSEDED when
+a run re-evaluates the agent, but that is a race (nothing forces a run to
+happen in between); this is the guarantee. **(3) Deliberately not fixed:
+`DecisionRecord.ground_truth` being an input.** Not a defect to repair — remove
+it and the system cannot score accuracy at all. The production replacement is
+audit sampling, which is built end to end; what is absent is letting a review
+*overwrite* a decision's recorded ground truth, and ADR-0009's own Consequences
+already record why (it would corrupt the simulator's deterministic ground
+truth, the property CI proves byte-for-byte on every commit). The one real
+improvement ADR-0009 names — a field distinguishing an accuracy estimate built
+from full ground truth from one built from a 5%-reviewed sample — alters a
+frozen type in `shared/` and therefore needs all four reviewers, so it is not
+being made unilaterally two days before the defence. **Affects:**
+`backend/tests/test_stale_recommendation_guard.py` (7 tests, including that a
+one-rung increase, a no-op HOLD approval and rejecting a stale card all still
+work, and that no seeded recommendation is born stale — a guard the seed itself
+trips would be unusable); `frontend/src/types/api.ts` gains `TrustThresholds`;
+`backend/openapi.json` and the generated frontend types regenerated. 882 tests
+pass across the four suites, with the two Postgres concurrency tests running
+rather than skipping.
+
 **2026-09-12 — Utkarsh (`uk/integration-dryrun`)** — A simulated agent now
 escalates what it may not decide, and rules on what it escalated. Reported as
 "degraded claws back automatically, but good and recovery never produce an

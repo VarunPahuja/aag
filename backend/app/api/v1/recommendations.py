@@ -99,6 +99,51 @@ def _record_decision(
     policy_version_id: str | None = None
     if verdict is RecommendationStatus.APPROVED:
         agent = db.get(Agent, row.agent_id)
+
+        # A recommendation may not move an agent more than one rung, however
+        # old it is. ADR-0004 caps a change at one rung per evaluation, and
+        # `trust_engine.ladder` already applies that cap when the
+        # recommendation is written — but nothing re-checked it at approval
+        # time, and a PENDING row can outlive the evidence that produced it.
+        #
+        # The concrete case: `app/seed.py` ships agent-01 with a PENDING
+        # increase to INR 5,000, correct when seeded because the agent starts
+        # at INR 2,500. A clawback then drops it to INR 1,000, and approving
+        # that still-pending card would have jumped rung 1 straight to rung 3
+        # in one click — two rungs the evidence never supported, applied by a
+        # single human action that looks entirely ordinary on screen.
+        #
+        # `app/services/simulation.py::_pending_request_already_covers` marks
+        # such rows SUPERSEDED as soon as any run re-evaluates the agent, which
+        # removes the card before anyone can click it. That is a race, not a
+        # guarantee: nothing forces a run to happen in between. This is the
+        # guarantee.
+        #
+        # Refuses rather than silently clamping. Clamping would apply *a*
+        # change the human did not authorise and did not see; the honest
+        # outcome is to reject the stale request and let a fresh evaluation
+        # propose what the current evidence supports.
+        rung_delta = abs(rung_of(row.proposed_limit) - agent.current_rung)
+        if rung_delta > 1:
+            raise ApiError(
+                status_code=409,
+                code="recommendation_stale",
+                message=(
+                    f"Recommendation {rec_id!r} proposes {row.proposed_limit} "
+                    f"(rung {rung_of(row.proposed_limit)}), which is {rung_delta} rungs "
+                    f"from the agent's current rung {agent.current_rung}. A change may "
+                    f"move at most one rung (ADR-0004), so this recommendation no longer "
+                    f"matches the agent's state and cannot be approved."
+                ),
+                detail={
+                    "recommendation_id": rec_id,
+                    "proposed_limit": row.proposed_limit,
+                    "proposed_rung": rung_of(row.proposed_limit),
+                    "current_limit": agent.current_limit,
+                    "current_rung": agent.current_rung,
+                    "rung_delta": rung_delta,
+                },
+            )
         # Only write a new policy version — and therefore only touch the
         # cooldown clock, which `app/services/trust.py:agent_context` derives
         # from the *latest* version's `effective_from` — when approval
