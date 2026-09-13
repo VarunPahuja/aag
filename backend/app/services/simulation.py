@@ -4,6 +4,21 @@ them, and submit every resulting decision through the real ingest path
 database) — recording progress and a final summary (or a recorded failure)
 on the `simulation_runs` row as it goes.
 
+Also where a clawback actually gets triggered end to end. Before this branch,
+nothing in the decision-ingest path ever evaluated an agent — a clawback only
+happened if a human opened the dashboard or something called
+`POST /agents/{id}/recommendations` directly, so a degrading agent kept its
+ceiling indefinitely otherwise (confirmed live: 400 degrading decisions left
+`GET /agents/{id}/trust` reporting `direction=CLAWBACK` while
+`current_limit` sat unchanged). `execute_simulation_run` now evaluates the
+agent once, at the end of the run, and applies a clawback if the evidence
+says so — see `_evaluate_and_maybe_clawback`'s docstring for the full
+reasoning, including why this happens once per run and not once per decision.
+
+This is also, deliberately, the only place a real deployment's own trigger
+(a schedule, or ingest itself with proper rate limiting) is not yet built —
+see that same docstring's note on the tradeoff this prototype made instead.
+
 Why this does not import `simulator/`
 --------------------------------------
 `app/schemas/simulation.py` already establishes the rule for this exact pair
@@ -37,9 +52,10 @@ from __future__ import annotations
 
 import random
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from shared.enums import Action
+from shared.enums import Action, Direction
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 from trust_engine.stats.wilson import wilson_lower_bound
@@ -197,6 +213,14 @@ def generate_decision_plan(
     return plan
 
 
+@dataclass(frozen=True, slots=True)
+class ClawbackOutcome:
+    """What `_evaluate_and_maybe_clawback` found and did, for the run row to record."""
+
+    applied: bool
+    limit: int | None
+
+
 def execute_simulation_run(run_id: str, engine: Engine) -> None:
     """The `BackgroundTasks` entry point. Runs after the `POST` response has
     already been sent, on its own thread (Starlette runs a synchronous
@@ -306,32 +330,64 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
 
     accuracy = (correct / acted) if acted else None
     wilson = wilson_lower_bound(correct, acted) if acted else None
+
+    # Accuracy is over decisions the agent actually *made*. This used to divide
+    # by `submitted`, which was the same number back when the plan gave every
+    # invoice an APPROVE or REJECT; now that the agent escalates anything above
+    # its limit, an escalation is a deferral rather than a right-or-wrong
+    # answer, and `trust_engine.stats.rates` excludes it from accuracy for
+    # exactly that reason. Dividing by `submitted` would score the agent as
+    # wrong for every invoice it correctly refused to touch.
+
+    clawback = ClawbackOutcome(applied=False, limit=None)
+    clawback_error: str | None = None
     completed_at = datetime.now(UTC)
 
-    if failure is None:
-        # A human answers the deferrals this run produced. Without this the
-        # escalations sit unruled for ever, which is a hole in the record the
-        # governance audit agent objects to by design — and the objection
-        # downgrades every INCREASE to a HOLD, so no run could produce an
-        # approval request. Ruling is also the only source of
-        # `human_agreement`, the trust score's fourth component.
+    if failure is None and submitted > 0:
+        # 1. A human answers the deferrals this run produced. This has to run
+        #    *before* the evaluation below, not after: an unruled escalation is
+        #    a hole in the record the governance audit agent objects to by
+        #    design, and one objection downgrades an INCREASE to a HOLD
+        #    (`governance/coordinator.py::_aggregate`). Evaluating first would
+        #    read a record that is still missing its own rulings. Ruling is
+        #    also the only source of `human_agreement`, the trust score's
+        #    fourth component.
         #
-        # A second pass, after every decision is committed, rather than ruling
-        # inline: a human rules on an escalation *after* the agent deferred,
-        # never in the same breath, and `simulator/arc.py` models it the same
-        # way for the same reason.
+        #    A second pass, after every decision is committed, rather than
+        #    ruling inline: a human rules on an escalation *after* the agent
+        #    deferred, never in the same breath, and `simulator/arc.py` models
+        #    it the same way for the same reason.
         _rule_on_the_escalations_this_run_produced(engine, escalated_ids, plan, run_id)
-        # Before the run is marked completed, not after. A client that polls and
-        # sees `completed` should be able to read the agent's new limit in the
-        # very next request; applying afterwards left a window where the run was
-        # done and the clawback had not landed yet.
+
+        # 2. Right here: after the last decision this run will ever submit is
+        #    committed, and before the run's own status is written as terminal.
+        #    A client that polls until `completed` must be able to read the
+        #    agent's new limit in the very next request.
         #
-        # Guarded at the call site as well as inside: the decisions are already
-        # committed and the run genuinely succeeded, so nothing here — including
-        # a bug in the clawback path itself — may turn it into a failure.
+        #    Guarded on `submitted > 0`: a run that submitted nothing (failed on
+        #    its very first decision) added no new evidence, so there is nothing
+        #    to re-evaluate.
+        #
+        #    Deliberately NOT called from decision-ingest on every single
+        #    decision instead of once per run. That would mean a full trust
+        #    evaluation — `load_decision_records` plus `trust_engine.evaluate`
+        #    over the agent's entire history — on every write, and a simulation
+        #    run is exactly the workload that makes that cost visible: 200
+        #    decisions would mean 200 evaluations of a history that long or
+        #    longer, for a result that only needs checking once the batch is
+        #    done. If a future caller is tempted to move this into ingest for
+        #    faster reaction time, the honest fix is a scheduled or
+        #    ingest-triggered evaluation with its own rate limiting, not
+        #    deleting this comment.
         try:
-            _act_on_what_the_run_earned(run_id, engine, agent_id)
-        except Exception as exc:  # noqa: BLE001 - a successful run stays successful
+            clawback = _act_on_what_the_run_earned(run_id, engine, agent_id)
+        except Exception as exc:  # noqa: BLE001 — a successful run stays successful
+            # Deliberately does not set `failure`: the decisions this run
+            # submitted are real and already committed, so a bug in this last
+            # step must not turn an otherwise-successful run into a FAILED one.
+            # Visible instead in this run's own audit entry below, so it is
+            # noticed rather than silently absorbed.
+            clawback_error = f"{type(exc).__name__}: {exc}"
             _log_recommendation_attempt_failed(engine, run_id, agent_id, exc)
 
     final_session = Session(engine)
@@ -341,6 +397,8 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
         final_row.completed_at = completed_at
         final_row.accuracy = accuracy
         final_row.wilson_lower_bound = wilson
+        final_row.clawback_applied = clawback.applied
+        final_row.clawback_limit = clawback.limit
         if failure is not None:
             final_row.status = RunStatus.FAILED
             final_row.error_message = failure
@@ -360,9 +418,12 @@ def execute_simulation_run(run_id: str, engine: Engine) -> None:
                 "seed": seed,
                 "requested_count": invoice_count,
                 "decisions_submitted": submitted,
+                "clawback_applied": clawback.applied,
+                "clawback_limit": clawback.limit,
                 "accuracy": accuracy,
                 "wilson_lower_bound": wilson,
                 "error": failure,
+                "clawback_evaluation_error": clawback_error,
             },
         )
         final_session.commit()
@@ -480,69 +541,114 @@ def _pending_request_already_covers(
     return covered
 
 
-def _act_on_what_the_run_earned(run_id: str, engine: Engine, agent_id: str) -> None:
+def _act_on_what_the_run_earned(
+    run_id: str, engine: Engine, agent_id: str
+) -> ClawbackOutcome:
     """Turn the run's own evidence into a recommendation, if it earned one.
 
-    A run records decisions and stops. That left a real governance hole: a
-    degraded run could push drift to CRITICAL, the trust evaluation would
+    A run used to record decisions and stop. That left a real governance hole:
+    a degraded run could push drift to CRITICAL, the trust evaluation would
     correctly read CLAWBACK, and the agent would keep its full limit
     indefinitely — because a clawback only applies when a *recommendation* is
     generated, and nothing generated one. Detection without action.
 
-    ADR-0004 is explicit that a reduction needs no human authorization, so
-    nothing should have to poke the system for one to take effect. Generating
-    the recommendation here closes that: `generate_recommendation` applies a
-    CLAWBACK immediately and leaves an INCREASE pending, which is exactly the
-    asymmetry we want.
+    **Reuses `app.services.governance.generate_recommendation`** — the only
+    place a clawback is ever applied, and the only place the cascade guard
+    (do not re-apply a clawback for evidence already acted on, PR #40) lives.
+    This function never decides whether to claw back, and never re-implements
+    any part of that decision. It only decides whether the panel is worth
+    convening at all.
 
-    Both directions, not just clawbacks. Restricting this to CLAWBACK left
-    the other half of ADR-0004 with no producer at all: a good run would
-    raise the trust score until the ladder read INCREASE, and nothing
-    anywhere created the recommendation, so no approval request ever appeared
-    and the dashboard showed an increase that could not be acted on. The only
-    code in the whole project that generated one was the /demo console.
+    **Both directions, deliberately — and this is a considered departure from
+    the reasoning in PR #47.** That change restricted the end-of-run hook to
+    CLAWBACK, on the grounds that auto-generating an INCREASE would "fill the
+    Approvals queue with a row for every run, actionable or not". The concern
+    is real, but restricting it left the *other* half of ADR-0004 with no
+    producer at all: a good run raised the trust score until the ladder read
+    INCREASE, and nothing anywhere created the recommendation, so no approval
+    request ever appeared and the dashboard showed an increase that could not
+    be acted on. The only code in the whole project that generated one was the
+    /demo console. Reported from the dashboard as "degraded claws back
+    automatically, but good and recovery never produce an approval request".
 
-    `generate_recommendation` already draws exactly the line we want — it
-    applies a CLAWBACK in the same transaction and leaves an INCREASE
-    `PENDING` — so handing it both directions produces the asymmetry rather
-    than bypassing it. A run still never raises a limit by itself.
+    The queue-noise concern is answered directly instead, by
+    `_pending_request_already_covers`: at most one live request per agent, and
+    a pending row asking for a limit the current evidence no longer supports is
+    marked SUPERSEDED rather than left to accumulate. `generate_recommendation`
+    already draws the line we want — it applies a CLAWBACK in the same
+    transaction and leaves an INCREASE `PENDING` — so handing it both
+    directions produces ADR-0004's asymmetry rather than bypassing it. **A run
+    still never raises a limit by itself.**
 
-    A run that earns nothing (`HOLD`) writes nothing. And an agent that
-    already has a pending recommendation does not get a second one: re-running
-    a simulation is something a person does freely while rehearsing, and
-    stacking near-identical approval requests would bury the one that matters.
+    **The peek is side-effect-free and gets its own session** (PR #47's
+    pattern, kept): `compute_trust_evaluation` persists nothing, but using a
+    session this function controls and closes either way makes that an
+    invariant here rather than an assumption about the caller. The real attempt
+    then gets its own session, so a failure inside it rolls back cleanly
+    without touching what `execute_simulation_run` does with the run row
+    afterwards.
 
-    Never fails the run. The run itself succeeded; the decisions are recorded
-    and a later evaluation would reach the same conclusion. A governance
-    outage — no recording in cached mode, no network in live mode — must not
-    retroactively mark a completed run as failed.
+    `applied=True` only when the agent's own `current_limit` demonstrably
+    moved — not merely "governance's response said CLAWBACK", which is also and
+    identically true of the cascade guard's no-op replay of a past
+    recommendation.
+
+    Never fails the run. The decisions are recorded and a later evaluation
+    would reach the same conclusion. A governance outage — no recording in
+    cached mode, no network in live mode — must not retroactively mark a
+    completed run as failed.
     """
-    from shared.enums import Direction
-
     from app.services.governance import generate_recommendation
-    from app.services.trust import compute_and_persist_trust_evaluation
+    from app.services.trust import (
+        compute_and_persist_trust_evaluation,
+        compute_trust_evaluation,
+    )
+
+    peek_session = Session(engine)
+    try:
+        agent = peek_session.get(Agent, agent_id)
+        if agent is None:
+            return ClawbackOutcome(applied=False, limit=None)
+        peek = compute_trust_evaluation(peek_session, agent)
+    finally:
+        peek_session.close()
+
+    if peek.direction not in (Direction.CLAWBACK, Direction.INCREASE):
+        return ClawbackOutcome(applied=False, limit=None)
 
     session = Session(engine)
     try:
         agent = session.get(Agent, agent_id)
         if agent is None:
-            return
+            return ClawbackOutcome(applied=False, limit=None)
+        limit_before = agent.current_limit
+
         evaluation, _ = compute_and_persist_trust_evaluation(session, agent)
         if evaluation.direction not in (Direction.CLAWBACK, Direction.INCREASE):
+            # The peek and the real evaluation disagreeing means new decisions
+            # landed in between. The real one wins.
             session.commit()
-            return
+            return ClawbackOutcome(applied=False, limit=None)
+
         if evaluation.direction is Direction.INCREASE and _pending_request_already_covers(
             session, agent_id, evaluation.recommended_limit
         ):
             # The same request is already waiting on a human. Asking twice for
             # one rung tells nobody anything new.
             session.commit()
-            return
+            return ClawbackOutcome(applied=False, limit=None)
+
         generate_recommendation(session, agent)
         session.commit()
-    except Exception as exc:  # noqa: BLE001 - a governance outage must not fail a completed run
+
+        session.refresh(agent)
+        if agent.current_limit != limit_before:
+            return ClawbackOutcome(applied=True, limit=agent.current_limit)
+        return ClawbackOutcome(applied=False, limit=None)
+    except Exception as exc:  # noqa: BLE001 — a governance outage must not fail a completed run
         session.rollback()
         _log_recommendation_attempt_failed(engine, run_id, agent_id, exc)
+        return ClawbackOutcome(applied=False, limit=None)
     finally:
         session.close()
 

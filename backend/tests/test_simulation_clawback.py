@@ -347,3 +347,175 @@ def test_the_run_still_completes_if_governance_is_unavailable(
     row = _run(client, admin_headers, "agent-01", "degraded")
     assert row["status"] == "completed", "the run itself succeeded"
     assert row["decisions_submitted"] > 0
+
+
+# ---------------------------------------------------------------------------
+# From PR #47 (Varun P.), kept as written apart from the renamed function
+# under test. That PR and this branch closed the same gap independently — the
+# end-of-run clawback trigger — and git auto-merged both implementations side
+# by side, leaving one of them dead. They are now one function,
+# `_act_on_what_the_run_earned`, which took PR #47's side-effect-free peek,
+# its two-session split and its stricter "applied only if the limit actually
+# moved" rule, and kept this branch's handling of INCREASE alongside CLAWBACK.
+#
+# Both suites are kept on purpose: his pin the clawback trigger and the run-row
+# fields, mine pin the increase half and the supersede rule. Neither set covers
+# the other.
+# ---------------------------------------------------------------------------
+
+from shared.constants import AUTONOMY_FLOOR, limit_of, rung_of
+
+from app.services.simulation import (
+    ClawbackOutcome,
+    _act_on_what_the_run_earned,
+)
+
+
+def _start_run(client, admin_headers, **overrides):
+    body = {
+        "phase": "good",
+        "agent_id": "agent-01",
+        "invoice_count": 20,
+        "seed": 1,
+        "reason": "clawback trigger test",
+    }
+    body.update(overrides)
+    return client.post("/api/v1/simulation/runs", headers=admin_headers, json=body)
+
+
+def _run_to_completion(client, admin_headers, run_id: str, max_attempts: int = 100) -> dict:
+    """The background task runs on its own thread, not synchronously before
+    `.post()` returns (confirmed by direct observation, against
+    `test_simulation.py`'s own comment claiming otherwise) — every assertion
+    on a run's terminal fields must poll for one first, the same as
+    `test_simulation.py`'s own `_poll_until_done`."""
+    body = None
+    for _ in range(max_attempts):
+        body = client.get(f"/api/v1/simulation/runs/{run_id}", headers=admin_headers).json()
+        if body["status"] in ("completed", "failed"):
+            return body
+        time.sleep(0.05)
+    raise AssertionError(f"run {run_id} never reached a terminal status: {body}")
+
+
+def test_degrading_run_ends_with_the_agent_clawed_back_no_separate_endpoint_call(
+    client, admin_headers, db_engine
+):
+    with Session(db_engine) as session:
+        rung_before = session.get(Agent, "agent-01").current_rung
+
+    # seed=2, count=30. PR #47 used count=20, which worked when every planned
+    # invoice was acted on. The agent now escalates anything over its limit, so
+    # 20 invoices leave only 8 acted decisions for agent-01 at INR 2,500 — and
+    # the critical error that used to trip this landed on an invoice the agent
+    # now (correctly) defers instead of approving. 30 invoices give 14 acted
+    # with a critical error still inside CRITICAL_ERROR_WINDOW; re-derived
+    # against `generate_decision_plan` the same way the original seed was.
+    # agent-02 sits at the floor, where far less escalates, so its own scenario
+    # below still trips at count=20 unchanged.
+    resp = _start_run(client, admin_headers, phase="degraded", seed=2, invoice_count=30)
+    assert resp.status_code == 201
+    body = _run_to_completion(client, admin_headers, resp.json()["run_id"])
+    assert body["status"] == "completed"
+
+    # No call to /agents/{id}/recommendations anywhere in this test — the run
+    # itself is what applied the clawback.
+    assert body["clawback_applied"] is True
+    assert body["clawback_limit"] == limit_of(rung_before - 1)
+
+    with Session(db_engine) as session:
+        agent = session.get(Agent, "agent-01")
+        assert agent.current_rung == rung_before - 1
+        assert agent.current_limit == limit_of(rung_before - 1)
+
+
+def test_clean_run_does_not_claw_back(client, admin_headers, db_engine):
+    with Session(db_engine) as session:
+        rung_before = session.get(Agent, "agent-01").current_rung
+
+    # seed=1, count=20: zero critical errors anywhere in the plan.
+    resp = _start_run(client, admin_headers, phase="good", seed=1, invoice_count=20)
+    assert resp.status_code == 201
+    body = _run_to_completion(client, admin_headers, resp.json()["run_id"])
+    assert body["status"] == "completed"
+    assert body["clawback_applied"] is False
+    assert body["clawback_limit"] is None
+
+    with Session(db_engine) as session:
+        assert session.get(Agent, "agent-01").current_rung == rung_before
+
+
+def test_cascade_guard_holds_across_a_second_evaluation_with_no_new_decisions(
+    client, admin_headers, db_engine
+):
+    """A run that claws back, followed by another evaluation over the exact
+    same, unchanged decision history (no new decisions submitted in
+    between), must not claw back a second time — the guard
+    `app.services.governance.generate_recommendation` already applies
+    (PR #40) still holds when reached through this new trigger point, since
+    this branch reuses that function rather than writing a second clawback
+    path.
+    """
+    with Session(db_engine) as session:
+        rung_before = session.get(Agent, "agent-01").current_rung
+
+    resp = _start_run(client, admin_headers, phase="degraded", seed=2, invoice_count=30)
+    run_id = resp.json()["run_id"]
+    body = _run_to_completion(client, admin_headers, run_id)
+    assert body["clawback_applied"] is True
+
+    with Session(db_engine) as session:
+        assert session.get(Agent, "agent-01").current_rung == rung_before - 1
+
+    # Directly re-invoke the same end-of-run evaluation this run's own
+    # background task called — no new decisions submitted since the clawback
+    # above, exactly the "another run submitting zero new decisions"
+    # scenario: decisions_since_last_change is 0 relative to the policy
+    # version the first call just wrote.
+    #
+    # The merged function takes the run id as well, so a failure can be
+    # recorded against the run it belongs to; PR #47's two-argument form had
+    # nowhere to write that.
+    outcome = _act_on_what_the_run_earned(run_id, db_engine, "agent-01")
+    assert outcome == ClawbackOutcome(applied=False, limit=None)
+
+    with Session(db_engine) as session:
+        # Exactly one rung dropped, not two.
+        assert session.get(Agent, "agent-01").current_rung == rung_before - 1
+
+
+def test_clawback_never_drops_below_autonomy_floor(client, admin_headers, db_engine):
+    with Session(db_engine) as session:
+        agent = session.get(Agent, "agent-02")
+        assert agent.current_limit == AUTONOMY_FLOOR, "test assumes agent-02 is seeded at the floor"
+
+    # seed=2, count=20 against agent-02: last-20 acted decisions contain a
+    # critical error, same as agent-01's scenario above, found independently
+    # for this agent (see module docstring).
+    resp = _start_run(
+        client, admin_headers, agent_id="agent-02", phase="degraded", seed=2, invoice_count=20
+    )
+    assert resp.status_code == 201
+    body = _run_to_completion(client, admin_headers, resp.json()["run_id"])
+    assert body["status"] == "completed"
+    # Already at the floor: governance.py's own floor no-op (PR #34) means no
+    # new policy version is written, so this run's own evaluation reports no
+    # applied clawback even though the direction was CLAWBACK.
+    assert body["clawback_applied"] is False
+    assert body["clawback_limit"] is None
+
+    with Session(db_engine) as session:
+        agent = session.get(Agent, "agent-02")
+        assert agent.current_limit == AUTONOMY_FLOOR
+        assert agent.current_rung == rung_of(AUTONOMY_FLOOR) == 0
+
+
+def test_run_record_reflects_no_clawback_fields_by_default(client, admin_headers):
+    """Every run, clawed back or not, carries both fields in its response —
+    `clawback_applied` is never missing, just `False`."""
+    resp = _start_run(client, admin_headers, phase="good", seed=1, invoice_count=20)
+    body = _run_to_completion(client, admin_headers, resp.json()["run_id"])
+    assert "clawback_applied" in body
+    assert "clawback_limit" in body
+    assert body["clawback_applied"] is False
+    assert body["clawback_limit"] is None

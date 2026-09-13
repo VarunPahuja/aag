@@ -111,17 +111,36 @@ def test_same_seed_produces_identical_decision_sequences(client, admin_headers, 
     determinism is a property of repeating the exact same run, not of the
     bare seed value alone.
 
-    Uses the `good` phase, not `degraded`. `current_limit` is one of the
-    generator's inputs (invoice amounts scale with it), and a completed run now
-    applies any clawback its decisions earned — so a degraded run *changes* the
-    limit, and the second run would legitimately not be given the same inputs
-    as the first. That is the clawback working, not a determinism failure.
-    `test_simulation_phases.py::test_plans_are_reproducible` covers the pure
-    generator directly, where no state can move underneath it."""
-    resp_a = _start_run(client, admin_headers, agent_id="agent-01", phase="good", seed=99, invoice_count=15)
+    seed=99 used to work here, but since vp/clawback-trigger it happens to
+    put a critical error in run A's last `CRITICAL_ERROR_WINDOW` decisions —
+    run A then claws back agent-01 (correctly; see
+    test_simulation_clawback.py), which changes `agent.current_limit`
+    *before* run B's own plan is generated. `generate_decision_plan` takes
+    `current_limit` as an explicit argument specifically because it sets the
+    invoice-amount range (see its own docstring) — a different limit is a
+    different amount range, which perturbs every draw after it from the same
+    seeded `random.Random` stream, and run B stops matching run A. That is
+    not a determinism bug in `generate_decision_plan` itself (each run is
+    still exactly reproducible given its own inputs) — it is this test's
+    premise ("two back-to-back same-seed runs see the same current_limit")
+    no longer holding for every seed, now that a run can change the very
+    limit the next one's plan depends on. seed=1 has no critical error
+    anywhere in a 15-decision degraded plan for agent-01 (checked directly
+    against `generate_decision_plan`), so neither run claws back and the
+    premise holds again.
+
+    One update since PR #47 wrote the paragraph above: the plan now escalates
+    any invoice over `current_limit`, so a 15-decision run leaves only five to
+    eight *acted* decisions — and `CRITICAL_ERROR_WINDOW` counts acted
+    decisions only. Checked directly against `generate_decision_plan`: neither
+    phase at either seed now puts a critical error in that window, so the safe
+    set is wider than it was. The reasoning is unchanged and seed=1 is kept;
+    only the claim that seed=99 specifically breaks it no longer holds.
+    """
+    resp_a = _start_run(client, admin_headers, agent_id="agent-01", phase="degraded", seed=1, invoice_count=15)
     run_a = _poll_until_done(client, admin_headers, resp_a.json()["run_id"])
 
-    resp_b = _start_run(client, admin_headers, agent_id="agent-01", phase="good", seed=99, invoice_count=15)
+    resp_b = _start_run(client, admin_headers, agent_id="agent-01", phase="degraded", seed=1, invoice_count=15)
     run_b = _poll_until_done(client, admin_headers, resp_b.json()["run_id"])
 
     assert run_a["decisions_submitted"] == run_b["decisions_submitted"] == 15
