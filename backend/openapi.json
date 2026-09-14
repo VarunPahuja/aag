@@ -1596,6 +1596,9 @@
           "state": {
             "$ref": "#/components/schemas/AgentState"
           },
+          "thresholds": {
+            "$ref": "#/components/schemas/TrustThresholdsOut"
+          },
           "total_decisions": {
             "title": "Total Decisions",
             "type": "integer"
@@ -1651,6 +1654,40 @@
           "config_fingerprint"
         ],
         "title": "TrustEvaluationOut",
+        "type": "object"
+      },
+      "TrustThresholdsOut": {
+        "description": "The trust engine's own gate values, sent with the evaluation they\nproduced.\n\nHere because a client that draws a threshold has to get it from somewhere,\nand the only safe somewhere is the engine that applies it.\n`HorizontalThresholdGauge.tsx` used to mark a \"safety threshold\" at a\nhardcoded 85% accuracy and colour the bar red or green against it \u2014 a\nnumber that appears **nowhere** in `trust/` or `backend/`. The engine has\nno accuracy threshold at all: promotion gates on the *trust score*\n(`MIN_TRUST_SCORE_FOR_INCREASE`), and the accuracy axis is policed by drift\ndetection, which compares recent accuracy against the agent's own baseline\nrather than against any fixed line. So the dashboard was not merely\nduplicating a rule in the wrong place; it was displaying one the system\ndoes not have.\n\nThese are configuration, not per-agent evidence, so they are identical on\nevery evaluation. They ride along with it anyway because that is the\nevaluation these exact values produced \u2014 a client reading a historical row\ngets the thresholds that applied then, not today's.",
+        "properties": {
+          "critical_error_window": {
+            "title": "Critical Error Window",
+            "type": "integer"
+          },
+          "drift_accuracy_drop_pp": {
+            "title": "Drift Accuracy Drop Pp",
+            "type": "number"
+          },
+          "min_sample_for_increase": {
+            "title": "Min Sample For Increase",
+            "type": "integer"
+          },
+          "min_trust_score_for_increase": {
+            "title": "Min Trust Score For Increase",
+            "type": "number"
+          },
+          "recent_window": {
+            "title": "Recent Window",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_sample_for_increase",
+          "min_trust_score_for_increase",
+          "drift_accuracy_drop_pp",
+          "critical_error_window",
+          "recent_window"
+        ],
+        "title": "TrustThresholdsOut",
         "type": "object"
       },
       "ValidationError": {
@@ -2280,7 +2317,7 @@
     },
     "/api/v1/audit-log": {
       "get": {
-        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nRecomputes the whole chain from `GENESIS_HASH` on every call \u2014\n`audit_log` is small enough in this system for that to be cheap \u2014 and\nreports the result as `chain_valid`/`chain_verified_scope` rather than\njust asserting immutability in a docstring. If the table ever grows\nlarge enough that a full recompute stops being cheap, this falls back\nto verifying only the returned page and says so via\n`chain_verified_scope`, instead of silently verifying less than it\nclaims.",
+        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nRecomputes the whole chain from `GENESIS_HASH` on every call, in\n`log_seq` order \u2014\n`audit_log` is small enough in this system for that to be cheap \u2014 and\nreports the result as `chain_valid`/`chain_verified_scope` rather than\njust asserting immutability in a docstring. If the table ever grows\nlarge enough that a full recompute stops being cheap, this falls back\nto verifying only the returned page and says so via\n`chain_verified_scope`, instead of silently verifying less than it\nclaims.",
         "operationId": "list_audit_log_api_v1_audit_log_get",
         "parameters": [
           {
@@ -2559,7 +2596,7 @@
     },
     "/api/v1/decisions": {
       "get": {
-        "description": "List decisions, newest first.",
+        "description": "List decisions, newest first.\n\n`?agent_id=` filters in SQL. The agent detail page used to fetch the\nnewest 50 decisions across every agent and filter them in the browser,\nwhich silently showed nothing at all once another agent's run pushed it\noff the first page \u2014 a blank panel that looked like \"no decisions\" rather\nthan \"wrong query\".",
         "operationId": "list_decisions_api_v1_decisions_get",
         "parameters": [
           {
@@ -2587,6 +2624,22 @@
               "minimum": 1,
               "title": "Page Size",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Id"
             }
           },
           {
@@ -2894,7 +2947,7 @@
     },
     "/api/v1/recommendations": {
       "get": {
-        "description": "List recommendations, newest first.",
+        "description": "List recommendations, newest first.\n\n`?status=` is the approvals queue's tab filter \u2014 PENDING is the review\nqueue, APPROVED and REJECTED are history. Without it the dashboard's four\ntabs all rendered the same list: the frontend was already sending the\nparameter, and an endpoint that silently ignores a query parameter looks\nexactly like a broken filter to whoever is clicking it.\n\n`?agent_id=` narrows to one agent, which is what an agent detail page\nwants.",
         "operationId": "list_recommendations_api_v1_recommendations_get",
         "parameters": [
           {
@@ -2922,6 +2975,38 @@
               "minimum": 1,
               "title": "Page Size",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RecommendationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Id"
             }
           },
           {

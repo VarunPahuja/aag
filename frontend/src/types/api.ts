@@ -123,7 +123,7 @@ export const HUMAN_READABLE: Record<string, string> = {
   [NO_RECENT_CRITICAL_ERRORS]: "No critical errors in the recent window.",
   [COOLDOWN_SATISFIED]: "Enough decisions have elapsed since the last change.",
   [CLAWBACK_DRIFT]: "Autonomy reduced one rung after confirmed performance drift.",
-  [CLAWBACK_CRITICAL_ERROR]: "Autonomy reset to the floor after a critical error.",
+  [CLAWBACK_CRITICAL_ERROR]: "Autonomy reduced one rung after a critical error.",
   [NO_ACTED_DECISIONS]: "The agent has escalated everything and decided nothing.",
   [AGREEMENT_EVIDENCE_INSUFFICIENT]: "Too few human-ruled escalations to score agreement.",
   [WEIGHTS_RENORMALISED]: "Score computed over available components only.",
@@ -270,6 +270,32 @@ export interface TrustEvaluation {
   reason_codes: string[];
   evaluated_at: string | null; // ISO datetime
   config_fingerprint: string;
+
+  /**
+   * The trust engine's own gate values, sent with the evaluation they
+   * produced. Optional because a historical row stored before this field
+   * existed will not carry it.
+   *
+   * Anything on screen that draws a threshold must read it from here. It is
+   * not a duplicate of a rule the frontend could derive — the engine's gates
+   * are the only place these numbers are real.
+   */
+  thresholds?: TrustThresholds;
+}
+
+// --- TrustThresholdsOut: the engine's gate values ---
+
+export interface TrustThresholds {
+  /** Acted decisions required before an increase can be considered. */
+  min_sample_for_increase: number;
+  /** Trust score required for an increase. The engine's only "good enough" bar. */
+  min_trust_score_for_increase: number;
+  /** Accuracy drop, in percentage points, below baseline that trips drift. */
+  drift_accuracy_drop_pp: number;
+  /** How many recent acted decisions a critical error is looked for in. */
+  critical_error_window: number;
+  /** How many recent decisions count as "recent" for drift. */
+  recent_window: number;
 }
 
 // --- PolicyVersionOut: what GET /agents/{id}/policy-versions returns ---

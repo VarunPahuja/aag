@@ -142,7 +142,16 @@ def test_trust_evaluation_out_mirrors_trust_evaluation():
     assert_mirrors_dataclass(
         TrustEvaluation,
         TrustEvaluationOut,
-        extra_fields=frozenset({"id"}),
+        # `id`: identity, minted by the backend (see app/schemas/trust.py).
+        # `thresholds`: the trust engine's own gate values, sent with the
+        #   evaluation they produced. Not on the shared dataclass because
+        #   `shared/` is frozen, and not derivable by a client — they live in
+        #   `trust_engine.constants`. Added because the dashboard was drawing a
+        #   "safety threshold" at a hardcoded 85% that exists nowhere in the
+        #   engine; anything on screen that draws a line must now read it from
+        #   here. Same category of backend-local addition as
+        #   `RecommendationOut.reason_codes` below.
+        extra_fields=frozenset({"id", "thresholds"}),
         rename={
             ProportionResult: ProportionResultOut,
             ScoreComponent: ScoreComponentOut,

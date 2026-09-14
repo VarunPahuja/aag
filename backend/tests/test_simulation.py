@@ -128,6 +128,14 @@ def test_same_seed_produces_identical_decision_sequences(client, admin_headers, 
     anywhere in a 15-decision degraded plan for agent-01 (checked directly
     against `generate_decision_plan`), so neither run claws back and the
     premise holds again.
+
+    One update since PR #47 wrote the paragraph above: the plan now escalates
+    any invoice over `current_limit`, so a 15-decision run leaves only five to
+    eight *acted* decisions — and `CRITICAL_ERROR_WINDOW` counts acted
+    decisions only. Checked directly against `generate_decision_plan`: neither
+    phase at either seed now puts a critical error in that window, so the safe
+    set is wider than it was. The reasoning is unchanged and seed=1 is kept;
+    only the claim that seed=99 specifically breaks it no longer holds.
     """
     resp_a = _start_run(client, admin_headers, agent_id="agent-01", phase="degraded", seed=1, invoice_count=15)
     run_a = _poll_until_done(client, admin_headers, resp_a.json()["run_id"])
