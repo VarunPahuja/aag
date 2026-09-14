@@ -1,0 +1,44 @@
+[project]
+name = "assistant"
+version = "0.1.0"
+description = "Document retrieval over AAGP's own documentation, so the assistant answers from the repo rather than from the model's general knowledge"
+requires-python = ">=3.11"
+# Deliberately nothing here. The one network call goes through
+# `governance/llm/gemini.py`, which declares httpx itself; the similarity search is a
+# dot product in the standard library. No vector store, no numeric stack — ADR-0008 and
+# `assistant/__init__.py` both say why 122 chunks do not need either.
+#
+# `governance` and `shared` are imported by path, the same way every lane in this
+# monorepo imports its neighbours. Packaging them properly is open question 3 in
+# docs/lanes/vc.md and is the team lead's call.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["assistant"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+pythonpath = [".", ".."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.isort]
+# This package and its two in-repo dependencies are first-party. Without this,
+# ruff sorts `assistant` and `governance` into the third-party block (they are not
+# installed, and the config root is this directory), and every import block in the
+# package disagrees with every other lane's.
+known-first-party = ["assistant", "governance", "shared"]
