@@ -14,6 +14,10 @@ differently, reading the same evidence.
 `GOVERNANCE_PROVIDER` alone still works and keeps every agent on one provider — which is
 the right default, because it is the configuration that needs no paid key.
 
+One of `gemini`, `claude`, `openai`, `azure-openai`. `azure-openai` is chat-only — see
+`governance/llm/azure_openai.py`'s docstring for why it exists despite ADR-0012 still
+being Proposed and `docs/lanes/vc.md` forbidding a paid default.
+
 **No key is required to import anything here.** Clients are constructed lazily and a
 missing key only fails when a live call is actually attempted, because stub and cached
 modes must run with every variable blank (docs/lanes/vc.md).
@@ -25,6 +29,8 @@ import os
 from collections.abc import Callable
 from functools import cache
 
+from governance.llm.azure_openai import PROVIDER as AZURE_OPENAI
+from governance.llm.azure_openai import AzureOpenAIClient
 from governance.llm.base import LLMClient
 from governance.llm.claude import PROVIDER as CLAUDE
 from governance.llm.claude import ClaudeClient
@@ -42,6 +48,7 @@ _BUILDERS: dict[str, Callable[[], LLMClient]] = {
     GEMINI: GeminiClient,
     CLAUDE: ClaudeClient,
     OPENAI: OpenAIClient,
+    AZURE_OPENAI: AzureOpenAIClient,
 }
 
 PROVIDERS: tuple[str, ...] = tuple(_BUILDERS)

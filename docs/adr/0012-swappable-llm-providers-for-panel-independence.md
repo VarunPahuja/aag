@@ -97,6 +97,31 @@ needs a key for every provider it uses before it can be recorded at all.
 Implemented in `governance/llm/` — `base.py`, `gemini.py`, `claude.py`,
 `openai_client.py`, `registry.py`, `recording.py:cache_key_for`.
 
+## Addendum — 14 Sept 2026: Azure OpenAI added, chat only
+
+A fourth provider, `azure-openai` (`governance/llm/azure_openai.py`), was added on the
+team lead's explicit instruction, against a resource and deployment (`gpt-4.1-mini`)
+they already had. This is exactly the situation "the team needs to rule on" above
+describes — a paid provider — decided the same way: opt-in, not the default
+(`DEFAULT_PROVIDER` stays `gemini`), no key required to run the project end to end.
+
+Two differences from the three providers above, worth recording precisely:
+
+- **Chat only.** `gpt-4.1-mini` is a chat/completion model; it cannot produce the
+  embedding vectors `assistant/index.json` is built from. `assistant/embed.py` still
+  raises `EmbeddingsUnsupportedError` for anything but Gemini — this addition does not
+  touch that boundary and could not, regardless of intent.
+- **A different API shape.** Azure AI Foundry's `services.ai.azure.com` v1 Responses API
+  (`instructions`/`input`/`output`) is not the `chat/completions` dialect
+  `openai_client.py` already speaks, and does not take the dated `api-version` query
+  parameter the classic Azure OpenAI endpoint requires — see `azure_openai.py`'s
+  docstring for what was probed against a live deployment to confirm this.
+
+Scoped in practice to `backend/app/services/assistant_llm.py`'s answer-generation step
+(`GOVERNANCE_PROVIDER_ASSISTANT=azure-openai`) — the governance panel agents are not
+currently pointed at it, though nothing stops a future `GOVERNANCE_PROVIDER_RISK=azure-openai`
+from working the same way the other three do.
+
 ## Alternatives considered
 
 **Keep one provider and answer the objection structurally.** This is the status quo and
