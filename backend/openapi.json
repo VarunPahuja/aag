@@ -2317,7 +2317,7 @@
     },
     "/api/v1/audit-log": {
       "get": {
-        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nRecomputes the whole chain from `GENESIS_HASH` on every call \u2014\n`audit_log` is small enough in this system for that to be cheap \u2014 and\nreports the result as `chain_valid`/`chain_verified_scope` rather than\njust asserting immutability in a docstring. If the table ever grows\nlarge enough that a full recompute stops being cheap, this falls back\nto verifying only the returned page and says so via\n`chain_verified_scope`, instead of silently verifying less than it\nclaims.",
+        "description": "The complete hash-chained event log, newest first. Read-only \u2014\nnothing in this API ever mutates an existing row (that's the point).\n\nRecomputes the whole chain from `GENESIS_HASH` on every call, in\n`log_seq` order \u2014\n`audit_log` is small enough in this system for that to be cheap \u2014 and\nreports the result as `chain_valid`/`chain_verified_scope` rather than\njust asserting immutability in a docstring. If the table ever grows\nlarge enough that a full recompute stops being cheap, this falls back\nto verifying only the returned page and says so via\n`chain_verified_scope`, instead of silently verifying less than it\nclaims.",
         "operationId": "list_audit_log_api_v1_audit_log_get",
         "parameters": [
           {

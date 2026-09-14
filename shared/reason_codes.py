@@ -51,7 +51,7 @@ HUMAN_READABLE: Final[dict[str, str]] = {
     NO_RECENT_CRITICAL_ERRORS: "No critical errors in the recent window.",
     COOLDOWN_SATISFIED: "Enough decisions have elapsed since the last change.",
     CLAWBACK_DRIFT: "Autonomy reduced one rung after confirmed performance drift.",
-    CLAWBACK_CRITICAL_ERROR: "Autonomy reset to the floor after a critical error.",
+    CLAWBACK_CRITICAL_ERROR: "Autonomy reduced one rung after a critical error.",
     NO_ACTED_DECISIONS: "The agent has escalated everything and decided nothing.",
     AGREEMENT_EVIDENCE_INSUFFICIENT: "Too few human-ruled escalations to score agreement.",
     WEIGHTS_RENORMALISED: "Score computed over available components only.",

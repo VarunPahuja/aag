@@ -176,7 +176,8 @@ def list_audit_log(
     """The complete hash-chained event log, newest first. Read-only —
     nothing in this API ever mutates an existing row (that's the point).
 
-    Recomputes the whole chain from `GENESIS_HASH` on every call —
+    Recomputes the whole chain from `GENESIS_HASH` on every call, in
+    `log_seq` order —
     `audit_log` is small enough in this system for that to be cheap — and
     reports the result as `chain_valid`/`chain_verified_scope` rather than
     just asserting immutability in a docstring. If the table ever grows
@@ -185,7 +186,15 @@ def list_audit_log(
     `chain_verified_scope`, instead of silently verifying less than it
     claims.
     """
-    rows = db.execute(select(AuditLogEntry).order_by(AuditLogEntry.ts)).scalars().all()
+    # `log_seq`, not `ts`. `ts` is caller-supplied and not guaranteed
+    # monotonic with insertion order, which is the entire reason migration
+    # 0003 added `log_seq` and why `append_entry` already chains in that
+    # order. Verifying in `ts` order read a correct chain out of sequence
+    # and reported it as tampered: 11 inversions across 2,912 real entries,
+    # every one of them a false alarm on an intact chain.
+    rows = (
+        db.execute(select(AuditLogEntry).order_by(AuditLogEntry.log_seq)).scalars().all()
+    )
     chain_valid = verify_chain((row.prev_hash, row.payload, row.hash) for row in rows)
 
     newest_first = list(reversed(rows))

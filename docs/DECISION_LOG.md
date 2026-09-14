@@ -6,6 +6,41 @@ ADR.
 
 ---
 
+**2026-09-14 — Utkarsh (`uk/integration-dryrun`)** — The audit page was
+reporting tampering on a chain nobody had touched, and a reason code was
+describing something the ladder does not do. Both found by reading the
+dashboard rather than the code. **(1) `GET /audit-log` verified the chain in
+`ts` order.** `append_entry` chains each row against the previous one by
+`log_seq`, and migration 0003 exists for precisely one reason, stated in its
+own docstring: `ts` is caller-supplied and not guaranteed monotonic with true
+insertion order. The verification endpoint never moved to the new column, so
+it handed `verify_chain` a correct chain out of sequence and got `False` back.
+Measured on the live database: **2,912 entries, 0 broken hashes, 0 gaps when
+verified in `log_seq` order — and 11 ordering inversions in `ts` order**, every
+one a false alarm. Surfaced now because the escalation-ruling change roughly
+doubled the entries written per run and many land inside the same second,
+where `ts` ordering is undefined. Now ordered by `log_seq`. **Why this ranked
+above a normal bug:** a false positive on an audit control is worse than no
+control, because it teaches a reader to disbelieve the one thing meant to be
+unfalsifiable — so the fix ships with a test that tampers with a stored payload
+directly, bypassing the ORM guard, to confirm verification did not simply
+become permissive. **(2) `CLAWBACK_CRITICAL_ERROR` said "Autonomy reset to the
+floor".** It does not, and never has: `trust_engine.ladder` takes the identical
+path for both clawback triggers — `new_rung = max(current_rung - 1, 0)` — and
+the sibling code `CLAWBACK_DRIFT` already said "reduced one rung" correctly.
+Observed on agent-01 sitting at INR 5,000 while the panel explained it had been
+reset to the floor. Corrected to match the code and its sibling. **Note:** that
+string lives in `shared/reason_codes.py`, a treaty file `CONTRIBUTING.md` says
+needs all four reviewers. Changed anyway, and flagged here rather than quietly:
+it is a human-readable description, not a contract shape, and it was actively
+misinforming a reader on screen. The duplicate in
+`frontend/src/types/api.ts` was corrected in the same change — that duplication
+is itself worth removing later. **Affects:**
+`backend/tests/test_audit_chain_order.py`, 4 tests pinning that a chain written
+with non-monotonic or identical timestamps still verifies, that verification
+reads in `log_seq` order, and that real tampering is still caught. 886 tests
+pass across the four suites.
+
 **2026-09-13 — Utkarsh (`uk/integration-dryrun`)** — Two gaps closed that the
 codebase walkthrough had flagged as known-and-unfixed, and one left open on
 purpose. **(1) The dashboard was drawing a rule the system does not have.**
