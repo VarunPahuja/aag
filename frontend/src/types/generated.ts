@@ -55,13 +55,37 @@ export interface paths {
          * List Policy Versions
          * @description The agent's append-only limit history, newest first.
          *
-         *     Once implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY
-         *     effective_from DESC`. `previous_version_id` always chains to a row
-         *     that exists, except the very first version for an agent.
+         *     `previous_version_id` always chains to a row that exists, except the
+         *     very first version for an agent.
          */
         get: operations["list_policy_versions_api_v1_agents__agent_id__policy_versions_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{agent_id}/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Recommendation
+         * @description Generate a fresh governance recommendation for `agent_id`: recompute
+         *     its `TrustEvaluation` from persisted decisions, run the governance panel
+         *     over it (`GOVERNANCE_MODE`, default `stub`), clamp the panel's proposal to
+         *     what the evidence actually supports, and persist trust evaluation,
+         *     recommendation, and audit entry — all in this one request's transaction
+         *     (`app.deps.get_session`; see `app/services/governance.py`).
+         */
+        post: operations["create_recommendation_api_v1_agents__agent_id__recommendations_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -77,12 +101,11 @@ export interface paths {
         };
         /**
          * Get Current Trust
-         * @description The agent's most recent `TrustEvaluation`.
-         *
-         *     Once implemented: calls `trust_engine.evaluate(decisions, context)` with
-         *     the agent's full decision history and current `AgentContext`, persists
-         *     the result with a minted `id`, and returns it — or, if evaluation is
-         *     cached, the most recent persisted row.
+         * @description Evaluate `agent_id`'s real persisted decision history with the real
+         *     trust engine, persist the result, and return it. An agent with zero
+         *     decisions still gets a valid `TrustEvaluation` back — `trust_engine.evaluate`
+         *     is designed to handle an empty history, not to be called only once one
+         *     exists (see `app/services/trust.py`).
          */
         get: operations["get_current_trust_api_v1_agents__agent_id__trust_get"];
         put?: never;
@@ -102,15 +125,38 @@ export interface paths {
         };
         /**
          * List Trust History
-         * @description Every `TrustEvaluation` ever computed for this agent, newest first —
+         * @description Every `TrustEvaluation` ever persisted for this agent, newest first —
          *     what the dashboard's trust-over-time chart is built from.
-         *
-         *     Once implemented: `SELECT ... WHERE agent_id = :agent_id ORDER BY
-         *     evaluated_at DESC`.
          */
         get: operations["list_trust_history_api_v1_agents__agent_id__trust_history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat
+         * @description Answer one question, in the requested scope. `agent_id` absent is the
+         *     general scope; present, it must name a real agent (404 otherwise) and the
+         *     reply is built from that agent's evidence alone (`app/services/assistant.py`).
+         *
+         *     No role restriction — this is a read endpoint over data every stub role can
+         *     already see elsewhere (agents, decisions, recommendations, audit log), the
+         *     same reasoning `GET /agents/{id}` itself carries no `require_role`.
+         */
+        post: operations["chat_api_v1_assistant_chat_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -129,10 +175,14 @@ export interface paths {
          * @description The complete hash-chained event log, newest first. Read-only —
          *     nothing in this API ever mutates an existing row (that's the point).
          *
-         *     Once implemented: `SELECT ... ORDER BY ts DESC`. Verifying the chain
-         *     (recomputing each `hash` from `prev_hash` + the row's own payload) is a
-         *     read-side operation a caller can do against this same data, not
-         *     something the backend does on every read.
+         *     Recomputes the whole chain from `GENESIS_HASH` on every call —
+         *     `audit_log` is small enough in this system for that to be cheap — and
+         *     reports the result as `chain_valid`/`chain_verified_scope` rather than
+         *     just asserting immutability in a docstring. If the table ever grows
+         *     large enough that a full recompute stops being cheap, this falls back
+         *     to verifying only the returned page and says so via
+         *     `chain_verified_scope`, instead of silently verifying less than it
+         *     claims.
          */
         get: operations["list_audit_log_api_v1_audit_log_get"];
         put?: never;
@@ -154,10 +204,14 @@ export interface paths {
          * List Audit Samples
          * @description List sampled decisions pulled for human review, newest first.
          *
-         *     Once implemented: `SELECT ... ORDER BY sampled_at DESC`, with a
-         *     `?pending=true` filter for the review queue view — samples are pulled
-         *     at `sampling_rate_of(agent.current_rung)` (shared/constants.py) as
-         *     decisions are recorded, not on a schedule.
+         *     Reads the real `audit_samples` table. Rows are written by
+         *     `app.services.audit_sampling.sample_if_selected` as decisions are
+         *     recorded, at `sampling_rate_of(agent.current_rung)` — as they happen, not
+         *     on a schedule, so the queue reflects the agent's current rung rather than
+         *     whatever it was when a batch job last ran.
+         *
+         *     `?pending=true` is the review-queue view: samples nobody has ruled on yet.
+         *     `?agent_id=` narrows to one agent, which is what an agent detail page wants.
          */
         get: operations["list_audit_samples_api_v1_audit_samples_get"];
         put?: never;
@@ -181,13 +235,26 @@ export interface paths {
          * Review Audit Sample
          * @description Record a human review of one sampled decision. REVIEWER or ADMIN only.
          *
-         *     Once implemented: writes `reviewed_at`/`reviewer`/`verdict`/
-         *     `reviewer_action` onto the `audit_samples` row, and — if `verdict` is
-         *     `DISAGREED` — emits `SAMPLE_REVIEW_DISAGREEMENT`
-         *     (shared/reason_codes.py) into the agent's next trust evaluation, since
-         *     a disagreeing sample is itself evidence. This stub validates the sample
-         *     exists and is still pending, then returns a copy reflecting the
-         *     review — it does not persist it or feed the trust engine.
+         *     Writes `reviewed_at`/`reviewer`/`verdict`/`reviewer_action` onto the
+         *     `audit_samples` row and appends a hash-chained audit entry. A `DISAGREED`
+         *     verdict carries `SAMPLE_REVIEW_DISAGREEMENT` (shared/reason_codes.py) on
+         *     that entry: a reviewer contradicting the agent is itself evidence, and it
+         *     is the only place in the system that code is produced.
+         *
+         *     Reviews once. A second review is a 409 rather than a silent overwrite —
+         *     the same reasoning as a decision ruling: a review is evidence that may
+         *     already have been counted, and rewriting it would change history under
+         *     whatever cited it.
+         *
+         *     What this deliberately does NOT do: overwrite the decision's recorded
+         *     ground truth. ADR-0009 describes reviewed samples eventually *becoming*
+         *     the ground-truth source once the system runs past the simulator, but that
+         *     same ADR flags the contract gap it depends on — `TrustEvaluation` has no
+         *     field distinguishing accuracy built from full ground truth from accuracy
+         *     built from a sampled slice — as deferred, not decided. Silently
+         *     substituting one for the other here would corrupt the simulator's
+         *     deterministic ground truth and break the arc's reproducibility, to
+         *     implement a contract change nobody has agreed.
          */
         post: operations["review_audit_sample_api_v1_audit_samples__sample_id__review_post"];
         delete?: never;
@@ -206,6 +273,12 @@ export interface paths {
         /**
          * List Decisions
          * @description List decisions, newest first.
+         *
+         *     `?agent_id=` filters in SQL. The agent detail page used to fetch the
+         *     newest 50 decisions across every agent and filter them in the browser,
+         *     which silently showed nothing at all once another agent's run pushed it
+         *     off the first page — a blank panel that looked like "no decisions" rather
+         *     than "wrong query".
          */
         get: operations["list_decisions_api_v1_decisions_get"];
         put?: never;
@@ -249,6 +322,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/decisions/{decision_id}/ruling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rule On Decision
+         * @description Record a human's ruling on one escalated decision. REVIEWER or ADMIN only.
+         *
+         *     This is the write path for `decisions.human_ruling`, and the only one:
+         *     `POST /api/v1/decisions` deliberately leaves it null, because an agent
+         *     cannot rule on its own escalation.
+         *
+         *     Escalating is the agent deferring to a human, so a ruling is the answer to
+         *     that deferral — which is why only an ESCALATE decision can be ruled on, and
+         *     why the ruling itself must be APPROVE or REJECT. `shared.contracts.
+         *     DecisionRecord.human_agreed` then compares the ruling against the agent's
+         *     own `recommended_action`, and `trust_engine.stats.rates.human_agreement`
+         *     aggregates those comparisons over ruled escalations only.
+         *
+         *     A decision ingested without a `recommended_action` can still be ruled on —
+         *     the ruling is a real fact worth recording — but the pair contributes
+         *     nothing to human agreement, since there is no recommendation to compare
+         *     against. `has_human_ruling` requires both halves.
+         *
+         *     Rules once. A second ruling is a 409 rather than a silent overwrite: the
+         *     audit chain records what a human decided, and decisions already evaluated
+         *     against it must not change underneath that evidence.
+         */
+        post: operations["rule_on_decision_api_v1_decisions__decision_id__ruling_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -282,8 +395,14 @@ export interface paths {
          * List Recommendations
          * @description List recommendations, newest first.
          *
-         *     Once implemented: `SELECT ... ORDER BY generated_at DESC`, with a
-         *     `?status=PENDING` filter for the approvals queue view.
+         *     `?status=` is the approvals queue's tab filter — PENDING is the review
+         *     queue, APPROVED and REJECTED are history. Without it the dashboard's four
+         *     tabs all rendered the same list: the frontend was already sending the
+         *     parameter, and an endpoint that silently ignores a query parameter looks
+         *     exactly like a broken filter to whoever is clicking it.
+         *
+         *     `?agent_id=` narrows to one agent, which is what an agent detail page
+         *     wants.
          */
         get: operations["list_recommendations_api_v1_recommendations_get"];
         put?: never;
@@ -325,17 +444,19 @@ export interface paths {
         put?: never;
         /**
          * Approve Recommendation
-         * @description Authorize a pending INCREASE. ADMIN only.
+         * @description Authorize a pending recommendation. ADMIN only.
          *
-         *     Once implemented: writes an `approvals` row (`decided_by`, `verdict`,
-         *     `reason`, `decided_at`), flips `Recommendation.status` to `APPROVED`,
-         *     and — in the same transaction — writes the new `policy_versions` row
-         *     that actually changes `agents.current_limit`
-         *     (docs/lanes/vp.md: "Never update agents.current_limit without writing a
-         *     policy_versions row in the same transaction"). This stub validates the
-         *     recommendation exists and is still `PENDING`, then returns a copy with
-         *     `status=APPROVED` — it does not persist the change or write a policy
-         *     version.
+         *     Writes an `approvals` row (`decided_by`, `verdict=APPROVED`, `reason`,
+         *     `decided_at`), flips `Recommendation.status` to `APPROVED`, and — only if
+         *     `proposed_limit` actually differs from the agent's current limit — writes
+         *     the new `policy_versions` row that changes `agents.current_limit`/
+         *     `current_rung` in the same transaction (docs/lanes/vp.md: "Never update
+         *     agents.current_limit without writing a policy_versions row in the same
+         *     transaction"). Approving a HOLD recommendation (`proposed_limit` already
+         *     equal to the current limit) is still recorded via the `approvals` row,
+         *     but writes no policy version — and so does not reset the cooldown clock
+         *     `app/services/trust.py:agent_context` derives from the latest version's
+         *     `effective_from`, which a no-op approval has no business touching.
          */
         post: operations["approve_recommendation_api_v1_recommendations__rec_id__approve_post"];
         delete?: never;
@@ -357,9 +478,9 @@ export interface paths {
          * Reject Recommendation
          * @description Reject a pending recommendation. ADMIN only, same as approve.
          *
-         *     Once implemented: writes an `approvals` row with `verdict=REJECTED` and
-         *     flips `Recommendation.status` to `REJECTED`. No policy version is
-         *     written — the agent's limit does not change.
+         *     Writes an `approvals` row with `verdict=REJECTED` and flips
+         *     `Recommendation.status` to `REJECTED`. No policy version is written —
+         *     the agent's limit does not change.
          */
         post: operations["reject_recommendation_api_v1_recommendations__rec_id__reject_post"];
         delete?: never;
@@ -379,15 +500,23 @@ export interface paths {
         put?: never;
         /**
          * Start Simulation Run
-         * @description Start a simulation run — the simulator generates `invoice_count`
-         *     synthetic invoices for `phase` and posts each resulting decision to
-         *     `POST /api/v1/decisions`.
+         * @description Start a real simulation run.
          *
-         *     Once implemented: enqueues the run (no Celery — see docs/CONTEXT.md's
-         *     cut-scope list; a background task or a synchronous call is enough for
-         *     this project's scale) and returns immediately with `status=pending`.
-         *     This stub returns a freshly-minted run in `pending` status without
-         *     actually starting anything.
+         *     Creates the run row with `status=running`, then schedules
+         *     `app.services.simulation.execute_simulation_run` as a `BackgroundTasks`
+         *     job: it generates `invoice_count` synthetic invoices for `phase` from
+         *     `seed`, runs a scripted agent over them, and submits every resulting
+         *     decision through the same ingest path `POST /api/v1/decisions` itself
+         *     uses (`app.api.v1.decisions._create_decision`, called directly and
+         *     in-process — no self-HTTP-call, same function either way, so this is
+         *     not a shortcut into the database).
+         *
+         *     The run row is committed here, explicitly, before the background task
+         *     is scheduled — deliberately not left to `DbSessionDep`'s usual
+         *     commit-at-end-of-request — so the background task's own session is
+         *     guaranteed to find the row already durable, regardless of exactly how
+         *     FastAPI orders background-task execution relative to a dependency's
+         *     post-`yield` teardown code.
          */
         post: operations["start_simulation_run_api_v1_simulation_runs_post"];
         delete?: never;
@@ -406,9 +535,8 @@ export interface paths {
         /**
          * Get Simulation Run
          * @description Poll a run's status and, once complete, its summary accuracy/Wilson
-         *     lower bound over the decisions it submitted.
-         *
-         *     Once implemented: `SELECT ... WHERE id = :run_id`, 404 if no row.
+         *     lower bound over the decisions it submitted. `decisions_submitted`
+         *     updates after every decision while the run is still in progress.
          */
         get: operations["get_simulation_run_api_v1_simulation_runs__run_id__get"];
         put?: never;
@@ -486,6 +614,48 @@ export interface components {
          */
         AgentState: "probation" | "active" | "restricted" | "suspended";
         /**
+         * AssistantChatRequest
+         * @description `agent_id` absent (or `null`) is the general scope; present, it is the
+         *     agent-scoped conversation — see `app/api/v1/assistant.py` for what each
+         *     scope fetches.
+         */
+        AssistantChatRequest: {
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Messages */
+            messages: components["schemas"]["AssistantMessage"][];
+        };
+        /** AssistantChatResponse */
+        AssistantChatResponse: {
+            /** Reply */
+            reply: string;
+            /** Sources */
+            sources: components["schemas"]["AssistantSource"][];
+        };
+        /** AssistantMessage */
+        AssistantMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+        };
+        /**
+         * AssistantSource
+         * @description One documentation citation: a doc name (e.g. `"ADR-0006"`) and the
+         *     heading within it the excerpt came from. Mirrors `app.services.doc_index.
+         *     DocChunk`'s two identifying fields — see that module for why this is a
+         *     stub search today, swapped for `vc/assistant-retrieval`'s real index later.
+         */
+        AssistantSource: {
+            /** Doc */
+            doc: string;
+            /** Section */
+            section: string;
+        };
+        /**
          * AuditLogEntryOut
          * @description One hash-chained row. `prev_hash`/`hash` make tampering with history
          *     detectable — see docs/lanes/vp.md: "sha256(prev_hash +
@@ -518,6 +688,46 @@ export interface components {
              * Format: date-time
              */
             ts: string;
+        };
+        /**
+         * AuditLogPage
+         * @description `GET /api/v1/audit-log`'s response: the usual pagination envelope,
+         *     plus a chain-verification result computed fresh on every call — this is
+         *     what makes tamper-evidence demonstrable on screen rather than claimed in
+         *     a docstring (docs/lanes/vp.md).
+         *
+         *     `chain_verified_scope` says exactly what `chain_valid` covers: `"full"`
+         *     when every row in `audit_log` was recomputed from `GENESIS_HASH`,
+         *     `"page"` if the table ever grows large enough that a full recompute on
+         *     every request stops being cheap and this endpoint falls back to
+         *     verifying only the returned page — never silently verifying less than
+         *     it claims.
+         */
+        AuditLogPage: {
+            /** Chain Valid */
+            chain_valid: boolean;
+            /**
+             * Chain Verified Scope
+             * @enum {string}
+             */
+            chain_verified_scope: "full" | "page";
+            /** Items */
+            items: components["schemas"]["AuditLogEntryOut"][];
+            /**
+             * Page
+             * @description 1-indexed page number
+             */
+            page: number;
+            /**
+             * Page Size
+             * @description Items per page, as requested
+             */
+            page_size: number;
+            /**
+             * Total
+             * @description Total matching records, independent of page size
+             */
+            total: number;
         };
         /**
          * AuditSampleOut
@@ -579,6 +789,8 @@ export interface components {
              * @description Why this decision is being submitted
              */
             reason: string;
+            /** @description What the agent would have done had it been allowed to act. Only meaningful when `action` is ESCALATE: `shared.contracts.DecisionRecord.has_human_ruling` requires both this and a later `human_ruling` before the pair counts toward human agreement. */
+            recommended_action?: components["schemas"]["Action"] | null;
         };
         /**
          * DecisionRecordOut
@@ -601,6 +813,28 @@ export interface components {
             recommended_action: components["schemas"]["Action"] | null;
             /** Sequence */
             sequence: number;
+        };
+        /**
+         * DecisionRuling
+         * @description Request body for `POST /api/v1/decisions/{decision_id}/ruling`.
+         *
+         *     Records what a human decided about an escalated decision. Only ADMIN or
+         *     REVIEWER may call this (`app/deps.py`) — ruling on an escalation is
+         *     REVIEWER's job, the same reasoning as reviewing an audit sample
+         *     (ADR-0009); AUDITOR stays read-only.
+         *
+         *     A ruling is only half of the evidence: `human_agreement` compares it
+         *     against the agent's own `recommended_action`, so a decision ingested
+         *     without one can be ruled on but will not contribute to the trust score.
+         */
+        DecisionRuling: {
+            /**
+             * Reason
+             * @description Why the human ruled this way
+             */
+            reason: string;
+            /** @description The human's verdict: APPROVE or REJECT. Never ESCALATE. */
+            ruling: components["schemas"]["Action"];
         };
         /**
          * Direction
@@ -679,26 +913,6 @@ export interface components {
         Page_AgentOut_: {
             /** Items */
             items: components["schemas"]["AgentOut"][];
-            /**
-             * Page
-             * @description 1-indexed page number
-             */
-            page: number;
-            /**
-             * Page Size
-             * @description Items per page, as requested
-             */
-            page_size: number;
-            /**
-             * Total
-             * @description Total matching records, independent of page size
-             */
-            total: number;
-        };
-        /** Page[AuditLogEntryOut] */
-        Page_AuditLogEntryOut_: {
-            /** Items */
-            items: components["schemas"]["AuditLogEntryOut"][];
             /**
              * Page
              * @description 1-indexed page number
@@ -906,6 +1120,8 @@ export interface components {
             proposed_rung: number;
             /** Rationale */
             rationale: string;
+            /** Reason Codes */
+            reason_codes?: string[];
             /** Recommendation Id */
             recommendation_id: string;
             /** Schema Version */
@@ -991,10 +1207,19 @@ export interface components {
             accuracy: number | null;
             /** Agent Id */
             agent_id: string;
+            /**
+             * Clawback Applied
+             * @default false
+             */
+            clawback_applied: boolean;
+            /** Clawback Limit */
+            clawback_limit?: number | null;
             /** Completed At */
             completed_at: string | null;
             /** Decisions Submitted */
             decisions_submitted: number;
+            /** Error Message */
+            error_message?: string | null;
             /** Invoice Count */
             invoice_count: number;
             phase: components["schemas"]["SimulationPhase"];
@@ -1059,6 +1284,7 @@ export interface components {
             /** Schema Version */
             schema_version: string;
             state: components["schemas"]["AgentState"];
+            thresholds?: components["schemas"]["TrustThresholdsOut"];
             /** Total Decisions */
             total_decisions: number;
             /** Trust Score */
@@ -1066,6 +1292,40 @@ export interface components {
             utilization: components["schemas"]["ProportionResultOut"] | null;
             /** Weights Renormalised */
             weights_renormalised: boolean;
+        };
+        /**
+         * TrustThresholdsOut
+         * @description The trust engine's own gate values, sent with the evaluation they
+         *     produced.
+         *
+         *     Here because a client that draws a threshold has to get it from somewhere,
+         *     and the only safe somewhere is the engine that applies it.
+         *     `HorizontalThresholdGauge.tsx` used to mark a "safety threshold" at a
+         *     hardcoded 85% accuracy and colour the bar red or green against it — a
+         *     number that appears **nowhere** in `trust/` or `backend/`. The engine has
+         *     no accuracy threshold at all: promotion gates on the *trust score*
+         *     (`MIN_TRUST_SCORE_FOR_INCREASE`), and the accuracy axis is policed by drift
+         *     detection, which compares recent accuracy against the agent's own baseline
+         *     rather than against any fixed line. So the dashboard was not merely
+         *     duplicating a rule in the wrong place; it was displaying one the system
+         *     does not have.
+         *
+         *     These are configuration, not per-agent evidence, so they are identical on
+         *     every evaluation. They ride along with it anyway because that is the
+         *     evaluation these exact values produced — a client reading a historical row
+         *     gets the thresholds that applied then, not today's.
+         */
+        TrustThresholdsOut: {
+            /** Critical Error Window */
+            critical_error_window: number;
+            /** Drift Accuracy Drop Pp */
+            drift_accuracy_drop_pp: number;
+            /** Min Sample For Increase */
+            min_sample_for_increase: number;
+            /** Min Trust Score For Increase */
+            min_trust_score_for_increase: number;
+            /** Recent Window */
+            recent_window: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1214,6 +1474,66 @@ export interface operations {
             };
         };
     };
+    create_recommendation_api_v1_agents__agent_id__recommendations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Role"?: string | null;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationOut"];
+                };
+            };
+            /** @description The current role may not perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No resource with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A downstream dependency (e.g. governance) could not serve this request. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_current_trust_api_v1_agents__agent_id__trust_get: {
         parameters: {
             query?: never;
@@ -1303,6 +1623,59 @@ export interface operations {
             };
         };
     };
+    chat_api_v1_assistant_chat_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantChatResponse"];
+                };
+            };
+            /** @description No resource with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description A downstream dependency (e.g. governance) could not serve this request. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_audit_log_api_v1_audit_log_get: {
         parameters: {
             query?: {
@@ -1325,7 +1698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_AuditLogEntryOut_"];
+                    "application/json": components["schemas"]["AuditLogPage"];
                 };
             };
             /** @description Validation Error */
@@ -1346,6 +1719,8 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 page_size?: number;
+                pending?: boolean;
+                agent_id?: string | null;
             };
             header?: {
                 "X-User-Role"?: string | null;
@@ -1446,6 +1821,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 page_size?: number;
+                agent_id?: string | null;
             };
             header?: {
                 "X-User-Role"?: string | null;
@@ -1497,6 +1873,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DecisionRecordOut"];
+                };
+            };
+            /** @description The current role may not perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Validation Error */
@@ -1552,6 +1937,70 @@ export interface operations {
             };
         };
     };
+    rule_on_decision_api_v1_decisions__decision_id__ruling_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Role"?: string | null;
+            };
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionRuling"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionRecordOut"];
+                };
+            };
+            /** @description The current role may not perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No resource with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The resource is not in a state this action applies to. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -1579,6 +2028,8 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 page_size?: number;
+                status?: components["schemas"]["RecommendationStatus"] | null;
+                agent_id?: string | null;
             };
             header?: {
                 "X-User-Role"?: string | null;
@@ -1804,6 +2255,15 @@ export interface operations {
             };
             /** @description The current role may not perform this action. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No resource with that id. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

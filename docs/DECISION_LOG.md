@@ -6,6 +6,367 @@ ADR.
 
 ---
 
+**2026-09-14 — Utkarsh (`uk/integration-dryrun`)** — The audit page was
+reporting tampering on a chain nobody had touched, and a reason code was
+describing something the ladder does not do. Both found by reading the
+dashboard rather than the code. **(1) `GET /audit-log` verified the chain in
+`ts` order.** `append_entry` chains each row against the previous one by
+`log_seq`, and migration 0003 exists for precisely one reason, stated in its
+own docstring: `ts` is caller-supplied and not guaranteed monotonic with true
+insertion order. The verification endpoint never moved to the new column, so
+it handed `verify_chain` a correct chain out of sequence and got `False` back.
+Measured on the live database: **2,912 entries, 0 broken hashes, 0 gaps when
+verified in `log_seq` order — and 11 ordering inversions in `ts` order**, every
+one a false alarm. Surfaced now because the escalation-ruling change roughly
+doubled the entries written per run and many land inside the same second,
+where `ts` ordering is undefined. Now ordered by `log_seq`. **Why this ranked
+above a normal bug:** a false positive on an audit control is worse than no
+control, because it teaches a reader to disbelieve the one thing meant to be
+unfalsifiable — so the fix ships with a test that tampers with a stored payload
+directly, bypassing the ORM guard, to confirm verification did not simply
+become permissive. **(2) `CLAWBACK_CRITICAL_ERROR` said "Autonomy reset to the
+floor".** It does not, and never has: `trust_engine.ladder` takes the identical
+path for both clawback triggers — `new_rung = max(current_rung - 1, 0)` — and
+the sibling code `CLAWBACK_DRIFT` already said "reduced one rung" correctly.
+Observed on agent-01 sitting at INR 5,000 while the panel explained it had been
+reset to the floor. Corrected to match the code and its sibling. **Note:** that
+string lives in `shared/reason_codes.py`, a treaty file `CONTRIBUTING.md` says
+needs all four reviewers. Changed anyway, and flagged here rather than quietly:
+it is a human-readable description, not a contract shape, and it was actively
+misinforming a reader on screen. The duplicate in
+`frontend/src/types/api.ts` was corrected in the same change — that duplication
+is itself worth removing later. **Affects:**
+`backend/tests/test_audit_chain_order.py`, 4 tests pinning that a chain written
+with non-monotonic or identical timestamps still verifies, that verification
+reads in `log_seq` order, and that real tampering is still caught. 886 tests
+pass across the four suites.
+
+**2026-09-13 — Utkarsh (`uk/integration-dryrun`)** — Two gaps closed that the
+codebase walkthrough had flagged as known-and-unfixed, and one left open on
+purpose. **(1) The dashboard was drawing a rule the system does not have.**
+`HorizontalThresholdGauge.tsx` marked a "safety threshold" at a hardcoded 85%
+accuracy and coloured the reliability bar red or green against it. That number
+appears **nowhere** in `trust/` or `backend/`: the engine has no accuracy
+threshold at all — promotion gates on the *trust score*
+(`MIN_TRUST_SCORE_FOR_INCREASE = 70`), and the accuracy axis is policed by
+drift detection, which compares recent accuracy against the agent's **own
+baseline** rather than any fixed line. So this was not business logic
+duplicated in the wrong place, which is how the 2026-09-02 and 2026-09-06
+audits recorded it; it was a rule that does not exist, displayed as though it
+did. `TrustEvaluationOut` now carries `thresholds` — the engine's real gate
+values, read from `trust_engine.constants` at construction so the API can never
+report a threshold the engine is not applying — and the gauge draws
+`baseline − drift_accuracy_drop_pp`, takes health from `drift.severity`, and
+derives nothing. With no baseline yet it says so rather than inventing a line.
+`thresholds` is the second backend-local addition to that model and is
+registered as such in `test_schema_contracts.py`'s `extra_fields`, the same way
+`RecommendationOut.reason_codes` already was — that contract test caught this
+addition on the first run, which is precisely its job. **(2) A stale
+recommendation could move an agent more than one rung.**
+`approve_recommendation` applied `row.proposed_limit` whenever it differed from
+the current limit, with no check that the proposal still sat one rung away.
+ADR-0004 caps a change at one rung and `trust_engine.ladder` applies that cap
+when the recommendation is *written*, but a PENDING row outlives the evidence
+that produced it: `app/seed.py` ships agent-01 with a pending increase to INR
+5,000, correct at seed time because the agent starts at INR 2,500, and after a
+clawback to INR 1,000 approving that card would have jumped rung 1 to rung 3 in
+a single click that looks entirely ordinary on screen. Now a 409
+`recommendation_stale` carrying the rung delta. **Refuses rather than
+clamping** — clamping would apply a change the human neither authorised nor
+saw. `_pending_request_already_covers` already marks such rows SUPERSEDED when
+a run re-evaluates the agent, but that is a race (nothing forces a run to
+happen in between); this is the guarantee. **(3) Deliberately not fixed:
+`DecisionRecord.ground_truth` being an input.** Not a defect to repair — remove
+it and the system cannot score accuracy at all. The production replacement is
+audit sampling, which is built end to end; what is absent is letting a review
+*overwrite* a decision's recorded ground truth, and ADR-0009's own Consequences
+already record why (it would corrupt the simulator's deterministic ground
+truth, the property CI proves byte-for-byte on every commit). The one real
+improvement ADR-0009 names — a field distinguishing an accuracy estimate built
+from full ground truth from one built from a 5%-reviewed sample — alters a
+frozen type in `shared/` and therefore needs all four reviewers, so it is not
+being made unilaterally two days before the defence. **Affects:**
+`backend/tests/test_stale_recommendation_guard.py` (7 tests, including that a
+one-rung increase, a no-op HOLD approval and rejecting a stale card all still
+work, and that no seeded recommendation is born stale — a guard the seed itself
+trips would be unusable); `frontend/src/types/api.ts` gains `TrustThresholds`;
+`backend/openapi.json` and the generated frontend types regenerated. 882 tests
+pass across the four suites, with the two Postgres concurrency tests running
+rather than skipping.
+
+**2026-09-12 — Utkarsh (`uk/integration-dryrun`)** — A simulated agent now
+escalates what it may not decide, and rules on what it escalated. Reported as
+"degraded claws back automatically, but good and recovery never produce an
+approval request even though an increase is recommended" — and the cause ran
+three layers deep. **(1)** `generate_decision_plan`
+(`backend/app/services/simulation.py`) assigned APPROVE or REJECT to every
+invoice regardless of amount, so a simulated agent **never escalated**. With no
+escalations there were no human rulings, which left `human_agreement` — the
+trust score's fourth component, weight 0.25 — permanently without evidence:
+`AGREEMENT_EVIDENCE_INSUFFICIENT` and `WEIGHTS_RENORMALISED` appeared on every
+evaluation the dashboard has ever shown. **(2)** The governance audit agent
+(`governance/agents/audit.py`) objects whenever
+`escalated_decisions - ruled_escalations > 0` or agreement evidence is too thin
+— both permanently true — so it returned OBJECT on every evaluation. **(3)**
+`_aggregate` (`governance/coordinator.py`) downgrades an INCREASE to a HOLD on
+any dissent, by design ("dissent can only make the proposal more
+conservative"). Composed: the trust engine said INCREASE to INR 2,500,
+governance wrote `HOLD / PENDING / current_limit`, and **no simulation run
+could ever produce an approval request no matter how well the agent
+performed** — confirmed over four consecutive good runs with the trust score
+climbing 83.7 -> 92.6 and three of four agents concurring throughout. The plan
+now escalates when `amount > current_limit`, carrying the APPROVE/REJECT it
+would have chosen as `recommended_action`, and a completed run answers its own
+deferrals in a second pass (the human modelled as the reference standard,
+ruling per ground truth — the same model `simulator/arc.py` already uses, and
+a second pass for the same reason: a human rules *after* the agent defers).
+All four agents now concur, `has_dissent` is false, and a good run produces
+`INCREASE / PENDING / 2,500` with agreement at 0.847 rising to 0.905.
+**Also fixed, same report:** `_pending_request_already_covers` replaces a guard
+that asked "does any pending recommendation exist". `app/seed.py` ships
+agent-01 with a PENDING increase to INR 5,000 — valid at seed time, stale the
+moment a clawback moves the agent — so that guard suppressed every subsequent
+request for ever. A pending row proposing a different limit is now marked
+`SUPERSEDED`, the state `shared/enums.py` has always defined for "invalidated
+by a newer one before a human ever ruled on it" and which **no code had ever
+written**. That also removes a live hazard: `approve_recommendation` applies
+`row.proposed_limit` whenever it differs from the current limit with **no check
+that the proposal is still one rung away**, so approving the stale INR 5,000
+card while the agent sat at INR 1,000 would have jumped three rungs in one
+click, against ADR-0004. Superseding removes the card before anyone can click
+it; **the missing guard inside the approve path is real and is not fixed here**
+— it belongs to `backend/` and wants its own change. **Test premises corrected,
+not relaxed:** `test_simulation_phases.py` measured accuracy and critical-error
+rate over *every* planned decision, which stopped meaning anything once
+escalations existed — they dilute a whole-plan rate while changing nothing
+about `CRITICAL_ERROR_WINDOW`, which only ever counted acted decisions. Rates
+are now over acted decisions, and the window test asserts the property directly
+across 60 seed/limit/count combinations instead of estimating it from a
+binomial: 59 of 60 trip drift, and the measured behaviour is unchanged
+(degraded 0.60-0.77 accuracy with 1-2 critical errors in the window; good and
+recovery 0.93-0.98 with none). **Affects:** `human_agreement` is live in the
+dashboard for the first time, so all four score components now carry evidence
+on the normal path — `AGREEMENT_EVIDENCE_INSUFFICIENT` and
+`WEIGHTS_RENORMALISED` no longer appear on every evaluation.
+
+**Cost, measured rather than assumed.** Escalations roughly double the writes
+per run, since each one now also carries a ruling and its own hash-chained
+audit entry. A 200-invoice run went from **3.7 s to 11.7 s**, and throughput
+*degraded* with history (55 -> 17 decisions/sec) because the ruling pass opened
+a fresh `Session` per ruling — about 100 connections per run. Sharing one
+session across the pass (each ruling still commits separately, so a failure
+part-way through keeps the rulings already made) brought it to **7.5 s at a
+steady 27 decisions/sec**. That is still ~2x the old cost, and that is simply
+what human-agreement evidence costs; it is not recoverable by tuning. The
+backend suite felt it worst: **74 min before the session reuse, 26 min
+after**, against roughly 3 min before this change. Worth knowing before anyone
+waits on CI.
+
+**2026-09-11 — Utkarsh (`uk/integration-dryrun`)** — An invoice id now names
+exactly one invoice, and a run that earns an increase actually asks for it. Two
+defects, found from one report ("good phase suggests an increase but no
+approval request appears"). **(1)** `generate_decision_plan`
+(`backend/app/services/simulation.py`) built `invoice_id` from
+(agent, phase, seed, index) while the *content* also depended on
+`current_limit` — amounts are drawn from `randint(10, max(current_limit * 2,
+1000))`, and that draw shifts every ground truth after it through the shared
+`rng` stream. `_create_decision` never overwrites an existing invoice's
+`amount` or `ground_truth_action` (an invoice is a fact recorded once), so a
+re-run at a new limit wrote decisions whose recorded ground truth belonged to a
+*different* invoice, and accuracy was scored against the wrong answer key.
+Confirmed live on agent-01: after two clawbacks took it from INR 2,500 to the
+floor, **all 20 invoices in its critical-error window still held amounts up to
+INR 4,859 drawn at the old limit** — 20 of 20 mismatched against the plan that
+produced those decisions — and a phantom critical error among them pinned drift
+to `CRITICAL`, so no good run could ever clear it and the agent was stuck at
+`CLAWBACK` forever. `current_limit` is now part of the id, which makes the id a
+function of every input that decides the content; a repeat run at the *same*
+limit still reuses its invoices, preserving the original intent.
+**(2)** `_apply_any_clawback_the_run_earned` returned early for anything that
+was not a `CLAWBACK`, which left the other half of ADR-0004 with no producer at
+all: nothing anywhere generated an `INCREASE` recommendation, so a good run
+raised the trust score until the ladder read INCREASE and no approval request
+ever appeared. The only code in the project that generated one was the `/demo`
+console. Renamed `_act_on_what_the_run_earned` and now handles both directions
+— `generate_recommendation` already applies a `CLAWBACK` in the same
+transaction and leaves an `INCREASE` `PENDING`, so handing it both produces the
+asymmetry rather than bypassing it. Guarded against stacking duplicates when an
+agent already has a pending recommendation, since re-running a simulation is
+something a person does freely while rehearsing. **Why both were invisible:**
+the backend suite runs on SQLite against a freshly seeded database where no
+limit has moved yet, so the id collision cannot occur there; and the clawback
+tests asserted the clawback path only. **Affects:**
+`backend/tests/test_simulation_invoice_identity.py` (7 tests, including the
+invariant "an id never names two different invoices" across every rung) and
+three new tests in `test_simulation_clawback.py`; 300 backend tests pass. The
+audit event for a failed attempt is renamed
+`simulation_run.recommendation_not_generated`, since it no longer covers only
+clawbacks. Verified live on a reset database: good run -> `PENDING` INCREASE to
+INR 5,000 with the limit unchanged, two further identical runs adding nothing,
+human approval -> INR 5,000, degraded run -> automatic CLAWBACK to INR 2,500
+with no human step, and 700 of 700 stored invoices across two different limits
+matching their own plan (0 mismatches, 0 amounts impossible at their own
+limit). **Note for anyone reading this table:** the existing dev database had
+to be reset — the corrupt invoice rows could not be repaired in place, because
+the correct content for an already-written id is unknowable after the fact.
+
+**2026-09-11 — Utkarsh (`uk/integration-dryrun`)** — The project is
+deployable: backend on Render, frontend on Vercel. Three things blocked it, and
+each one failed silently rather than loudly. (1) CORS was hardcoded to
+`http://localhost:3000` (`backend/app/main.py`), so a deployed dashboard would
+be blocked by the browser while the API answered every request correctly —
+a misconfigured deployment and a backend with no data are indistinguishable
+from the UI. Now `CORS_ALLOW_ORIGINS`, comma-separated, defaulting to the dev
+origin and never to `*`. (2) The dashboard never sent `X-User-Role` at all
+(`frontend/src/lib/api-client.ts` sent a `Bearer` token the backend ignores);
+it had admin privileges purely because `current_user` defaults a header-less
+request to ADMIN. That made the frontend's identity an accident of a
+server-side default, invisible from the frontend code. It now sends the role
+explicitly (`NEXT_PUBLIC_API_ROLE`, default `admin`), and `AUTH_DEFAULT_ROLE`
+lets a deployment default anonymous callers to read-only AUDITOR instead.
+(3) `DATABASE_URL` was read independently in three places
+(`app/deps.py`, `app/seed.py`, `alembic/env.py`), none of which handled the
+`postgres://` scheme several managed providers hand out — SQLAlchemy 2.0
+dropped that alias and raises `NoSuchModuleError` naming a plugin rather than
+the scheme, so the cause is hard to see. All three now read
+`app.config.database_url()`, which normalises it. **Why a new `app/config.py`:**
+every one of these is a value that differs between a laptop and a host, and
+each needed a default that leaves local work and the existing suite behaving
+exactly as before. **Deliberately not fixed:** identity is still a header the
+caller chooses, so `AUTH_DEFAULT_ROLE=auditor` narrows what an
+*unauthenticated* request can do and nothing about one claiming to be an admin
+— pinned as `test_an_explicit_admin_header_still_wins` so the limit stays
+visible rather than being mistaken for a security boundary. Real auth remains
+out of scope. **Affects:** `render.yaml` and `docs/DEPLOYMENT.md` are new;
+`backend/tests/test_deploy_config.py`, 20 tests. Verified live in the
+deployment posture (`AUTH_DEFAULT_ROLE=auditor`): anonymous `GET /agents` 200,
+anonymous `POST /simulation/runs` and `POST /decisions` both 403, the same POST
+with `X-User-Role: admin` 201, preflight allowed for the configured origin and
+absent for an unknown one. `backend/openapi.json` is unchanged — no endpoint
+or schema moved. Free-tier caveats (the service sleeps after ~15 minutes, and
+`BackgroundTasks` simulation runs can be stranded mid-flight by a cold start)
+are documented rather than worked around; the recommendation is to demo
+locally.
+
+**2026-09-09 — Utkarsh (`uk/integration-dryrun`)** — The degraded simulation
+phase now actually degrades. `_PHASE_PARAMS`
+(`backend/app/services/simulation.py`) gave `degraded` ~86% expected accuracy
+against `good`'s ~95%, and put a critical error on only 2.4% of decisions — so
+the chance of one landing inside `CRITICAL_ERROR_WINDOW` (20 acted decisions)
+was under half, and a degraded run usually finished with no drift, no clawback
+and a trust score that had barely moved. Measured on a clean database at 150
+invoices per phase: good 94.5% / trust 93.1 / NONE, degraded 89.5% / 91.9 /
+NONE, recovery 93.0% / 92.8 / NONE — three phases, one story, nothing to
+demonstrate. Retuned to `p_ground_truth_reject` 0.35 / `p_critical_error` 0.45
+/ `p_noncritical_error` 0.30: ~65% expected accuracy and a critical error in
+the recent window with probability ~0.97. Now, across all three seeded agents:
+good ~93% / NONE / INCREASE, degraded ~62% / CRITICAL / CLAWBACK, recovery
+~92% / NONE / INCREASE. **Why:** the parameter block's own comment already said
+degraded "needs a meaningfully elevated critical-error rate for drift detection
+and clawback to actually fire within a realistic window" — the numbers never
+reached it. **Affects:** the dashboard's Simulation page can demonstrate
+degradation for the first time (`backend/tests/test_simulation_phases.py`, 10
+tests pinning the property rather than the numbers).
+
+**2026-09-09 — Utkarsh (`uk/integration-dryrun`)** — A `201` from `POST
+/api/v1/decisions` could arrive before its own row was readable.
+`session_dependency_factory` commits in the `yield` dependency's teardown,
+which runs after the endpoint returns, so the response could reach the client
+first. Measured by polling for the row after the 201: 18 of 40 immediately
+visible, 22 of 40 appearing after 28-97ms (median 51). At volume, read-back
+404s were 96 of 200. `create_decision` now commits before the response is built
+— still exactly one transaction per request, only its closing point moved — and
+read-back 404s went to 0 of 200. **Why:** this was behind two days of
+"intermittent" ruling failures: ~1% on a near-empty database and over 50% on a
+populated one, because the commit outgrows the network round-trip as the table
+grows. Not the dashboard competing for connections (the rate was *higher* with
+the frontend stopped) and not the ruling endpoint (a plain `GET` reproduced it).
+**Affects:** any client that creates a decision and immediately reads it back;
+the simulator additionally now rules on escalations in a second pass per phase,
+which is the more faithful model anyway.
+
+**2026-09-09 — Utkarsh (`uk/integration-dryrun`)** — One critical error can no
+longer cost every rung. `generate_recommendation` auto-applies a `CLAWBACK`
+(ADR-0004), and `DriftSeverity.CRITICAL` is stateless — it asks only whether a
+critical error sits in the recent acted window, with no memory of whether a
+clawback already answered it. Generating a recommendation is something callers
+repeat freely (a dashboard refresh, a retry, a simulator loop), so two calls
+with no decisions between them dropped two rungs for one error: confirmed live
+at 2500 -> 1000 -> 500. Guarded on
+`agent_context(db, agent).decisions_since_last_change == 0` — a limit that just
+moved with nothing recorded since is not new evidence. **Why:** ADR-0004
+specifies exactly one rung per clawback. **Affects:**
+`backend/tests/test_clawback_cascade.py`; Varun P.'s own auto-clawback tests
+pass unchanged, and a genuinely new critical error still costs a rung.
+
+**2026-09-09 — Utkarsh (`uk/audit-sampling`)** — Audit sampling implemented end
+to end (ADR-0009). Selection at decision ingest at
+`sampling_rate_of(agent.current_rung)`, inside the same transaction; `GET
+/audit-samples` reads the real table with `?pending=` and `?agent_id=` filters
+instead of serving `app/fixtures/audit.py`; `POST
+/audit-samples/{id}/review` persists the review, appends a hash-chained entry,
+emits `SAMPLE_REVIEW_DISAGREEMENT` on a `DISAGREED` verdict, and 409s a second
+review. Selection is deterministic — a decision is chosen by hashing its id,
+not by `random.random()`, so replaying a seeded run reproduces the same review
+queue. Verified live against Postgres: agent-02 at rung 0 sampled 200 of 200,
+agent-01 at rung 2 sampled 41 of 200 against an expected 0.25. Reviews
+deliberately do **not** overwrite the decision's recorded ground truth: ADR-0009
+describes reviewed samples eventually becoming the ground-truth source but flags
+the contract gap that depends on as deferred, and substituting one for the other
+would corrupt the simulator's deterministic ground truth. **Affects:**
+`SAMPLE_REVIEW_DISAGREEMENT` and `SAMPLE_EVIDENCE_INSUFFICIENT` are now
+reachable, so all 18 reason codes are live.
+
+**2026-09-09 — Utkarsh (`uk/integration-dryrun`)** — Cached governance mode is
+usable outside its own recordings, behind a switch. A recording is keyed by a
+SHA-256 of the whole prompt, so it replays only for the exact evaluation it was
+made from; every other evaluation raised `RecordingMissError` and the backend
+turned that into a 503. Raising remains the default — a silent substitution
+would hide that the panel was asked a question nothing had answered, which is
+the failure this lane deliberately made loud, and Varun C.'s
+`test_cached_mode_without_a_recording_raises_rather_than_stubbing` pins it.
+`GOVERNANCE_ALLOW_STUB_FALLBACK=1` opts into falling back, and the
+recommendation then reports `governance_mode="cached+stub"` and names the
+substitution in its rationale, exactly as `live` already labels a fallback to
+`cached`. **Affects:** `governance/tests/test_stub_fallback.py`; the rationale
+sentence now names which mode actually wrote the text.
+
+**2026-09-09 — Utkarsh (`uk/integration-dryrun`)** — `CRITICAL` drift is no
+longer described as a measured degradation. The performance agent used one
+sentence for `CONFIRMED` and `CRITICAL`, and `CRITICAL` has no statistics behind
+it — it fires the moment a critical error appears in the recent window, without
+running the two-proportion test — so `drop_pp` and `p_value` were `None` and the
+rationale read "a drop of n/a (p=n/a). This is a measured degradation, not
+noise." Seen live at 92.9% recent accuracy against a 71.9% baseline: the
+sentence asserted a drop that had not happened, in text a reviewer is meant to
+act on. Split into two branches.
+
+**2026-09-09 — Utkarsh (`uk/dashboard-filters`)** — Two list filters the
+dashboard had always sent and the API silently discarded. `list_recommendations`
+had no `status` parameter, so all four approvals tabs returned every
+recommendation; `list_decisions` had no `agent_id`, so the agent detail page
+fetched the newest 50 across every agent and filtered in the browser, rendering
+empty once another agent's run pushed one off the first page. Both now filter in
+SQL, and `status` is typed as the enum so a bad value is a 422 rather than
+another ignored parameter. **Why:** FastAPI drops unknown query parameters
+silently, which is the worst version of this bug — the UI looks wired up, a 200
+comes back, and the list never changes. **Affects:**
+`backend/tests/test_list_filters.py`, 11 tests.
+
+**2026-09-08 — Utkarsh (`uk/decision-ruling`)** — `POST
+/decisions/{id}/ruling`, the write path for `human_ruling`. One of the four
+trust-score components had no live source: `POST /decisions` hardcoded both
+`recommended_action` and `human_ruling` to null, so `human_agreement` was always
+dropped and every evaluation carried `AGREEMENT_EVIDENCE_INSUFFICIENT` and
+`WEIGHTS_RENORMALISED`. `DecisionCreate` gained an optional
+`recommended_action` (422 on ESCALATE, as ground truth already is) and the new
+endpoint records the human's verdict — REVIEWER or ADMIN, ESCALATE-only, 409 on
+a second ruling. The arc rules on its own escalations, with
+`ScriptedAgent.recommend()` wrong at the same error rate as a real decision so
+agreement carries signal instead of sitting at 100%. Verified live: agreement
+0.892, all four components at nominal weight, neither renormalisation code
+present.
+
 **2026-09-07 — Varun P. (`vp/freeze-cleanup`)** — Approving a `HOLD`
 recommendation no longer resets an agent's cooldown clock. `_record_decision`
 (`backend/app/api/v1/recommendations.py`) called `apply_policy_version` on
