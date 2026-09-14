@@ -6,6 +6,24 @@ ADR.
 
 ---
 
+**2026-09-14 - Varun C. (`vc/assistant-retrieval`, #49)** - The assistant now
+retrieves from this repository's own documentation instead of answering from the
+base model's general knowledge. `assistant/` chunks SYSTEM-EXPLAINED, CONTEXT,
+every ADR and `shared/reason_codes.py` on markdown headings - and, inside the
+glossary, on each `**Term**` definition - embeds them through the existing Gemini
+client in `governance/llm/`, and commits the vectors as `assistant/index.json`.
+Search is cosine similarity in pure Python with a measured relevance threshold
+(0.62), so a question the docs do not answer comes back as "I have nothing on
+that" rather than as the best of a bad set. **Why a committed file and not a
+vector database:** 135 chunks is 135 dot products, and pgvector or Chroma would
+reverse ADR-0008 without the circumstances changing (ADR-0015, **Proposed** - the
+committed-artifact decision still needs a team ruling, and this merged only after
+one, unlike #16). **Affects:** a staleness guard now fails CI when a doc is edited
+without rebuilding the index; `docs/audits/` and `docs/lanes/` are deliberately
+excluded from the corpus; `governance/llm/gemini.py` gained an embedding client
+and its `_retry_after` now reads Gemini's `RetryInfo` out of the error body, which
+fixes a 429 backing off two seconds against a sixty-second window on the chat path
+too.
 **2026-09-14 — Utkarsh (`uk/integration-dryrun`)** — The audit page was
 reporting tampering on a chain nobody had touched, and a reason code was
 describing something the ladder does not do. Both found by reading the

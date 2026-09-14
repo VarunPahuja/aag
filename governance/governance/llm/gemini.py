@@ -19,6 +19,7 @@ this module can be tested without Pydantic and the parser without a network.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -323,13 +324,37 @@ def _error_message(response: httpx.Response) -> str:
 
 
 def _retry_after(response: httpx.Response) -> float | None:
+    """When the server says the window reopens — header first, then the body.
+
+    Gemini usually sends no `Retry-After` header. It puts the advice in a
+    `google.rpc.RetryInfo` entry inside the error payload instead, as a protobuf
+    duration string: `{"@type": ".../RetryInfo", "retryDelay": "56.4s"}`. Reading only
+    the header means every 429 falls back to a locally guessed backoff — two seconds
+    against a sixty-second window, which fails three times and reports a quota error
+    the server had already explained how to wait out.
+    """
     raw = response.headers.get("retry-after")
-    if raw is None:
-        return None
+    if raw is not None:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+
     try:
-        return float(raw)
+        payload = response.json()
     except ValueError:
         return None
+    details = ((payload or {}).get("error") or {}).get("details") or []
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        delay = detail.get("retryDelay")
+        if isinstance(delay, str) and delay.endswith("s"):
+            try:
+                return float(delay[:-1])
+            except ValueError:
+                continue
+    return None
 
 
 def _extract_text(response: httpx.Response) -> str:
@@ -361,3 +386,251 @@ def _extract_text(response: httpx.Response) -> str:
             f"(finishReason={candidate.get('finishReason')!r})."
         )
     return text
+
+
+# ---------------------------------------------------------------------------------
+# Embeddings.
+#
+# Added for `assistant/` (the documentation retrieval index). It lives here rather
+# than in a client of its own for the reason the rest of this module exists: the key
+# handling, the header rule, the pacing and the error translation are already written
+# and already tested, and a second integration would be a second place for the key to
+# leak into a URL. Nothing above changed — `GeminiClient` and the governance panel are
+# untouched by this.
+# ---------------------------------------------------------------------------------
+
+# `gemini-embedding-001`, not `gemini-embedding-2`. Both answer today and both accept
+# `outputDimensionality`; this one is GA and the other two are a preview and its
+# successor. The vectors are a *committed artifact* — a model that changes under the
+# same name silently makes `index.json` a mixture of two embedding spaces, and cosine
+# similarity across two spaces is noise that looks like a number. Stability is worth
+# more here than a benchmark point.
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
+
+# Matryoshka truncation: this model is trained so that a prefix of the full
+# 3072-dimensional vector is itself a usable embedding. 768 keeps retrieval quality
+# (measured against this repo's own corpus — see `assistant/index.py`) at a quarter of
+# the file size, and `index.json` has to survive code review as a diff.
+DEFAULT_EMBEDDING_DIMENSIONS = 768
+
+# Requests per minute. Deliberately conservative and, unlike `MODEL_RPM` above, *not*
+# read off the dashboard — the embedding models have their own quota and nobody has
+# checked it for this project. This floor is sized for a *query*, which is a dozen
+# tokens; the far heavier throttle a bulk build needs is a different number and lives
+# with the caller doing the bulk work (`assistant/embed.py`), because it is a property
+# of the volume being sent rather than of this endpoint.
+EMBEDDING_RPM = 50
+
+# The most contents one `batchEmbedContents` request may carry. The documented cap is
+# 100 and 100 is the wrong number: measured on 14 Sept 2026 against this repo's own
+# corpus (chunks averaging ~1,100 characters), a batch of 100 came back 429 "exceeded
+# your current quota" and a batch of 50 hit the read timeout. 32 returned in ~2.2s,
+# repeatedly. The published limit counts *contents*; the one that actually binds a
+# free-tier key counts the tokens behind them, and nothing publishes that.
+#
+# A caller sending more raises rather than being silently re-batched here: splitting a
+# bulk job is a decision with pacing attached, and making it invisibly would hide the
+# thirty-second gap that makes the job work.
+MAX_EMBED_BATCH = 32
+
+# Which end of a retrieval pair a text is. Gemini embeds a question and a passage into
+# deliberately different regions when told which is which, and passing neither costs
+# real accuracy. The pair must stay matched: an index built as DOCUMENT must be
+# searched as QUERY.
+TASK_DOCUMENT = "RETRIEVAL_DOCUMENT"
+TASK_QUERY = "RETRIEVAL_QUERY"
+
+
+@dataclass(frozen=True, slots=True)
+class GeminiEmbeddingConfig:
+    """Everything the embedding client needs, resolved once.
+
+    Same rule as `GeminiConfig`: an empty key is not an error at construction time.
+    `assistant/` loads a committed index and only needs a key to *search* or to
+    rebuild, so importing it with the variable unset must work.
+    """
+
+    api_key: str = ""
+    model: str = DEFAULT_EMBEDDING_MODEL
+    dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS
+    timeout_s: float = DEFAULT_TIMEOUT_S
+    min_interval_s: float | None = None
+
+    @classmethod
+    def from_env(cls, **overrides: object) -> GeminiEmbeddingConfig:
+        """Build from the environment. Never raises on a missing key."""
+        base: dict[str, object] = {
+            "api_key": os.environ.get("GEMINI_API_KEY", "").strip(),
+            "model": (
+                os.environ.get("GEMINI_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL).strip()
+                or DEFAULT_EMBEDDING_MODEL
+            ),
+        }
+        base.update(overrides)
+        return cls(**base)  # type: ignore[arg-type]
+
+    @property
+    def has_key(self) -> bool:
+        return bool(self.api_key)
+
+    @property
+    def pacing_interval_s(self) -> float:
+        if self.min_interval_s is not None:
+            return self.min_interval_s
+        return (60.0 / EMBEDDING_RPM) * _PACING_HEADROOM
+
+    @property
+    def endpoint(self) -> str:
+        return f"{API_ROOT}/models/{self.model}:batchEmbedContents"
+
+
+@dataclass
+class GeminiEmbeddingClient:
+    """Text in, unit vectors out. One model, one pacer.
+
+    **The vectors are normalised here.** Not a convenience: `gemini-embedding-001`
+    returns a normalised vector only at its full 3072 dimensions, and a truncated one
+    is not, so cosine similarity computed as a plain dot product would silently be
+    weighted by length. Normalising at the boundary makes the client's contract "unit
+    vectors" and lets everything downstream use a dot product and mean it.
+    """
+
+    config: GeminiEmbeddingConfig = field(default_factory=GeminiEmbeddingConfig.from_env)
+    provider: str = PROVIDER
+    _pacer: Pacer = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._pacer = Pacer(self.config.pacing_interval_s)
+
+    @property
+    def model(self) -> str:
+        return self.config.model
+
+    @property
+    def dimensions(self) -> int:
+        return self.config.dimensions
+
+    @property
+    def has_key(self) -> bool:
+        return self.config.has_key
+
+    @property
+    def slug(self) -> str:
+        return model_slug(self.provider, self.config.model)
+
+    def build_payload(self, texts: list[str], task_type: str) -> dict:
+        """The exact JSON body sent to `batchEmbedContents`.
+
+        Separate from `embed()` for the same reason `build_payload` is above: a test
+        can assert on the request — including that the task type reached it — without a
+        network.
+        """
+        return {
+            "requests": [
+                {
+                    "model": f"models/{self.config.model}",
+                    "content": {"parts": [{"text": text}]},
+                    "taskType": task_type,
+                    "outputDimensionality": self.config.dimensions,
+                }
+                for text in texts
+            ]
+        }
+
+    def embed(
+        self,
+        texts: list[str],
+        *,
+        task_type: str = TASK_DOCUMENT,
+        client: httpx.Client | None = None,
+        timeout_s: float | None = None,
+    ) -> list[list[float]]:
+        """Embed up to `MAX_EMBED_BATCH` texts in one request, in order.
+
+        Raises the same `GovernanceLLMError` subclasses as `generate()`, so a caller
+        reads `retryable` and does not have to know this is a different endpoint.
+        """
+        if not texts:
+            return []
+        if len(texts) > MAX_EMBED_BATCH:
+            raise ValueError(
+                f"{len(texts)} texts in one embedding request; the measured ceiling is "
+                f"{MAX_EMBED_BATCH}. Split the job and pace the batches — see "
+                f"assistant/embed.py, which does exactly that."
+            )
+        if not self.config.has_key:
+            raise LLMAuthError(
+                "GEMINI_API_KEY is empty. Building or searching the assistant index "
+                "needs a key from Google AI Studio; put it in .env (which is "
+                "gitignored) and never in a committed file."
+            )
+
+        self._pacer.wait()
+        headers = {
+            "x-goog-api-key": self.config.api_key,
+            "content-type": "application/json",
+        }
+        deadline = self.config.timeout_s if timeout_s is None else timeout_s
+
+        owns_client = client is None
+        http = client or httpx.Client(timeout=deadline)
+        try:
+            response = http.post(
+                self.config.endpoint,
+                json=self.build_payload(texts, task_type),
+                headers=headers,
+            )
+        except httpx.TimeoutException as exc:
+            raise LLMTransportError(f"Gemini embedding timed out after {deadline}s: {exc}") from exc
+        except httpx.HTTPError as exc:
+            raise LLMTransportError(f"Gemini embedding failed to complete: {exc}") from exc
+        finally:
+            if owns_client:
+                http.close()
+
+        _raise_for_status(response)
+        return _extract_embeddings(response, expected=len(texts))
+
+
+def _extract_embeddings(response: httpx.Response, *, expected: int) -> list[list[float]]:
+    """Pull the vectors out, normalise them, and insist the count matches.
+
+    The count check is not paranoia about the API. `batchEmbedContents` preserves
+    request order and the index pairs vector `i` with chunk `i` positionally, so a
+    short response would not error — it would silently attach every citation to the
+    wrong passage.
+    """
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise LLMResponseError(f"Gemini returned a non-JSON body: {exc}") from exc
+
+    raw = payload.get("embeddings")
+    if not isinstance(raw, list):
+        raise LLMResponseError(f"Gemini embedding response had no 'embeddings' list: {payload}")
+    if len(raw) != expected:
+        raise LLMResponseError(
+            f"Gemini returned {len(raw)} embeddings for {expected} inputs. Vectors are "
+            f"paired with chunks by position, so a mismatch would misattribute every "
+            f"citation after it."
+        )
+
+    vectors: list[list[float]] = []
+    for index, item in enumerate(raw):
+        values = (item or {}).get("values")
+        if not isinstance(values, list) or not values:
+            raise LLMResponseError(f"Gemini returned an empty embedding at position {index}.")
+        vectors.append(_normalise([float(v) for v in values]))
+    return vectors
+
+
+def _normalise(vector: list[float]) -> list[float]:
+    """Scale to unit length so a dot product is a cosine.
+
+    A zero vector cannot be normalised and should never arrive; raising beats dividing
+    by zero and shipping NaNs into a similarity ranking, where they sort silently.
+    """
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0.0:
+        raise LLMResponseError("Gemini returned a zero embedding, which cannot be normalised.")
+    return [value / norm for value in vector]

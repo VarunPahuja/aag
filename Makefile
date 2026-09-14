@@ -52,11 +52,12 @@ else
 	@echo "backend/alembic.ini doesn't exist yet — DB recreated but not migrated/seeded (see docs/DEADLINES.md)"
 endif
 
-test: ## Run pytest across all four Python lanes: trust/, simulator/, governance/, backend/
+test: ## Run pytest across every Python package: trust/, simulator/, governance/, backend/, assistant/
 	$(VENV_PYTHON) -m pytest trust/ -q
 	$(VENV_PYTHON) -m pytest simulator/tests -q
 	$(VENV_PYTHON) -m pytest governance/tests -q
 	$(VENV_PYTHON) -m pytest backend/tests -q
+	$(VENV_PYTHON) -m pytest assistant/tests -q
 
 test-trust: ## Run only the trust engine's test suite
 	$(VENV_PYTHON) -m pytest trust/ -q
@@ -68,11 +69,11 @@ else
 	@echo "backend/app/main.py doesn't exist yet — nothing to export (see docs/DEADLINES.md)"
 endif
 
-lint: ## ruff check across trust/, backend/, governance/
-	$(VENV_PYTHON) -m ruff check trust/ backend/ governance/
+lint: ## ruff check across trust/, backend/, governance/, assistant/
+	$(VENV_PYTHON) -m ruff check trust/ backend/ governance/ assistant/
 
-fmt: ## ruff format across trust/, backend/, governance/
-	$(VENV_PYTHON) -m ruff format trust/ backend/ governance/
+fmt: ## ruff format across trust/, backend/, governance/, assistant/
+	$(VENV_PYTHON) -m ruff format trust/ backend/ governance/ assistant/
 
 dev: ## Run the backend with reload (needs backend/app/main.py)
 ifneq ($(wildcard backend/app/main.py),)

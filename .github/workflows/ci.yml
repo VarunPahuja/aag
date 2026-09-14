@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: ruff check
-        run: ruff check trust/ backend/ governance/ simulator/
+        run: ruff check trust/ backend/ governance/ simulator/ assistant/
 
       - name: pytest — trust/
         run: pytest trust/ -q
@@ -60,6 +60,19 @@ jobs:
           else
             echo "governance/tests has no test_*.py yet — skipping"
           fi
+
+      # assistant/ is a library over static files: no install needed, and its tests
+      # never touch the network (embeddings are faked, and the one retrieval-quality
+      # test replays recorded query vectors).
+      - name: pytest - assistant/
+        run: pytest assistant/tests -q
+
+      # Runs the CLI, and fails the build if assistant/index.json no longer matches the
+      # documentation it indexes. Needs no key and no network. Without this, editing an
+      # ADR and forgetting to rebuild leaves the assistant quoting text the repository
+      # no longer contains - the same failure prompt_sha exists to catch in governance/.
+      - name: assistant index is current with the docs
+        run: python -m assistant check
 
       - name: Install simulator/
         run: pip install -e simulator
