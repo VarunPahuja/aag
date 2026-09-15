@@ -12,8 +12,9 @@ that "ordinary" transaction has nothing to commit). `app/services/assistant_llm.
 calls a model for text and nothing else; there is no path from a reply back into
 `app/policy/`, `app/services/governance.py`, or a `policy_versions` write.
 
-**Two scopes.** `agent_id` absent is the general scope: architecture plus the doc
-index. `agent_id` present is agent-scoped: the same, plus one agent's full evidence
+**Two scopes.** `agent_id` absent is the general scope: architecture plus the guide
+for the page the user is on (`page`; `app/services/page_guides.py`). `agent_id`
+present is agent-scoped: the same, plus one agent's full evidence
 — trust evaluation, history, policy versions, recommendations with their governance
 opinions, decisions, and audit log — fetched by that one id
 (`app/services/assistant.py:build_agent_context`).
@@ -69,7 +70,7 @@ from app.schemas.assistant import (
 )
 from app.services.assistant import SYSTEM_PROMPT, build_agent_context, build_general_context
 from app.services.assistant_llm import generate_reply
-from app.services.doc_index import DocChunk
+from app.services.page_guides import PageGuide
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -98,8 +99,8 @@ def _render_user_prompt(context: str, messages: list[AssistantMessage]) -> str:
     return "\n\n".join(parts)
 
 
-def _sources_out(chunks: list[DocChunk]) -> list[AssistantSource]:
-    return [AssistantSource(doc=c.doc, section=c.section) for c in chunks]
+def _sources_out(guides: list[PageGuide]) -> list[AssistantSource]:
+    return [AssistantSource(doc="Page guide", section=g.title) for g in guides]
 
 
 @router.post(
@@ -116,14 +117,12 @@ def chat(body: AssistantChatRequest, user: CurrentUserDep, db: DbSessionDep) -> 
     already see elsewhere (agents, decisions, recommendations, audit log), the
     same reasoning `GET /agents/{id}` itself carries no `require_role`.
     """
-    question = body.messages[-1].content
-
     if body.agent_id is not None:
         agent = _get_agent_or_404(db, body.agent_id)
-        context, chunks = build_agent_context(db, agent, question)
+        context, guides = build_agent_context(db, agent, body.page)
         scope = "agent"
     else:
-        context, chunks = build_general_context(question)
+        context, guides = build_general_context(body.page)
         scope = "general"
 
     user_prompt = _render_user_prompt(context, body.messages)
@@ -141,4 +140,4 @@ def chat(body: AssistantChatRequest, user: CurrentUserDep, db: DbSessionDep) -> 
             {"scope": scope, "agent_id": body.agent_id},
         ) from exc
 
-    return AssistantChatResponse(reply=result.text, sources=_sources_out(chunks))
+    return AssistantChatResponse(reply=result.text, sources=_sources_out(guides))

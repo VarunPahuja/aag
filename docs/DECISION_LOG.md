@@ -6,6 +6,25 @@ ADR.
 
 ---
 
+**2026-09-15 - Varun C. (`vc/page-guides`)** - The assistant is now a guide to the
+page the user is on, not a search over design docs. The panel sends its route as
+`page`; the backend picks that page's hand-written guide from
+`backend/app/data/page_guides/` (one markdown file per frontend page, plus a system
+overview included every time) and puts it in the prompt. The keyword stub
+`app/services/doc_index.py` is gone. **Why:** users ask "how do I use this screen",
+which no chunk of an ADR answers; a guide per page answers it directly, needs no
+embeddings, no key beyond the chat model, and nothing to rebuild when docs change.
+**Security:** `page` is browser-supplied, so it only *selects* a guide from an
+allowlist of routes - the raw string never reaches the model (tested with an
+injection-shaped route). **Affects:** `AssistantPanel` is mounted again - #46 moved
+the sidebar into `(dashboard)/layout.tsx` and dropped the panel on the way, so the
+assistant had been unreachable since 13 Sept; it now lives in the root layout and
+covers every page, landing and demo included. `test_page_guides.py` fails CI if a
+frontend page exists without a guide. Assistant prompt bumped to `v2` and the six
+v1 recordings deleted - they were made from a prompt that no longer exists.
+`assistant/` and `index.json` are now unused by anything; retiring them, and
+ADR-0015 with them, is a separate call.
+
 **2026-09-14 - Varun C. (`vc/assistant-retrieval`, #49)** - The assistant now
 retrieves from this repository's own documentation instead of answering from the
 base model's general knowledge. `assistant/` chunks SYSTEM-EXPLAINED, CONTEXT,

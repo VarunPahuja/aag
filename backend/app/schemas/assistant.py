@@ -21,17 +21,22 @@ class AssistantChatRequest(BaseModel):
     """`agent_id` absent (or `null`) is the general scope; present, it is the
     agent-scoped conversation — see `app/api/v1/assistant.py` for what each
     scope fetches.
+
+    `page` is the route the user is looking at (e.g. `/approvals`,
+    `/agents/agent-01`). It only selects which page guide the assistant reads
+    (`app/services/page_guides.py`); the string itself never reaches the model,
+    and an unknown route falls back to the system overview alone.
     """
 
     messages: list[AssistantMessage] = Field(min_length=1)
     agent_id: str | None = None
+    page: str | None = Field(default=None, max_length=200)
 
 
 class AssistantSource(BaseModel):
-    """One documentation citation: a doc name (e.g. `"ADR-0006"`) and the
-    heading within it the excerpt came from. Mirrors `app.services.doc_index.
-    DocChunk`'s two identifying fields — see that module for why this is a
-    stub search today, swapped for `vc/assistant-retrieval`'s real index later.
+    """One citation: a guide the reply was grounded in. `doc` is `"Page guide"`
+    and `section` is that guide's title (e.g. `"Approvals"`) — see
+    `app/services/page_guides.py`.
     """
 
     doc: str

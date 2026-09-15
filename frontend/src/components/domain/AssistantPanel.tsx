@@ -6,12 +6,13 @@
  * layout so it is available from the home page (redirects to /agents), the
  * agents list, the agent detail page, and everywhere else in the shell.
  *
- * Scope is derived from the URL, not chosen in a dropdown: on `/agents/:id`
- * this is an agent-scoped conversation (the backend fetches that one agent's
- * evidence only — see POST /api/v1/assistant/chat); anywhere else it is the
- * general, system-wide scope. Switching pages while the panel is open resets
- * the conversation, so a reply is never left on screen implying it answers
- * for a different agent than the one now showing.
+ * Everything is derived from the URL, not chosen in a dropdown. The current
+ * route is sent as `page`, and the backend answers from the guide for that
+ * page (backend/app/data/page_guides/): what it is for, what its numbers mean,
+ * what to click. On `/agents/:id` the conversation is also agent-scoped — the
+ * backend adds that one agent's evidence, and nobody else's. Switching pages
+ * while the panel is open resets the conversation, so a reply is never left
+ * on screen answering for a page or an agent that is no longer showing.
  *
  * This panel only ever sends a question and renders a reply. There is no
  * button here that calls a mutating endpoint, and there never should be —
@@ -32,17 +33,110 @@ interface ChatMessage {
   sources?: AssistantSource[];
 }
 
-const GENERAL_STARTERS = [
-  "why the Wilson lower bound instead of accuracy",
-  "what stops the LLM from raising a limit on its own",
-  "where ground truth comes from in production",
+interface PageHelp {
+  label: string;
+  starters: string[];
+}
+
+/**
+ * Header label and suggested questions for each page. Display only — the
+ * backend decides which guide a route gets (backend/app/services/page_guides.py),
+ * so a route missing here still gets a real answer, just the fallback below.
+ * The agent detail label is the agent's own name, filled in at render time.
+ */
+const PAGE_HELP: { pattern: RegExp; help: PageHelp }[] = [
+  {
+    pattern: /^\/$/,
+    help: {
+      label: "Welcome",
+      starters: [
+        "what does this system do",
+        "why use the Wilson lower bound instead of accuracy",
+        "how do I get to the live dashboard",
+      ],
+    },
+  },
+  {
+    pattern: /^\/agents$/,
+    help: {
+      label: "Agents",
+      starters: [
+        "what does this page show",
+        "what does requires attention mean",
+        "how does an agent move up a rung",
+      ],
+    },
+  },
+  {
+    pattern: /^\/agents\/[^/]+$/,
+    help: {
+      label: "Agent",
+      starters: [
+        "why is this agent not eligible for an increase",
+        "what would it take to reach the next rung",
+        "explain this agent's most recent clawback",
+      ],
+    },
+  },
+  {
+    pattern: /^\/approvals$/,
+    help: {
+      label: "Approvals",
+      starters: [
+        "how do I approve a recommendation",
+        "what does dissent mean",
+        "what does clamped mean",
+      ],
+    },
+  },
+  {
+    pattern: /^\/audit$/,
+    help: {
+      label: "Audit Trail",
+      starters: [
+        "what does the hash chain prove",
+        "how do I inspect an entry",
+        "what should I do if the chain shows broken",
+      ],
+    },
+  },
+  {
+    pattern: /^\/simulation$/,
+    help: {
+      label: "Simulation",
+      starters: [
+        "how do I run a simulation",
+        "how do I trigger a clawback",
+        "what do the three phases do",
+      ],
+    },
+  },
+  {
+    pattern: /^\/demo$/,
+    help: {
+      label: "Demo Console",
+      starters: [
+        "how do I run the demo",
+        "what is the difference between live and replay",
+        "why did beat 4 not give an increase",
+      ],
+    },
+  },
 ];
 
-const AGENT_STARTERS = [
-  "why is this agent not eligible for an increase",
-  "what would it take to reach the next rung",
-  "explain this agent's most recent clawback",
-];
+const FALLBACK_HELP: PageHelp = {
+  label: "System-wide",
+  starters: [
+    "what does this system do",
+    "why use the Wilson lower bound instead of accuracy",
+    "what stops the AI from raising a limit on its own",
+  ],
+};
+
+function helpFor(pathname: string): PageHelp {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return PAGE_HELP.find(p => p.pattern.test(path))?.help ?? FALLBACK_HELP;
+}
 
 /** `/agents/:id` only — not the list page, and not a nested route under it. */
 function agentIdFromPath(pathname: string): string | null {
@@ -71,6 +165,7 @@ export function AssistantPanel() {
   const pathname = usePathname() ?? "";
   const agentId = agentIdFromPath(pathname);
   const isAgentScope = agentId !== null;
+  const help = helpFor(pathname);
 
   // Shares the query cache with the agent detail page (same queryKey) — opening
   // the panel there costs no extra request.
@@ -87,7 +182,9 @@ export function AssistantPanel() {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const scopeKey = agentId ?? "__general__";
+  // The route itself: a new page is a new conversation, and an agent's id is
+  // part of its route, so moving between agents resets too.
+  const scopeKey = pathname;
   const prevScopeKey = useRef(scopeKey);
   useEffect(() => {
     if (prevScopeKey.current !== scopeKey) {
@@ -114,7 +211,7 @@ export function AssistantPanel() {
     setError(null);
     setLoading(true);
     try {
-      const res = await assistantApi.chat({ messages: history, agent_id: agentId });
+      const res = await assistantApi.chat({ messages: history, agent_id: agentId, page: pathname });
       setMessages(prev => [...prev, { role: "assistant", content: res.reply, sources: res.sources }]);
     } catch (err) {
       setError(friendlyError(err));
@@ -123,8 +220,8 @@ export function AssistantPanel() {
     }
   }
 
-  const starters = isAgentScope ? AGENT_STARTERS : GENERAL_STARTERS;
-  const scopeLabel = isAgentScope ? agent?.name ?? agentId : "System-wide";
+  const starters = help.starters;
+  const scopeLabel = isAgentScope ? agent?.name ?? agentId : help.label;
 
   return (
     <>
@@ -139,7 +236,7 @@ export function AssistantPanel() {
         className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-[#86BC25] hover:bg-[#72a31d] text-white text-xs font-bold shadow-lg transition-colors"
       >
         <IconAssistant className="w-4 h-4" />
-        <span>{isAgentScope ? "Ask about this agent" : "Ask the assistant"}</span>
+        <span>{isAgentScope ? "Ask about this agent" : "Ask about this page"}</span>
       </button>
 
       {open && (

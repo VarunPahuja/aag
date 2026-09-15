@@ -388,13 +388,17 @@ export interface AssistantMessage {
   content: string;
 }
 
-/** `agent_id` omitted (or null) is the general scope; present, the agent-scoped one. */
+/**
+ * `agent_id` omitted (or null) is the general scope; present, the agent-scoped one.
+ * `page` is the current route — the backend answers from that page's guide.
+ */
 export interface AssistantChatRequest {
   messages: AssistantMessage[];
   agent_id?: string | null;
+  page?: string | null;
 }
 
-/** One documentation citation — a doc name and the heading within it. */
+/** One citation — `doc` is "Page guide", `section` the guide's title. */
 export interface AssistantSource {
   doc: string;
   section: string;

@@ -175,7 +175,8 @@ export interface paths {
          * @description The complete hash-chained event log, newest first. Read-only —
          *     nothing in this API ever mutates an existing row (that's the point).
          *
-         *     Recomputes the whole chain from `GENESIS_HASH` on every call —
+         *     Recomputes the whole chain from `GENESIS_HASH` on every call, in
+         *     `log_seq` order —
          *     `audit_log` is small enough in this system for that to be cheap — and
          *     reports the result as `chain_valid`/`chain_verified_scope` rather than
          *     just asserting immutability in a docstring. If the table ever grows
@@ -618,12 +619,19 @@ export interface components {
          * @description `agent_id` absent (or `null`) is the general scope; present, it is the
          *     agent-scoped conversation — see `app/api/v1/assistant.py` for what each
          *     scope fetches.
+         *
+         *     `page` is the route the user is looking at (e.g. `/approvals`,
+         *     `/agents/agent-01`). It only selects which page guide the assistant reads
+         *     (`app/services/page_guides.py`); the string itself never reaches the model,
+         *     and an unknown route falls back to the system overview alone.
          */
         AssistantChatRequest: {
             /** Agent Id */
             agent_id?: string | null;
             /** Messages */
             messages: components["schemas"]["AssistantMessage"][];
+            /** Page */
+            page?: string | null;
         };
         /** AssistantChatResponse */
         AssistantChatResponse: {
@@ -644,10 +652,9 @@ export interface components {
         };
         /**
          * AssistantSource
-         * @description One documentation citation: a doc name (e.g. `"ADR-0006"`) and the
-         *     heading within it the excerpt came from. Mirrors `app.services.doc_index.
-         *     DocChunk`'s two identifying fields — see that module for why this is a
-         *     stub search today, swapped for `vc/assistant-retrieval`'s real index later.
+         * @description One citation: a guide the reply was grounded in. `doc` is `"Page guide"`
+         *     and `section` is that guide's title (e.g. `"Approvals"`) — see
+         *     `app/services/page_guides.py`.
          */
         AssistantSource: {
             /** Doc */
