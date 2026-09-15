@@ -33,16 +33,9 @@ from sqlalchemy.orm import Session
 from app.models import Agent, AuditLogEntry, Decision, Invoice, PolicyVersion
 from app.models import Recommendation as RecommendationRow
 from app.models import TrustEvaluation as TrustEvaluationRow
-from app.services.doc_index import DocChunk, search
+from app.services.page_guides import OVERVIEW, PageGuide, guides_for_route
 from app.services.trust import agent_context, load_decision_records
 
-DOC_TOP_K = 5
-# A full ADR section can run past a thousand characters (see e.g. ADR-0006's
-# "Consequences"); five of those plus a whole agent's evidence would make for a
-# needlessly expensive prompt. Trimmed per chunk rather than dropping chunks
-# entirely, so a citation still names the right section even when its full text
-# doesn't fit.
-MAX_CHUNK_CHARS = 800
 TRUST_HISTORY_LIMIT = 6
 POLICY_VERSION_LIMIT = 10
 RECOMMENDATION_LIMIT = 5
@@ -65,6 +58,14 @@ SYSTEM_PROMPT = """\
 You are the in-app assistant for the Adaptive AI Governance Platform (AAGP) — a \
 help panel, not a control surface.
 
+Your main job is to help the user with the page they are looking at right now: what \
+it is for, what each number, badge and panel on it means, and how to do what they \
+are trying to do — which control to use, in what order, and what will happen when \
+they do. The guide for their current page is provided below under "Page guide"; the \
+"System overview" is background for questions the page guide does not cover. If \
+neither covers a question, say so plainly instead of guessing, and name the page \
+that would help if the overview points to one.
+
 You are strictly read-only. You have no tools, no function calls, and no way to \
 write to a database, generate a recommendation, approve or reject anything, or start \
 a simulation run. If asked to do any of those, say plainly that you cannot, and name \
@@ -86,10 +87,9 @@ was invoice X approved," say directly that no per-invoice rationale is recorded,
 give what *is* knowable: the amount against the limit, the outcome, the policy \
 version in force.
 
-Cite what you use. When a claim rests on the documentation excerpts provided below, \
-name the source inline, e.g. "(ADR-0006)" or "(System Explained, §5)". When a claim \
-rests on the agent evidence provided below, state the numbers directly — there is no \
-document to cite for a live trust score or a recommendation's own reasoning.
+Stay grounded. Describe only controls, fields and pages the guides below actually \
+mention — never invent a button, a setting or a page that is not described there. \
+When a claim rests on the agent evidence provided below, state the numbers directly.
 
 If this conversation is scoped to one agent, every fact under "Agent evidence" below \
 belongs to that agent alone — no other agent's data was fetched for this \
@@ -101,18 +101,19 @@ Be concrete. Answer from the specific numbers and reasoning in front of you, not
 generic statements about AI governance in the abstract."""
 
 
-def build_general_context(question: str) -> tuple[str, list[DocChunk]]:
-    """System-wide context: the architecture preamble plus the doc index's top-k
-    chunks for `question`. No agent data — this is the "ask about the system"
-    scope, and it never touches the database.
+def build_general_context(page: str | None) -> tuple[str, list[PageGuide]]:
+    """System-wide context: the architecture preamble, the guide for the page the
+    user is on (`page` is its route), and the system overview. No agent data —
+    this scope never touches the database.
     """
-    chunks = search(question, k=DOC_TOP_K)
-    context = f"{ARCHITECTURE_PREAMBLE}\n\n## Documentation excerpts\n\n{_render_chunks(chunks)}"
-    return context, chunks
+    guides = guides_for_route(page)
+    return f"{ARCHITECTURE_PREAMBLE}\n\n{_render_guides(guides)}", guides
 
 
-def build_agent_context(db: Session, agent: Agent, question: str) -> tuple[str, list[DocChunk]]:
-    """Agent-scoped context: the same architecture preamble and doc search, plus
+def build_agent_context(
+    db: Session, agent: Agent, page: str | None
+) -> tuple[str, list[PageGuide]]:
+    """Agent-scoped context: the same architecture preamble and page guides, plus
     everything this one agent's evidence supports — fetched by `agent.id` only.
 
     Nothing here loads another agent's row, decisions, evaluations, policy
@@ -120,11 +121,10 @@ def build_agent_context(db: Session, agent: Agent, question: str) -> tuple[str, 
     `agent.id` at the database layer; there is no step where a wider result set
     is fetched and then narrowed in Python or left for the model to filter.
     """
-    chunks = search(question, k=DOC_TOP_K)
+    guides = guides_for_route(page)
     sections = [
         ARCHITECTURE_PREAMBLE,
-        "## Documentation excerpts",
-        _render_chunks(chunks),
+        _render_guides(guides),
         f"## Agent evidence — {agent.id} ({agent.name}) only",
         _render_agent_identity(db, agent),
         _render_current_trust(db, agent.id),
@@ -134,20 +134,22 @@ def build_agent_context(db: Session, agent: Agent, question: str) -> tuple[str, 
         _render_decisions(db, agent.id),
         _render_audit_log(db, agent.id),
     ]
-    return "\n\n".join(sections), chunks
+    return "\n\n".join(sections), guides
 
 
-# --- rendering: docs -----------------------------------------------------------------
+# --- rendering: page guides ----------------------------------------------------------
 
 
-def _render_chunks(chunks: list[DocChunk]) -> str:
-    if not chunks:
-        return "(no matching documentation found for this question)"
+def _render_guides(guides: list[PageGuide]) -> str:
+    """Each guide whole, under the label the system prompt refers to it by. Not
+    trimmed: a guide is a few hundred words written to be read end to end, and
+    cutting one would drop exactly the step a user asked about.
+    """
 
-    def _trim(text: str) -> str:
-        return text if len(text) <= MAX_CHUNK_CHARS else text[:MAX_CHUNK_CHARS] + "…[truncated]"
+    def _label(guide: PageGuide) -> str:
+        return "System overview" if guide.page == OVERVIEW else "Page guide"
 
-    return "\n\n".join(f"### {c.doc} — {c.section}\n{_trim(c.text)}" for c in chunks)
+    return "\n\n".join(f"## {_label(g)}\n\n{g.text}" for g in guides)
 
 
 # --- rendering: agent evidence, one query per section, always filtered by agent_id --

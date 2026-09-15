@@ -130,7 +130,7 @@
         "type": "string"
       },
       "AssistantChatRequest": {
-        "description": "`agent_id` absent (or `null`) is the general scope; present, it is the\nagent-scoped conversation \u2014 see `app/api/v1/assistant.py` for what each\nscope fetches.",
+        "description": "`agent_id` absent (or `null`) is the general scope; present, it is the\nagent-scoped conversation \u2014 see `app/api/v1/assistant.py` for what each\nscope fetches.\n\n`page` is the route the user is looking at (e.g. `/approvals`,\n`/agents/agent-01`). It only selects which page guide the assistant reads\n(`app/services/page_guides.py`); the string itself never reaches the model,\nand an unknown route falls back to the system overview alone.",
         "properties": {
           "agent_id": {
             "anyOf": [
@@ -150,6 +150,18 @@
             "minItems": 1,
             "title": "Messages",
             "type": "array"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
           }
         },
         "required": [
@@ -203,7 +215,7 @@
         "type": "object"
       },
       "AssistantSource": {
-        "description": "One documentation citation: a doc name (e.g. `\"ADR-0006\"`) and the\nheading within it the excerpt came from. Mirrors `app.services.doc_index.\nDocChunk`'s two identifying fields \u2014 see that module for why this is a\nstub search today, swapped for `vc/assistant-retrieval`'s real index later.",
+        "description": "One citation: a guide the reply was grounded in. `doc` is `\"Page guide\"`\nand `section` is that guide's title (e.g. `\"Approvals\"`) \u2014 see\n`app/services/page_guides.py`.",
         "properties": {
           "doc": {
             "title": "Doc",

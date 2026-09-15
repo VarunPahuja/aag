@@ -305,19 +305,19 @@ export const handlers = [
           `₹${agent.current_limit.toLocaleString("en-IN")} at rung ${agent.current_rung}, ` +
           `state ${agent.state}. Question received: "${question}" — this is a mocked ` +
           `reply for frontend development; no other agent's data was fetched.`,
-        sources: [{ doc: "ADR-0004", section: "How this is enforced in code (2026-09-08)" }],
+        sources: [
+          { doc: "Page guide", section: "Agent detail" },
+          { doc: "Page guide", section: "Overview — how the whole system works" },
+        ],
       });
     }
 
     return HttpResponse.json({
       reply:
         `[mock] This is a mocked assistant reply for frontend development. Question ` +
-        `received: "${question}". The real endpoint cites documentation and, in an ` +
-        `agent-scoped conversation, that one agent's evidence.`,
-      sources: [
-        { doc: "System Explained", section: "2. The one sentence that decides every disagreement" },
-        { doc: "ADR-0002", section: "ADR-0002: Wilson score interval over the Wald (normal-approximation) interval" },
-      ],
+        `received on page "${body.page ?? "(none)"}": "${question}". The real endpoint ` +
+        `answers from that page's guide and, on an agent's page, that one agent's evidence.`,
+      sources: [{ doc: "Page guide", section: "Overview — how the whole system works" }],
     });
   }),
 

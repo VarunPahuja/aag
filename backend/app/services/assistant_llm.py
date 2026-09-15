@@ -50,7 +50,10 @@ from governance.prompts.loader import Prompt
 # backend/app/services/assistant_llm.py -> backend/app/data/assistant_recordings/
 RECORDING_DIR = Path(__file__).resolve().parents[1] / "data" / "assistant_recordings"
 
-PROMPT_VERSION = "v1"
+# v2: context switched from doc-search excerpts to page guides (app/services/page_guides.py).
+# Every v1 recording was made from a prompt that no longer exists, so they were deleted
+# rather than left behind for nothing to match.
+PROMPT_VERSION = "v2"
 
 # Assistant defaults to `live`, deliberately the opposite of `GOVERNANCE_MODE`'s
 # `stub` default (governance/governance/modes.py). Governance's default protects an

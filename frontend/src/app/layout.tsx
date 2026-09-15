@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Open_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/ui/Providers";
+import { AssistantPanel } from "@/components/domain/AssistantPanel";
 
 /**
  * Open Sans — primary font for the dashboard.
@@ -41,7 +42,14 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${openSans.variable} ${inter.variable}`}>
       <body className="bg-[#F7F8F6] text-slate-900 antialiased">
-        <Providers>{children}</Providers>
+        {/* The assistant is mounted here, once, so every page gets it — including
+            the landing page and the demo console, which sit outside the
+            (dashboard) route group. It reads the route to know which page it is
+            helping with. */}
+        <Providers>
+          {children}
+          <AssistantPanel />
+        </Providers>
       </body>
     </html>
   );
