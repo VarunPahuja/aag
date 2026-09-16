@@ -25,6 +25,8 @@ import os
 from collections.abc import Callable
 from functools import cache
 
+from governance.llm.azure_openai import PROVIDER as AZURE_OPENAI
+from governance.llm.azure_openai import AzureOpenAIClient
 from governance.llm.base import LLMClient
 from governance.llm.claude import PROVIDER as CLAUDE
 from governance.llm.claude import ClaudeClient
@@ -42,6 +44,9 @@ _BUILDERS: dict[str, Callable[[], LLMClient]] = {
     GEMINI: GeminiClient,
     CLAUDE: ClaudeClient,
     OPENAI: OpenAIClient,
+    # No `generate()` support (see AzureOpenAIClient.generate()), so it is never a sane
+    # GOVERNANCE_PROVIDER default — only meant for GOVERNANCE_PROVIDER_ASSISTANT.
+    AZURE_OPENAI: AzureOpenAIClient,
 }
 
 PROVIDERS: tuple[str, ...] = tuple(_BUILDERS)

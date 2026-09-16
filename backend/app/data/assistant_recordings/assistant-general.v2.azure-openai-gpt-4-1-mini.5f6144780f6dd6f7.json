@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.5f6144780f6dd6f7",
+  "evidence_hash": "5f6144780f6dd6f7",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "7d4380436a78c368",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:42:53+00:00",
+  "response_text": "On the Simulation page, you can run test simulations by feeding a batch of synthetic invoices to a chosen agent under one of three phases (Good, Degraded, or Recovery) and watch how the agent\u2019s earned autonomy responds\u2014building evidence, detecting drift, triggering clawbacks, or recovering. You select the agent, simulation phase, invoice count, and provide a mandatory reason, then launch the simulation and monitor its progress and results (accuracy and Wilson lower bound). The simulation writes real decisions for the agent, updating its evidence and potentially changing its trust score, drift status, and spending limit.",
+  "schema_version": "1"
+}
