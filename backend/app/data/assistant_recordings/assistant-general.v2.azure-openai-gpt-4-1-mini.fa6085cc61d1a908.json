@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.fa6085cc61d1a908",
+  "evidence_hash": "fa6085cc61d1a908",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "8ab9a6163d073458",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:42:37+00:00",
+  "response_text": "On the Approvals page, you can review all governance panel recommendations that require human authorization, especially autonomy increases for agents. You can see how many recommendations are pending, filter them by status (Pending, Approved, Rejected, All), and expand each recommendation row to read detailed opinions from the four governance agents (risk, performance, compliance, audit). If you have admin rights, you can type a mandatory reason and then approve or reject an autonomy increase recommendation. Clawbacks do not appear here for approval because they apply automatically without human intervention.",
+  "schema_version": "1"
+}

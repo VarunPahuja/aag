@@ -61,23 +61,33 @@ POST /api/v1/assistant/chat
 - On `/agents/{id}`, send both `page` and `agent_id`. You get the agent-detail guide plus
   that one agent's evidence, the same as before.
 
-### Provider: Azure `gpt-4.1-mini` (PR #51)
+### Provider: Azure `gpt-4.1-mini` (`governance/governance/llm/azure_openai.py`)
 
-#51 merged into `vp/ci-assistant-lane`, **not into `main`**. To use it:
+Built on `fix/assistant-azure-openai`, replacing the never-merged PR #51. `GOVERNANCE_PROVIDER`
+(the governance panel's default) is untouched — this only wires a fourth provider, and only
+`GOVERNANCE_PROVIDER_ASSISTANT` may select it. `AzureOpenAIClient.generate()` deliberately
+raises `NotImplementedError`: it has no `AgentOpinion`-schema request builder, so a
+`GOVERNANCE_PROVIDER*=azure-openai` on a panel agent fails loudly at the provider rather than
+quietly producing prose that fails to parse two calls later.
 
-1. Rebase `vp/ci-assistant-lane` onto `main`. #50, which it was based on, is already on main,
-   so only the Azure commit is new. If you take the deletions below first, drop the
-   `assistant/` test hunks from that branch rather than resolving them.
-2. Set these in the deployment environment (Render dashboard or `render.yaml`) and in `.env`:
+1. Set these in the deployment environment (Render dashboard or `render.yaml`) and in `.env`:
    ```
    GOVERNANCE_PROVIDER_ASSISTANT=azure-openai
    AZURE_OPENAI_API_KEY=…
-   AZURE_OPENAI_ENDPOINT=https://…/openai/v1/responses
+   AZURE_OPENAI_ENDPOINT=https://<resource>.services.ai.azure.com
    AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
    ASSISTANT_MODE=live
    ```
-3. The chat no longer needs a Gemini key at all. Page guides need no embeddings.
+   `AZURE_OPENAI_ENDPOINT` tolerates a full request URL too (`_resource_root()` strips
+   everything from `/openai/` onward), so pasting the exact URL the Azure portal shows is
+   fine. `AZURE_OPENAI_API_VERSION` is **not read** — the client calls the same
+   `/openai/v1/` OpenAI-compatible surface `openai_client.py` does (verified against this
+   project's own resource: `chat.completions.create` and `responses.create` both answer
+   there), not the older `api-version`-query-param dialect `openai.AzureOpenAI` speaks.
+2. The chat no longer needs a Gemini key at all. Page guides need no embeddings.
    `GEMINI_API_KEY` is still needed by the governance panel if it runs live.
+3. `governance[azure-openai]` is an alias for `governance[openai]` in `pyproject.toml` —
+   same `openai` SDK, no separate install.
 
 ### Modes and recordings
 

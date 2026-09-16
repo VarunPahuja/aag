@@ -88,8 +88,8 @@ def _blocks(*pairs):
 # --------------------------------------------------------------- selection
 
 
-def test_the_three_providers_are_registered():
-    assert PROVIDERS == ("gemini", "claude", "openai")
+def test_the_four_providers_are_registered():
+    assert PROVIDERS == ("gemini", "claude", "openai", "azure-openai")
     assert DEFAULT_PROVIDER == "gemini"
 
 
@@ -129,7 +129,7 @@ def test_the_error_names_the_variable_it_came_from(monkeypatch):
 def test_every_client_satisfies_the_protocol_without_a_key(monkeypatch, provider):
     """Constructing a client must never need a key — stub and cached modes have to run
     end to end with every variable blank."""
-    for var in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+    for var in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
     reset_clients()
 
