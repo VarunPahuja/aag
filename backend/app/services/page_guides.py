@@ -38,6 +38,7 @@ ROUTES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^/audit$"), "audit"),
     (re.compile(r"^/simulation$"), "simulation"),
     (re.compile(r"^/demo$"), "demo"),
+    (re.compile(r"^/ppt$"), "ppt"),
 )
 
 

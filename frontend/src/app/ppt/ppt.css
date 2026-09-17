@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ═══════════════════════════════════════════════════
+   Presentation Viewer — Image-based slides
+   ═══════════════════════════════════════════════════ */
+:root {
+  --ppt-bg: #0d0f0d;
+  --ppt-green: #a3c43a;
+  --ppt-font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+}
+
+/* ── Viewport ─────────────────────────────────────── */
+.ppt-viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: var(--ppt-bg);
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+/* ── Track & Slides ───────────────────────────────── */
+.ppt-track {
+  display: flex;
+  height: 100vh;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.ppt-slide {
+  min-width: 100vw;
+  height: 100vh;
+  position: relative;
+  background: var(--ppt-bg);
+}
+
+/* ── Progress Bar ─────────────────────────────────── */
+.ppt-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--ppt-green);
+  z-index: 100001;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Exit ──────────────────────────────────────────── */
+.ppt-exit-btn {
+  position: fixed;
+  top: 2vh;
+  right: 2vw;
+  z-index: 100002;
+  width: 2.2vw;
+  height: 2.2vw;
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 1.3vw;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, background 0.2s ease;
+  pointer-events: none;
+}
+
+.ppt-viewport:hover .ppt-exit-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ppt-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Controls ─────────────────────────────────────── */
+.ppt-controls {
+  position: fixed;
+  bottom: 2vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  z-index: 100002;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  padding: 0.5vh 1vw;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ppt-viewport:hover .ppt-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ppt-nav-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  width: 2.2vw;
+  height: 2.2vw;
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.ppt-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.ppt-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.ppt-counter {
+  font-family: var(--ppt-font-mono);
+  font-size: 0.75vw;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.12em;
+  min-width: 4vw;
+  text-align: center;
+}
+
+/* ── Hints ────────────────────────────────────────── */
+.ppt-hints {
+  position: fixed;
+  bottom: 0.6vh;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--ppt-font-mono);
+  font-size: 0.55vw;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.08em;
+  z-index: 100002;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.ppt-viewport:hover .ppt-hints {
+  opacity: 1;
+}

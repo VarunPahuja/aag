@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { AutonomyLadder } from "@/components/domain/AutonomyLadder";
 import { OpinionCard } from "@/app/(dashboard)/approvals/page";
 import { IconDemo } from "@/components/ui/Icons";
@@ -212,6 +213,15 @@ export default function DemoConsolePage() {
   return (
     <div>
       <div className="editorial-header">
+        <div className="flex items-center gap-4 text-xs font-bold text-slate-500 mb-4">
+          <Link href="/" className="hover:text-slate-900 transition-colors">
+            ← Home
+          </Link>
+          <span className="text-slate-300">/</span>
+          <Link href="/agents" className="hover:text-slate-900 transition-colors">
+            Dashboard
+          </Link>
+        </div>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <span className="eyebrow-label">PRESENTER MODE</span>
