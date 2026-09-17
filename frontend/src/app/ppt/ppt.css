@@ -46,6 +46,42 @@
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ── Exit ──────────────────────────────────────────── */
+.ppt-exit-btn {
+  position: fixed;
+  top: 2vh;
+  right: 2vw;
+  z-index: 100002;
+  width: 2.2vw;
+  height: 2.2vw;
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 1.3vw;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, background 0.2s ease;
+  pointer-events: none;
+}
+
+.ppt-viewport:hover .ppt-exit-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ppt-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 /* ── Controls ─────────────────────────────────────── */
 .ppt-controls {
   position: fixed;

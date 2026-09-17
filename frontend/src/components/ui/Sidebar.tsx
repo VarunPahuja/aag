@@ -15,14 +15,16 @@ import {
   IconAudit,
   IconSimulation,
   IconDemo,
+  IconPresentation,
 } from "./Icons";
 
 const NAV = [
-  { href: "/agents",     label: "Agents",      Icon: IconAgents,     badgeKey: null },
-  { href: "/approvals",  label: "Approvals",   Icon: IconApprovals,  badgeKey: "approvals" },
-  { href: "/audit",      label: "Audit Trail", Icon: IconAudit,      badgeKey: null },
-  { href: "/simulation", label: "Simulation",  Icon: IconSimulation, badgeKey: null },
-  { href: "/demo",       label: "Demo Console", Icon: IconDemo,      badgeKey: null },
+  { href: "/agents",     label: "Agents",      Icon: IconAgents,       badgeKey: null },
+  { href: "/approvals",  label: "Approvals",   Icon: IconApprovals,    badgeKey: "approvals" },
+  { href: "/audit",      label: "Audit Trail", Icon: IconAudit,        badgeKey: null },
+  { href: "/simulation", label: "Simulation",  Icon: IconSimulation,   badgeKey: null },
+  { href: "/demo",       label: "Demo Console", Icon: IconDemo,        badgeKey: null },
+  { href: "/ppt",        label: "Presentation", Icon: IconPresentation, badgeKey: null },
 ];
 
 export function Sidebar() {
@@ -40,7 +42,7 @@ export function Sidebar() {
     <aside className="w-[240px] min-h-screen bg-white border-r border-[#E2E8F0] flex flex-col justify-between flex-shrink-0 font-sans">
       {/* Top Header & Deloitte Branding */}
       <div>
-        <div className="px-5 py-6 border-b border-[#E2E8F0]">
+        <Link href="/" className="block px-5 py-6 border-b border-[#E2E8F0] hover:bg-slate-50 transition-colors">
           {/* Deloitte logo brand mark */}
           <div className="flex items-baseline gap-1 mb-1.5">
             <span className="text-xl font-black tracking-tight text-black">Deloitte</span>
@@ -53,7 +55,7 @@ export function Sidebar() {
           <p className="text-[9px] font-extrabold text-slate-400 tracking-wider uppercase mt-1.5">
             AI GOVERNANCE PLATFORM
           </p>
-        </div>
+        </Link>
 
         {/* Sidebar Nav Links */}
         <nav className="px-3 py-6 space-y-1">

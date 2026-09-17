@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import "./ppt.css";
 
 const TOTAL_SLIDES = 7;
@@ -94,6 +95,16 @@ export default function PresentationPage() {
         className="ppt-progress"
         style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
       />
+
+      {/* Exit — full-screen viewers have no browser chrome to fall back on */}
+      <Link
+        href="/"
+        className="ppt-exit-btn"
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Exit presentation"
+      >
+        ×
+      </Link>
 
       {/* Slide track */}
       <div
