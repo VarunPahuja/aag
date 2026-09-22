@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.5bee80cba31eeb0d",
+  "evidence_hash": "5bee80cba31eeb0d",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "d9479255f05a3de2",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-18T06:20:19+00:00",
+  "response_text": "It looks like you wrote \"this\" but didn't include a question or context. Could you please clarify what you want to know or do on the Adaptive AI Governance Platform? For example, are you asking about a specific page, a metric, how to interpret a number, or how to perform an action? I'm here to help!",
+  "schema_version": "1"
+}

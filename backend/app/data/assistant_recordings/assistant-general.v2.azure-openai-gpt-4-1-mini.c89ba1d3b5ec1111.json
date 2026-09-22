@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.c89ba1d3b5ec1111",
+  "evidence_hash": "c89ba1d3b5ec1111",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "b3aa81d9218161e3",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:52:09+00:00",
+  "response_text": "The three simulation phases on the Simulation page represent different agent performance scenarios to test earned autonomy:\n\n- **Good**: The agent performs normally with high accuracy, building positive evidence toward an autonomy increase.\n\n- **Degraded**: The agent's performance deliberately drops, triggering the trust engine to detect drift and causing an automatic clawback (reduction) of autonomy.\n\n- **Recovery**: The agent's performance returns to normal, allowing it to rebuild evidence and potentially recommend an autonomy increase again after enough clean decisions.",
+  "schema_version": "1"
+}

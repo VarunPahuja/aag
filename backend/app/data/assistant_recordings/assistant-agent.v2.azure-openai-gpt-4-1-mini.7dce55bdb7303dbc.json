@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.7dce55bdb7303dbc",
+  "evidence_hash": "7dce55bdb7303dbc",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "694396bf6ae392c3",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:50:21+00:00",
+  "response_text": "This agent is named \"Invoice Agent \u2014 Procurement\" with ID agent-01. It is currently in an active state operating at rung 2 of the autonomy ladder, which corresponds to a spending limit of \u20b92,500. The agent has made a total of 3 decisions recently: 2 acted decisions (1 approve, 1 reject) and 1 escalated decision, all matching ground truth with no critical or noncritical errors.\n\nIts current trust score is 51.7, which is below the threshold needed to increase its autonomy. The direction is HOLD, meaning no change in spending limit is recommended now. The Wilson lower bound on accuracy is 0.342, which is the conservative accuracy measure the system uses to decide promotions, not the raw accuracy of 1.0. The agent has no detected drift (drift status NONE), and the score weights were renormalised because some components lack sufficient evidence (e.g., human agreement on escalations is based on only 1 ruled escalation).\n\nThe agent is not eligible for an increase because it has too few acted decisions (only 2), the trust score is below 70, and there is insufficient evidence for human agreement and other components. The reason codes include AGREEMENT_EVIDENCE_INSUFFICIENT, WEIGHTS_RENORMALISED, INSUFFICIENT_SAMPLE, and TRUST_BELOW_THRESHOLD.\n\nHistorically, the agent was promoted from rung 0 to 1 on 2026-08-07 and from rung 1 to 2 on 2026-08-17, both approved by a human admin after evidence cleared all gates. There is a pending recommendation (not yet approved) to increase the limit to \u20b95,000 (rung 3) based on a previous trust score of 82.4 and unanimous panel concurrence, but this increase is currently on hold.\n\nRecent decisions show the agent correctly approved and rejected invoices within its limit and escalated one invoice above its limit for human ruling, which agreed with the agent's escalation decision.\n\nIn summary, this agent is reliably operating at \u20b92,500 limit but currently on hold for further increase due to insufficient recent evidence and trust score below threshold. It has no drift or critical errors and has a clean recent decision record.",
+  "schema_version": "1"
+}

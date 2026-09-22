@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.8a36ce81277c7531",
+  "evidence_hash": "8a36ce81277c7531",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "4f18b77256955e07",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-22T08:02:00+00:00",
+  "response_text": "If the agent is consistently good, it needs at least 30 total decisions to start being considered for an increase, but to actually move up the autonomy ladder it requires at least 100 decisions since its last increase (the cooldown period). After a clawback, it also needs 75 clean decisions before climbing again.\n\nSo in summary:\n- Minimum 30 decisions to be eligible for an increase evaluation.\n- At least 100 decisions since the last increase to actually move up a rung.\n- After a clawback, 75 clean decisions are required before climbing again.\n\nThese thresholds ensure enough statistical evidence to prove reliability with confidence.",
+  "schema_version": "1"
+}

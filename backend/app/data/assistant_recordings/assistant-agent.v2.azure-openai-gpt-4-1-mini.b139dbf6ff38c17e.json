@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.b139dbf6ff38c17e",
+  "evidence_hash": "b139dbf6ff38c17e",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "ff8b6999170cee3c",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-18T06:21:14+00:00",
+  "response_text": "Agent 01 (Invoice Agent \u2014 Procurement) is currently active with a spending limit of \u20b95,000 (rung 3). Its recent evidence shows:\n\n- No drift detected (drift status is NONE).\n- Accuracy is perfect on the small sample so far (2 out of 2 acted decisions correct), but the Wilson lower bound is low (0.342) due to the very small sample size.\n- Trust score is 51.7, which is below the 70 threshold needed for an increase.\n- No critical errors have occurred.\n- The direction is HOLD, meaning the evidence does not currently support increasing autonomy.\n- Reason codes indicate insufficient sample size and insufficient human-ruled escalations to fully score agreement.\n\nIn summary, agent 01 shows no signs of drift or bad performance, but the evidence base is still very small, so the system holds its autonomy steady rather than increasing it. More decisions and ruled escalations are needed to build confidence for a higher trust score and potential increase.",
+  "schema_version": "1"
+}

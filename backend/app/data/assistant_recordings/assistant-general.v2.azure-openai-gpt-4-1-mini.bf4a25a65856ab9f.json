@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.bf4a25a65856ab9f",
+  "evidence_hash": "bf4a25a65856ab9f",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "281e0abd7e558298",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-17T05:30:05+00:00",
+  "response_text": "Yes, this is a very clear and thorough summary of the Adaptive AI Governance Platform (AAGP). It captures the core principles and mechanisms well: the LLM provides reasoning and explanations; the trust engine computes rigorous statistical evidence including Wilson bounds and drift detection; the Policy Engine strictly enforces spending limits; and human authorization is required for any autonomy increase, while clawbacks happen automatically for safety. The fixed five-rung ladder with incremental steps and the emphasis on proven reliability before increasing autonomy are well explained. The overview of agent decisions, trust scoring, drift severity, governance agents, and audit sampling rounds out a comprehensive picture. Overall, this is a good foundational description of how the system works and why it can be trusted.",
+  "schema_version": "1"
+}

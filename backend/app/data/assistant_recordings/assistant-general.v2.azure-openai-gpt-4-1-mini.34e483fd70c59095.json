@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.34e483fd70c59095",
+  "evidence_hash": "34e483fd70c59095",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "02a0c7e0dc7868af",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-17T05:36:03+00:00",
+  "response_text": "The Demo Console page in AAGP is designed specifically as a presenter mode to walk through the full ten-step story of the system using real API calls or replayed recorded data. It shows live, concrete numbers and the actual sequence of events that govern an agent\u2019s autonomy changes, including evidence building, trust evaluation, recommendation generation, human approval, autonomy increase, error injection, drift detection, automatic clawback, and audit verification.\n\nBecause it uses real seed data and the real API in LIVE mode, the demo\u2019s credibility is high as a faithful, transparent illustration of how the system works end-to-end. It does not simulate or guess outcomes but shows actual computed statistics, trust scores, policy versions, and decisions from the backend. The REPLAY mode is a safe fallback that shows a fixed recorded run for reliability.\n\nIn summary, the Demo Console\u2019s credibility comes from its live connection to the real system\u2019s data and logic, making it a trustworthy and accurate demonstration of the Earned Autonomy Engine\u2019s governance process.",
+  "schema_version": "1"
+}

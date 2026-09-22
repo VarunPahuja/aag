@@ -9,6 +9,10 @@ Persistence lands separately (Fri 28 Aug onward).
 
 from __future__ import annotations
 
+from governance.record import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from shared.constants import SCHEMA_VERSION

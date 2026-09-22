@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.567a9852aed7d282",
+  "evidence_hash": "567a9852aed7d282",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "3a86e6f18ddd67c6",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-18T06:20:27+00:00",
+  "response_text": "You are on the landing page, which is an introduction and explanation of the Earned Autonomy Engine. It shows no live data or system status. To see if the system is working with real data, you need to enter the Dashboard by clicking the \"Enter Dashboard\" button or the Dashboard link in the top navigation. The Dashboard and its subpages show live agent data, decisions, trust scores, and autonomy states.\n\nSo, this landing page itself does not show whether the system is working, but you can check the live system status and agent performance on the Dashboard page.",
+  "schema_version": "1"
+}

@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.0ed361ffeb5a4809",
+  "evidence_hash": "0ed361ffeb5a4809",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "1696644973ed571a",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-22T08:00:35+00:00",
+  "response_text": "Hello! You\u2019re on the Adaptive AI Governance Platform, where AI agents earn their autonomy to approve invoices up to fixed spending limits, moving step-by-step on a five-rung ladder from \u20b9500 to \u20b910,000. How can I assist you with the platform today?",
+  "schema_version": "1"
+}

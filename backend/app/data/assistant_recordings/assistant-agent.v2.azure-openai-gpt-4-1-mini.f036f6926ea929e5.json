@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.f036f6926ea929e5",
+  "evidence_hash": "f036f6926ea929e5",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "a76a83c81e72a4df",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-22T08:01:13+00:00",
+  "response_text": "This agent (Invoice Agent \u2014 Facilities) is on probation because it is new and still building up sufficient evidence to prove reliability. It has only made 2 total decisions so far, which is far below the minimum of 30 decisions needed to be considered for an increase or to move off probation. The reason codes also indicate \"INSUFFICIENT_SAMPLE\" and \"AGREEMENT_EVIDENCE_INSUFFICIENT,\" meaning there is not enough data yet to score agreement or trust properly. Probation is the initial state for agents until they accumulate enough decisions and evidence to operate normally.",
+  "schema_version": "1"
+}

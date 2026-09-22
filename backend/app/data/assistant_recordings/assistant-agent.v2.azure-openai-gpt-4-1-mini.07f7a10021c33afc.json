@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.07f7a10021c33afc",
+  "evidence_hash": "07f7a10021c33afc",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "2d32424c2c6d203e",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-22T08:02:36+00:00",
+  "response_text": "No, the limit cannot be increased anyway without following the governance process. Even if you wanted to increase the limit for this agent, a human admin must approve any proposed autonomy increase on the Approvals page. \n\nCurrently, this agent is not eligible for an increase because it has only 2 total decisions (far below the minimum 30), its trust score is below the threshold (40.4 < 70), and there is insufficient evidence to support an increase. The system enforces these rules strictly to ensure safety.\n\nSo to increase the limit, you must first build sufficient evidence (more decisions, higher trust score, no drift), then a recommendation for increase will appear, and finally a human admin must approve it on the Approvals page.",
+  "schema_version": "1"
+}

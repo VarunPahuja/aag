@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.5f03ffb9ed9dc254",
+  "evidence_hash": "5f03ffb9ed9dc254",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "8e6f351aacbc10a7",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-17T05:36:54+00:00",
+  "response_text": "The hash chain on the Audit Trail page is a tamper-evident mechanism that links every audit entry to the previous one by including the previous entry's hash in the current entry's hash. Its use here is to prove the integrity of the audit log: if any past entry were altered, the hashes after it would no longer match, causing the chain to break and the indicator to show \"BROKEN.\" This ensures the audit trail is permanent and cannot be edited or deleted without detection, supporting trustworthy and verifiable records of all decisions and events.",
+  "schema_version": "1"
+}

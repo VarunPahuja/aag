@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.e881ce2bdec7ef95",
+  "evidence_hash": "e881ce2bdec7ef95",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "6fb48cfede3f0ed4",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-18T06:20:11+00:00",
+  "response_text": "It looks like you are asking if \"ts\" is working, but could you please clarify what you mean by \"ts\"? Are you referring to a specific feature, a timestamp, or something else on the Adaptive AI Governance Platform? Let me know so I can assist you better!",
+  "schema_version": "1"
+}

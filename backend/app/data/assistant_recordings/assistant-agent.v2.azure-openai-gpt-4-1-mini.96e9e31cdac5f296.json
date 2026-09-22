@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.96e9e31cdac5f296",
+  "evidence_hash": "96e9e31cdac5f296",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "df7f00b26d437a00",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-18T06:20:49+00:00",
+  "response_text": "I have detailed information only about agent-01 (Invoice Agent \u2014 Procurement) right now. I do not have any data or evidence about agent 2. To get information about agent 2, you would need to navigate to that agent's detail page in the system.",
+  "schema_version": "1"
+}

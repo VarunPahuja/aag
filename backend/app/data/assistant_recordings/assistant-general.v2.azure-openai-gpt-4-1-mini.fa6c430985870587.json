@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.fa6c430985870587",
+  "evidence_hash": "fa6c430985870587",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "4ceb7f5f4da590e5",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:51:32+00:00",
+  "response_text": "I cannot decide whether you should approve a recommendation. To decide, please:\n\n1. Expand the recommendation row to read the four governance agents' opinions, especially any OBJECT.\n2. Consider the rationale and any dissent flagged.\n3. Type your reason in the mandatory box.\n4. Then click APPROVE or REJECT.\n\nRemember, only an admin can approve or reject, and clawbacks never appear here because they apply automatically without human approval.\n\nIf you want, I can help you understand the details of the recommendation and the agents' opinions to assist your decision. Would you like me to do that?",
+  "schema_version": "1"
+}

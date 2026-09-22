@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-general",
+  "cache_key": "assistant-general.v2.azure-openai-gpt-4-1-mini.b3eeb0e5d6668a1b",
+  "evidence_hash": "b3eeb0e5d6668a1b",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "b36ff6be693f8d25",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:49:48+00:00",
+  "response_text": "This project is the Earned Autonomy Engine, an AI governance system that controls how much spending authority AI agents have when approving invoices. It starts agents at a low spending limit (\u20b9500) and uses statistical evidence\u2014like accuracy proven by Wilson lower bounds, drift detection, and a weighted trust score\u2014to decide if they can earn higher limits step-by-step up to \u20b910,000. Humans must approve every increase, while automatic clawbacks reduce authority immediately if performance drops or critical errors occur, ensuring safety by never granting authority without strong evidence and human oversight.",
+  "schema_version": "1"
+}

@@ -1,0 +1,12 @@
+{
+  "agent_name": "assistant-agent",
+  "cache_key": "assistant-agent.v2.azure-openai-gpt-4-1-mini.71cff86b0dfe6e4a",
+  "evidence_hash": "71cff86b0dfe6e4a",
+  "model": "gpt-4.1-mini",
+  "prompt_sha": "56277545b3807910",
+  "prompt_version": "v2",
+  "provider": "azure-openai",
+  "recorded_at": "2026-09-16T16:50:53+00:00",
+  "response_text": "Yes, we can be confident in this summary based on the detailed evidence shown on the agent detail page:\n\n- The agent is active at rung 2 (\u20b92,500 limit) with 3 recent decisions (2 acted, 1 escalated).\n- Trust score is 51.7, below the 70 threshold needed for increase.\n- Wilson lower bound on accuracy is 0.342, reflecting limited sample size, not raw accuracy of 1.0.\n- No drift detected (drift status NONE).\n- Score weights were renormalised due to insufficient evidence in some components.\n- Reason codes explicitly state insufficient sample and trust below threshold.\n- Historical promotions and pending increase recommendation are documented with full governance panel concurrence.\n- Recent decisions align with policy and ground truth, with no critical errors.\n- The system\u2019s rules require 30+ decisions, 100 decisions since last increase, and 75 clean decisions after clawback before increase eligibility, none of which are met yet.\n\nAll these points come directly from the agent\u2019s live evidence and governance records, so the summary is accurate and reliable.",
+  "schema_version": "1"
+}
