@@ -197,7 +197,7 @@ select, input, button {
 /* ============================================================
    RUNG TAGS — five-rung autonomy ladder
    Replaces the three-tier system (low/medium/high).
-   Rung 0 = ₹500 (most muted), Rung 4 = ₹10,000 (full green).
+   Rung 0 = $500 (most muted), Rung 4 = $10,000 (full green).
    ============================================================ */
 
 .rung-tag {

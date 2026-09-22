@@ -19,7 +19,7 @@ import { IconSimulation } from "@/components/ui/Icons";
 import type { AgentOut, SimulationPhase, SimulationRunOut } from "@/types/api";
 
 function fmtLimit(value: number): string {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return `$${value.toLocaleString("en-US")}`;
 }
 
 export default function SimulationPage() {

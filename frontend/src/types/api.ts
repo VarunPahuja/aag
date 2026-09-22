@@ -8,7 +8,7 @@
  *
  * RULES:
  *  - snake_case throughout — matches Python contracts
- *  - Money fields are numbers (INR integer amounts, not strings)
+ *  - Money fields are numbers (USD integer amounts, not strings)
  *  - All optional fields use `| null` not `undefined` (matches JSON null)
  */
 
@@ -45,7 +45,7 @@ export type RunStatus = "pending" | "running" | "completed" | "failed";
 // ===========================================================================
 
 export const SCHEMA_VERSION = "1.1";
-export const CURRENCY = "INR";
+export const CURRENCY = "USD";
 
 /** The five-rung autonomy ladder. Rungs are 0-indexed. */
 export const AUTONOMY_LADDER: readonly number[] = [500, 1000, 2500, 5000, 10000] as const;

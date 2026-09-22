@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import "./ppt.css";
 
-const TOTAL_SLIDES = 7;
+const TOTAL_SLIDES = 3;
 const SLIDE_IMAGES = Array.from({ length: TOTAL_SLIDES }, (_, i) => `/slides/slide-${i + 1}.png`);
 
 /* ═══════════════════════════════════════════════════════════════════

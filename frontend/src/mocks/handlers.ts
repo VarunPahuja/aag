@@ -302,7 +302,7 @@ export const handlers = [
       return HttpResponse.json({
         reply:
           `[mock] Scoped to ${agent.id} (${agent.name}) only. Current limit ` +
-          `₹${agent.current_limit.toLocaleString("en-IN")} at rung ${agent.current_rung}, ` +
+          `$${agent.current_limit.toLocaleString("en-US")} at rung ${agent.current_rung}, ` +
           `state ${agent.state}. Question received: "${question}" — this is a mocked ` +
           `reply for frontend development; no other agent's data was fetched.`,
         sources: [

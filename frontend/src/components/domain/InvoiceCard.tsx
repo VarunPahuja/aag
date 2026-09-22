@@ -23,7 +23,7 @@ interface Props {
 }
 
 function fmtAmount(amount: number): string {
-  return `₹${amount.toLocaleString("en-IN")}`;
+  return `$${amount.toLocaleString("en-US")}`;
 }
 
 export function InvoiceCard({ record }: Props) {

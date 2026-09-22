@@ -112,7 +112,7 @@ function emptySlots(): BeatSlot[] {
 }
 
 function fmtLimit(v: number): string {
-  return `₹${v.toLocaleString("en-IN")}`;
+  return `$${v.toLocaleString("en-US")}`;
 }
 
 function pct(v: number | null | undefined): string {

@@ -3,7 +3,7 @@
  * src/components/domain/AutonomyLadder.tsx
  * -----------------------------------------
  * Five-rung autonomy ladder visualization.
- * Rungs: ₹500 → ₹1,000 → ₹2,500 → ₹5,000 → ₹10,000
+ * Rungs: $500 → $1,000 → $2,500 → $5,000 → $10,000
  */
 
 import { AUTONOMY_LADDER } from "@/types/api";
@@ -16,8 +16,8 @@ interface Props {
 const RUNG_LABELS = ["FLOOR", "RUNG 1", "RUNG 2", "RUNG 3", "MAX"];
 
 function fmtLimit(val: number): string {
-  if (val >= 1000) return `₹${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
-  return `₹${val}`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
+  return `$${val}`;
 }
 
 export function AutonomyLadder({ currentRung, compact = false }: Props) {

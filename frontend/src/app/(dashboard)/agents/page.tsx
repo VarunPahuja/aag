@@ -22,8 +22,8 @@ const STATE_CLASS: Record<AgentState, string> = {
 };
 
 function fmtLimit(val: number): string {
-  if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
-  return `₹${val}`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+  return `$${val}`;
 }
 
 export default function AgentsPage() {
@@ -60,7 +60,7 @@ export default function AgentsPage() {
             <div>
               <span className="eyebrow-label text-[9px] block">TOTAL AUTHORITY</span>
               <span className="text-sm font-black text-slate-900">
-                ₹{totalAuthority.toLocaleString("en-IN")}
+                ${totalAuthority.toLocaleString("en-US")}
               </span>
             </div>
             <div className="w-[1px] h-7 bg-slate-200" />

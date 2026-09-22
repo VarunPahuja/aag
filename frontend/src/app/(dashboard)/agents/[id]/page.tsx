@@ -36,8 +36,8 @@ const STATE_CLASS: Record<AgentState, string> = {
 };
 
 function fmtLimit(val: number): string {
-  if (val >= 1000) return `₹${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
-  return `₹${val.toLocaleString("en-IN")}`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
+  return `$${val.toLocaleString("en-US")}`;
 }
 
 function fmtTime(iso: string): string {
@@ -193,7 +193,7 @@ export default function AgentDetailPage() {
             <div className="flex items-center justify-end gap-2">
               <span className="w-1.5 h-8 bg-[#86BC25] rounded-full inline-block" />
               <p className="text-4xl font-black text-slate-900 tracking-tight">
-                ₹{agent.current_limit.toLocaleString("en-IN")}
+                ${agent.current_limit.toLocaleString("en-US")}
               </p>
             </div>
             <div className="flex items-center justify-end gap-2 mt-1.5">
@@ -484,7 +484,7 @@ export default function AgentDetailPage() {
                         {r.action}
                       </span>
                       <span className="font-mono font-medium text-slate-900 mr-2">{r.invoice_id}</span>
-                      <span className="font-bold text-slate-700">₹{r.amount.toLocaleString("en-IN")}</span>
+                      <span className="font-bold text-slate-700">${r.amount.toLocaleString("en-US")}</span>
                     </div>
                     <div className="flex items-center gap-4 text-slate-500 flex-shrink-0">
                       <span>{time}</span>

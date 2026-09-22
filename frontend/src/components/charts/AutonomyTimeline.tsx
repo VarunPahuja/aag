@@ -48,8 +48,8 @@ function fmtTime(iso: string): string {
 }
 
 function fmtLimit(val: number): string {
-  if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
-  return `₹${val}`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+  return `$${val}`;
 }
 
 interface ChartDataPoint {
@@ -286,7 +286,7 @@ export function AutonomyTimeline({ policyVersions, trustHistory, height = 400 }:
             yAxisId="limit"
             type="stepAfter"
             dataKey="limit"
-            name="Autonomy Limit (INR)"
+            name="Autonomy Limit (USD)"
             stroke="#86BC25"
             fill="#86BC25"
             fillOpacity={0.1}

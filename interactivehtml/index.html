@@ -231,7 +231,7 @@ tr.us td:first-child{font-weight:600}
   <div class="tag">Adaptive AI Governance Platform — Earned Autonomy Engine</div>
   <p class="lede">An enterprise deploys an AI agent to approve invoices. Someone sets its spending limit on day one, and nobody revisits it. We make that limit a variable — continuously repriced by statistical evidence from the agent's own decision history, raised only with human sign-off, and clawed back automatically when performance degrades.</p>
   <div class="rungs" aria-hidden="true">
-    <div class="rung" style="height:22%"><span>₹500</span></div>
+    <div class="rung" style="height:22%"><span>$500</span></div>
     <div class="rung" style="height:38%"><span>1,000</span></div>
     <div class="rung" style="height:56%"><span>2,500</span></div>
     <div class="rung" style="height:76%"><span>5,000</span></div>
@@ -242,8 +242,8 @@ tr.us td:first-child{font-weight:600}
   <div class="meta">
     <div><div class="k">Team</div><div class="v">4 · CheatCodes</div></div>
     <div><div class="k">Submission</div><div class="v">15 September 2026</div></div>
-    <div><div class="k">Tests passing</div><div class="v">654</div></div>
-    <div><div class="k">Cost to build</div><div class="v">₹0 · fully OSS</div></div>
+    <div><div class="k">Tests passing</div><div class="v">1,004</div></div>
+    <div><div class="k">Cost to build</div><div class="v">$0 · fully OSS</div></div>
   </div>
 </section>
 
@@ -304,7 +304,7 @@ tr.us td:first-child{font-weight:600}
 <section id="path-running">
   <div class="eyebrow">Verified live, 2 September 2026</div>
   <h2>The path, running</h2>
-  <p>Every hop in the diagram above, run in order against a real Postgres database, not asserted from a test suite. Agent-01 started this run at rung 2 (₹2,500) and finished it at rung 3 (₹5,000).</p>
+  <p>Every hop in the diagram above, run in order against a real Postgres database, not asserted from a test suite. Agent-01 started this run at rung 2 ($2,500) and finished it at rung 3 ($5,000).</p>
   <table>
     <thead><tr><th style="width:38%">Call</th><th>What happened</th></tr></thead>
     <tbody>
@@ -312,7 +312,7 @@ tr.us td:first-child{font-weight:600}
       <tr><td><code>GET /api/v1/agents/{id}/trust</code></td><td>Wilson bounds computed fresh from the agent's persisted decisions.</td></tr>
       <tr><td><code>POST /api/v1/agents/{id}/recommendations</code></td><td>Four agents opine; the hard ceiling clamps the panel's proposal to what the evidence supports.</td></tr>
       <tr><td><code>POST /api/v1/recommendations/{id}/approve</code></td><td>Writes an approvals row and a new immutable policy version, in the same transaction.</td></tr>
-      <tr><td><code>GET /api/v1/agents/{id}</code></td><td>The limit has moved: ₹2,500 → ₹5,000.</td></tr>
+      <tr><td><code>GET /api/v1/agents/{id}</code></td><td>The limit has moved: $2,500 → $5,000.</td></tr>
       <tr><td><code>GET /api/v1/agents/{id}/policy-versions</code></td><td>The new version is on record, chained to the one it replaced.</td></tr>
       <tr><td><code>GET /api/v1/audit-log</code></td><td><code>chain_valid: true</code>, recomputed from genesis across eight entries.</td></tr>
     </tbody>
@@ -416,7 +416,7 @@ tr.us td:first-child{font-weight:600}
     <div class="chip"><div class="n">Next.js · TypeScript</div><div class="r">Administrator dashboard</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Tailwind · Recharts</div><div class="r">Styling and the confidence-band charts</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Typer · httpx</div><div class="r">Simulator CLI and its HTTP client</div><div class="l">MIT / BSD</div></div>
-    <div class="chip"><div class="n">pytest · Hypothesis</div><div class="r">654 tests including property-based statistics tests</div><div class="l">MIT</div></div>
+    <div class="chip"><div class="n">pytest · Hypothesis</div><div class="r">1,004 tests including property-based statistics and policy tests</div><div class="l">MIT</div></div>
     <div class="chip"><div class="n">Docker Compose</div><div class="r">Reproducible local environment</div><div class="l">Apache 2.0</div></div>
     <div class="chip"><div class="n">GitHub Actions</div><div class="r">CI: lint, tests, API schema freshness check</div><div class="l">Free tier</div></div>
     <div class="chip"><div class="n">JWT · RBAC</div><div class="r">Admin, reviewer, auditor roles</div><div class="l">MIT</div></div>
@@ -438,7 +438,7 @@ tr.us td:first-child{font-weight:600}
   <p>The integration surface is a single HTTP call. An existing agent adds one request before it acts and receives a verdict — no change to the agent's internals, no rewrite, no framework dependency.</p>
   <div class="steps">
     <div class="step"><div class="n"></div><div><h4>Register the agent</h4><p>An administrator creates the agent record and names its decision category. Takes minutes; it is a form, not an integration.</p></div></div>
-    <div class="step"><div class="n"></div><div><h4>Set the floor and the ladder</h4><p>The agent starts in probation at the floor rung — ₹500 — with 100% of its autonomous approvals sampled for post-hoc review. Business owners define the stake bands; this is the workshop step, and the one that needs real subject-matter input.</p></div></div>
+    <div class="step"><div class="n"></div><div><h4>Set the floor and the ladder</h4><p>The agent starts in probation at the floor rung — $500 — with 100% of its autonomous approvals sampled for post-hoc review. Business owners define the stake bands; this is the workshop step, and the one that needs real subject-matter input.</p></div></div>
     <div class="step"><div class="n"></div><div><h4>Add one call to the agent</h4><p><code>POST /api/v1/decisions</code> before it acts. Within limit, it proceeds and the decision is logged. Outside limit, it escalates into the approvals queue the organisation already uses. Nothing else about the agent changes.</p></div></div>
     <div class="step"><div class="n"></div><div><h4>Evidence accumulates</h4><p>Every decision, every human ruling on an escalation, and every sampled review feeds the trust profile. Nothing moves yet — the agent is building a record.</p></div></div>
     <div class="step"><div class="n"></div><div><h4>First recommendation</h4><p>Once the sample size, trust threshold, cooldown, drift and recovery gates all pass, the governance agents produce a recommendation with reasoning. It appears in the approvals queue with the evidence attached.</p></div></div>
@@ -631,7 +631,7 @@ tr.us td:first-child{font-weight:600}
       <div class="fm-summary-block">
         <div><span class="fm-eyebrow" style="font-size:9px">ACTIVE AGENTS</span><span class="fm-summary-num">3</span></div>
         <div class="fm-summary-divider"></div>
-        <div><span class="fm-eyebrow" style="font-size:9px">TOTAL AUTHORITY</span><span class="fm-summary-num">₹21,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">TOTAL AUTHORITY</span><span class="fm-summary-num">$21,000</span></div>
         <div class="fm-summary-divider"></div>
         <div><span class="fm-eyebrow" style="font-size:9px">REQUIRES ATTENTION</span><span class="fm-summary-num fm-warn">2</span></div>
       </div>
@@ -652,13 +652,13 @@ tr.us td:first-child{font-weight:600}
 
       <div class="fm-ladder">
         <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
-        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">$3,000</span><span class="fm-ladder-tier">low</span></div>
       </div>
 
       <div class="fm-metric-strip" style="flex:1;min-width:280px;">
-        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹3,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">$3,000</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">87%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-bad">79%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">320</span></div>
@@ -681,13 +681,13 @@ tr.us td:first-child{font-weight:600}
 
       <div class="fm-ladder">
         <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
-        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">$15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$3,000</span><span class="fm-ladder-tier">low</span></div>
       </div>
 
       <div class="fm-metric-strip" style="flex:1;min-width:280px;">
-        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹15,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">$15,000</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">92%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-good">85%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">580</span></div>
@@ -710,13 +710,13 @@ tr.us td:first-child{font-weight:600}
 
       <div class="fm-ladder">
         <span class="fm-eyebrow" style="font-size:9px">AUTONOMY LADDER</span>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹50,000</span><span class="fm-ladder-tier">high</span></div>
-        <div class="fm-ladder-step"><span class="fm-ladder-amt">₹15,000</span><span class="fm-ladder-tier">medium</span></div>
-        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">₹3,000</span><span class="fm-ladder-tier">low</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$50,000</span><span class="fm-ladder-tier">high</span></div>
+        <div class="fm-ladder-step"><span class="fm-ladder-amt">$15,000</span><span class="fm-ladder-tier">medium</span></div>
+        <div class="fm-ladder-step fm-active"><span class="fm-ladder-amt">$3,000</span><span class="fm-ladder-tier">low</span></div>
       </div>
 
       <div class="fm-metric-strip" style="flex:1;min-width:280px;">
-        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">₹3,000</span></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val">$3,000</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><span class="fm-metric-val">91%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">WILSON LOWER BOUND</span><span class="fm-metric-val fm-bad">83%</span></div>
         <div><span class="fm-eyebrow" style="font-size:9px">DECISIONS</span><span class="fm-metric-val">140</span></div>
@@ -744,7 +744,7 @@ tr.us td:first-child{font-weight:600}
         <span class="fm-eyebrow" style="display:block;margin-bottom:4px;">CURRENT AUTONOMY</span>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
           <span style="width:6px;height:32px;background:#86BC25;border-radius:4px;display:inline-block;"></span>
-          <span style="font-size:32px;font-weight:900;color:#0F172A;letter-spacing:-0.01em;">₹3,000</span>
+          <span style="font-size:32px;font-weight:900;color:#0F172A;letter-spacing:-0.01em;">$3,000</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;">
           <span class="fm-tier-tag">LOW</span>
@@ -752,7 +752,7 @@ tr.us td:first-child{font-weight:600}
             <span style="width:6px;height:6px;border-radius:50%;background:#dc2626;display:inline-block;"></span>AUTONOMY CLAWED BACK
           </span>
         </div>
-        <p style="font-size:11px;color:#64748B;font-weight:500;margin:4px 0 0 0;">from previous limit of ₹15,000 <strong style="color:#b91c1c;">(−80% authority)</strong></p>
+        <p style="font-size:11px;color:#64748B;font-weight:500;margin:4px 0 0 0;">from previous limit of $15,000 <strong style="color:#b91c1c;">(−80% authority)</strong></p>
       </div>
     </div>
   </div>
@@ -791,10 +791,10 @@ tr.us td:first-child{font-weight:600}
 
         <!-- left axis ticks: autonomy limit -->
         <g font-size="10" fill="#64748b">
-          <text x="52" y="323" text-anchor="end">₹0</text>
-          <text x="52" y="307" text-anchor="end">₹3k</text>
-          <text x="52" y="241" text-anchor="end">₹15k</text>
-          <text x="52" y="50" text-anchor="end">₹50k</text>
+          <text x="52" y="323" text-anchor="end">$0</text>
+          <text x="52" y="307" text-anchor="end">$3k</text>
+          <text x="52" y="241" text-anchor="end">$15k</text>
+          <text x="52" y="50" text-anchor="end">$50k</text>
         </g>
         <!-- right axis ticks: percent -->
         <g font-size="10" fill="#64748b">
@@ -819,13 +819,13 @@ tr.us td:first-child{font-weight:600}
 
         <!-- vertical reference lines: promotion / drift / clawback -->
         <line x1="202" y1="20" x2="202" y2="320" stroke="#86BC25" stroke-width="1.5" stroke-dasharray="4 2" />
-        <text x="205" y="30" font-size="9" fill="#5f8914" font-weight="700">PROMOTION (₹3k→₹15k)</text>
+        <text x="205" y="30" font-size="9" fill="#5f8914" font-weight="700">PROMOTION ($3k→$15k)</text>
 
         <line x1="315" y1="20" x2="315" y2="320" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 2" />
         <text x="318" y="42" font-size="9" fill="#dc2626" font-weight="700">DRIFT DETECTED (Shift)</text>
 
         <line x1="428" y1="20" x2="428" y2="320" stroke="#b91c1c" stroke-width="2" stroke-dasharray="2 2" />
-        <text x="322" y="30" font-size="9" fill="#b91c1c" font-weight="700" text-anchor="end">CLAWBACK (₹15k→₹3k)</text>
+        <text x="322" y="30" font-size="9" fill="#b91c1c" font-weight="700" text-anchor="end">CLAWBACK ($15k→$3k)</text>
 
         <!-- rolling accuracy line (near-black, solid) -->
         <polyline points="60,74 88,68 117,80 145,62 173,56 202,50 230,56 258,62 287,68 315,92 343,128 372,158 400,176 428,194 457,200 485,188 513,164 542,140 570,122 598,104 627,92 655,80 683,74 712,68 740,62"
@@ -847,7 +847,7 @@ tr.us td:first-child{font-weight:600}
 
         <!-- legend -->
         <g font-size="11" fill="#334155">
-          <rect x="220" y="358" width="12" height="3" fill="#86BC25" /><text x="236" y="362">Autonomy Limit (INR)</text>
+          <rect x="220" y="358" width="12" height="3" fill="#86BC25" /><text x="236" y="362">Autonomy Limit (USD)</text>
           <line x1="400" y1="360" x2="412" y2="360" stroke="#0f172a" stroke-width="2" /><text x="418" y="362">Rolling Accuracy</text>
           <line x1="560" y1="360" x2="572" y2="360" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4 3" /><text x="578" y="362">Wilson Lower Bound (95%)</text>
         </g>
@@ -871,8 +871,8 @@ tr.us td:first-child{font-weight:600}
         <div class="fm-diag-2x2">
           <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">THRESHOLD</span><span class="fm-metric-val">85%</span></div>
           <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">OBSERVED WLB</span><span class="fm-metric-val fm-bad">79%</span></div>
-          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">PREVIOUS AUTHORITY</span><span class="fm-metric-val">₹15,000</span></div>
-          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val" style="color:#b91c1c;">₹3,000</span></div>
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">PREVIOUS AUTHORITY</span><span class="fm-metric-val">$15,000</span></div>
+          <div class="fm-diag-cell"><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTHORITY</span><span class="fm-metric-val" style="color:#b91c1c;">$3,000</span></div>
         </div>
         <div style="border-top:1px solid #E2E8F0;padding-top:10px;margin-top:12px;display:flex;justify-content:space-between;font-size:11px;">
           <span style="color:#64748B;font-weight:500;">Governance Action:</span>
@@ -937,8 +937,8 @@ tr.us td:first-child{font-weight:600}
         <div style="position:relative;">
           <span class="fm-timeline-dot" style="background:#dc2626;"></span>
           <span class="fm-timeline-time fm-mono">13:22</span>
-          <p class="fm-timeline-title" style="color:#b91c1c;">Automatic clawback executed → ₹3,000</p>
-          <p class="fm-timeline-desc">Autonomy reduced from ₹15,000 to ₹3,000.</p>
+          <p class="fm-timeline-title" style="color:#b91c1c;">Automatic clawback executed → $3,000</p>
+          <p class="fm-timeline-desc">Autonomy reduced from $15,000 to $3,000.</p>
         </div>
         <div style="position:relative;">
           <span class="fm-timeline-dot" style="background:#f59e0b;"></span>
@@ -955,7 +955,7 @@ tr.us td:first-child{font-weight:600}
         <div style="position:relative;">
           <span class="fm-timeline-dot" style="background:#86BC25;"></span>
           <span class="fm-timeline-time fm-mono">11:42</span>
-          <p class="fm-timeline-title" style="color:#5f8914;">Promotion granted → ₹15,000</p>
+          <p class="fm-timeline-title" style="color:#5f8914;">Promotion granted → $15,000</p>
           <p class="fm-timeline-desc">Sustained performance earned MEDIUM autonomy tier.</p>
         </div>
       </div>
@@ -1062,7 +1062,7 @@ tr.us td:first-child{font-weight:600}
       <div class="fm-approval-top">
         <div class="fm-approval-info">
           <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-002</span>
-          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:900;font-size:14px;">$12,500</span>
           <span style="font-weight:600;color:#334155;">GeminiAgent</span>
           <span style="color:#64748B;">Near autonomy boundary</span>
         </div>
@@ -1079,7 +1079,7 @@ tr.us td:first-child{font-weight:600}
         <button class="fm-escalate-toggle">▲ Hide escalation context</button>
         <div class="fm-escalate-panel">
           <div><span class="fm-eyebrow" style="font-size:9px">CONFIDENCE</span><br><strong>81%</strong></div>
-          <div><span class="fm-eyebrow" style="font-size:9px">AGENT AUTHORITY</span><br><strong>LOW (₹3,000)</strong></div>
+          <div><span class="fm-eyebrow" style="font-size:9px">AGENT AUTHORITY</span><br><strong>LOW ($3,000)</strong></div>
           <div><span class="fm-eyebrow" style="font-size:9px">REASON CODE</span><br><strong style="color:#78350f;">escalate_boundary_amount</strong></div>
         </div>
       </div>
@@ -1090,7 +1090,7 @@ tr.us td:first-child{font-weight:600}
       <div class="fm-approval-top">
         <div class="fm-approval-info">
           <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-006</span>
-          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:900;font-size:14px;">$12,500</span>
           <span style="font-weight:600;color:#334155;">GeminiAgent</span>
           <span style="color:#64748B;">Near autonomy boundary</span>
         </div>
@@ -1113,7 +1113,7 @@ tr.us td:first-child{font-weight:600}
       <div class="fm-approval-top">
         <div class="fm-approval-info">
           <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-007</span>
-          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:900;font-size:14px;">$12,500</span>
           <span style="font-weight:600;color:#334155;">GeminiAgent</span>
           <span style="color:#64748B;">Near autonomy boundary</span>
         </div>
@@ -1130,7 +1130,7 @@ tr.us td:first-child{font-weight:600}
       <div class="fm-approval-top">
         <div class="fm-approval-info">
           <span class="fm-mono" style="font-weight:900;font-size:14px;">inv-008</span>
-          <span style="font-weight:900;font-size:14px;">₹12,500</span>
+          <span style="font-weight:900;font-size:14px;">$12,500</span>
           <span style="font-weight:600;color:#334155;">GeminiAgent</span>
           <span style="color:#64748B;">Near autonomy boundary</span>
         </div>
@@ -1243,7 +1243,7 @@ tr.us td:first-child{font-weight:600}
         <div><span class="fm-eyebrow" style="font-size:9px">ACCURACY</span><br><strong>84%</strong></div>
         <div><span class="fm-eyebrow" style="font-size:9px">ESCALATIONS</span><br><strong style="color:#78350f;">8</strong></div>
         <div><span class="fm-eyebrow" style="font-size:9px">CACHE HITS</span><br><strong>14</strong></div>
-        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTONOMY</span><br><strong style="color:#5f8914;">₹15,000</strong></div>
+        <div><span class="fm-eyebrow" style="font-size:9px">CURRENT AUTONOMY</span><br><strong style="color:#5f8914;">$15,000</strong></div>
       </div>
     </div>
 
@@ -1305,7 +1305,7 @@ tr.us td:first-child{font-weight:600}
   <div class="eyebrow">Status · 2 September 2026</div>
   <h2>Work done and work planned</h2>
   <div class="grid3" style="margin-bottom:8px">
-    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Tests passing</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">654</div><div class="barmeter"><i style="width:100%"></i></div></div>
+    <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Tests passing</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">1,004</div><div class="barmeter"><i style="width:100%"></i></div></div>
     <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">PRs merged, zero open</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">26</div><div class="barmeter"><i style="width:100%"></i></div></div>
     <div class="card" style="margin:8px 0"><div class="k mono" style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-2)">Days to submission</div><div style="font-family:'Archivo';font-size:26px;font-weight:700">13</div><div class="barmeter"><i style="width:26%"></i></div></div>
   </div>

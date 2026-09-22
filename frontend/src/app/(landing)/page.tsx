@@ -132,7 +132,7 @@ export default function LandingPage() {
 
           <h1 className="landing-h1 fade-up" style={{ maxWidth: 800, margin: "0 auto 1.5rem" }}>
             Would you let AI approve a{" "}
-            <span className="text-green-accent">₹10,000</span> invoice on day
+            <span className="text-green-accent">$10,000</span> invoice on day
             one?
             <span className="hero-cursor" />
           </h1>
@@ -168,7 +168,7 @@ export default function LandingPage() {
           </h2>
 
           <p className="landing-body fade-up">
-            An AI approves invoices. It starts at <strong>₹500</strong> alone —
+            An AI approves invoices. It starts at <strong>$500</strong> alone —
             anything larger, it escalates. A statistics engine watches it.
             Enough proof, and the system recommends a rise up a five-rung
             ladder. Four AI governance agents write the case.{" "}
@@ -180,11 +180,11 @@ export default function LandingPage() {
           {/* Five-Rung Ladder Visual */}
           <div className="ladder-container fade-up">
             {[
-              { rung: 0, amount: "₹500", label: "Floor" },
-              { rung: 1, amount: "₹1,000", label: "Rung 1" },
-              { rung: 2, amount: "₹2,500", label: "Rung 2" },
-              { rung: 3, amount: "₹5,000", label: "Rung 3" },
-              { rung: 4, amount: "₹10,000", label: "Ceiling" },
+              { rung: 0, amount: "$500", label: "Floor" },
+              { rung: 1, amount: "$1,000", label: "Rung 1" },
+              { rung: 2, amount: "$2,500", label: "Rung 2" },
+              { rung: 3, amount: "$5,000", label: "Rung 3" },
+              { rung: 4, amount: "$10,000", label: "Ceiling" },
             ].map((step) => (
               <div key={step.rung} className="ladder-rung">
                 <div className="ladder-amount">{step.amount}</div>

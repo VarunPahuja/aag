@@ -40,8 +40,8 @@ const DIRECTION_LABEL: Record<Direction, string> = {
 };
 
 function fmtLimit(val: number): string {
-  if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
-  return `₹${val}`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+  return `$${val}`;
 }
 
 function fmtTimeAgo(iso: string): string {
